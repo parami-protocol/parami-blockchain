@@ -469,6 +469,7 @@ pub fn testnet_genesis(
         vesting: Default::default(),
 
         airdrop: Default::default(),
+        ad: Default::default(),
     }
 }
 

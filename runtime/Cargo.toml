@@ -96,6 +96,7 @@ chainbridge = { path = "../pallets/chainbridge", default-features = false }
 parami-cross-assets = { path = "../pallets/cross-assets", default-features = false }
 parami-assets = { path = "../pallets/assets", default-features = false }
 parami-swap = { path = "../pallets/swap", default-features = false }
+parami-ad = { path = "../pallets/ad", default-features = false }
 
 [build-dependencies]
 substrate-wasm-builder = { version = "4.0.0" }
@@ -171,6 +172,7 @@ std = [
     "orml-nft/std",
     "parami-assets/std",
     "parami-swap/std",
+    "parami-ad/std",
 ]
 runtime-benchmarks = [
     "frame-benchmarking",

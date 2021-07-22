@@ -19,7 +19,7 @@ type BalanceOf<T> =
     <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 // Use 0x34(b'4') as prefix, so you will get a `N-did` after base58encode_check.
-type DidMethodSpecId = [u8; 20];
+pub type DidMethodSpecId = [u8; 20];
 
 pub use self::pallet::*;
 #[frame_support::pallet]

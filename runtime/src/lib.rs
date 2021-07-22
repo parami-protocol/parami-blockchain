@@ -1161,6 +1161,11 @@ impl parami_swap::Config for Runtime {
     type SwapAssetBalance = <Self as parami_assets::Config>::Balance;
 }
 
+impl parami_ad::Config for Runtime {
+    type Event = Event;
+    type Currency = Balances;
+}
+
 construct_runtime!(
     pub enum Runtime where
         Block = Block,
@@ -1212,6 +1217,8 @@ construct_runtime!(
         Swap: parami_swap::{Pallet, Call, Storage, Event<T>},
 
         // OrmlNft: orml_nft::{Pallet, Storage} = 100,
+
+		Ad: parami_ad::{Pallet, Call, Config<T>, Storage, Event<T>},
     }
 );
 

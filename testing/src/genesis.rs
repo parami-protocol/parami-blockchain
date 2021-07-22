@@ -126,5 +126,6 @@ pub fn config_endowed(
         vesting: Default::default(),
 
         airdrop: Default::default(),
+        ad: Default::default(),
     }
 }
