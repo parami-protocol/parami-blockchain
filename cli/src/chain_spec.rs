@@ -33,7 +33,7 @@ use sc_telemetry::TelemetryEndpoints;
 use serde::{Deserialize, Serialize};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_babe::AuthorityId as BabeId;
-use sp_core::{sr25519, ed25519, Pair, Public};
+use sp_core::{ed25519, sr25519, Pair, Public};
 use sp_runtime::{
     traits::{IdentifyAccount, Verify},
     Perbill,
@@ -281,7 +281,8 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 
     let mut genesis = testnet_genesis(initial_authorities, root_key, Some(endowed_accounts));
 
-    let (initial_alloc, _initial_total) =  get_initial_allocation().expect("can not get initial allocation");
+    let (initial_alloc, _initial_total) =
+        get_initial_allocation().expect("can not get initial allocation");
 
     genesis.balances.balances = initial_alloc;
     genesis
@@ -289,11 +290,21 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 
 /// Staging testnet config.
 pub fn staging_testnet_config() -> ChainSpec {
-    let boot_nodes = vec![];
+    let boot_nodes = vec![
+        "/dns/us1.dev.ad3.app/tcp/30333/p2p/12D3KooWMHs1sd41Gk8UmFJjhwn7Pmo58nWNe6pi9Dz2p8DaFDmw"
+            .parse()
+            .unwrap(),
+        "/dns/sg1.dev.ad3.app/tcp/30333/p2p/12D3KooWGVEHNi64iL1VyKqjonsQUMFYrZsVmCHhq2Eq75S5oFS1"
+            .parse()
+            .unwrap(),
+        "/dns/sg2.dev.ad3.app/tcp/30333/p2p/12D3KooWDQY6ExjvaSzT7vjNbPpeKGP7nLvUaEp6iiqPtz21v9yd"
+            .parse()
+            .unwrap(),
+    ];
     let properties = serde_json::from_str(TOKEN_PROPERTIES).unwrap();
     ChainSpec::from_genesis(
-        "Staging Testnet",
-        "staging_testnet",
+        "Parami Dana",
+        "parami_dana",
         ChainType::Live,
         staging_testnet_config_genesis,
         boot_nodes,
