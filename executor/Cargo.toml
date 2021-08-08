@@ -15,7 +15,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 codec = { package = "parity-scale-codec", version = "2.0.0" }
 trie-root = "0.16.0"
 parami-primitives = { version = "2.0.0", path = "../primitives" }
-parami-runtime = { version = "2.0.0", path = "../runtime" }
+parami-runtime = { version = "3.2.0", path = "../runtime" }
 sc-executor = { git = "https://github.com/paritytech/substrate", version = "0.9.0" }
 sp-core = { git = "https://github.com/paritytech/substrate", version = "3.0.0" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", version = "0.9.0" }

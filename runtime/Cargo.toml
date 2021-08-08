@@ -1,6 +1,6 @@
 [package]
 name = "parami-runtime"
-version = "2.0.1"
+version = "3.2.0"
 authors = ["Parami Devs <info@parami.io>"]
 edition = "2018"
 build = "build.rs"

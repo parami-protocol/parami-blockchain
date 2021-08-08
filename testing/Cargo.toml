@@ -50,7 +50,7 @@ sp-blockchain = { git = "https://github.com/paritytech/substrate", version = "3.
 
 parami-executor = { version = "2.0.0", path = "../executor" }
 parami-primitives = { version = "2.0.0", path = "../primitives" }
-parami-runtime = { version = "2.0.0", path = "../runtime" }
+parami-runtime = { version = "3.2.0", path = "../runtime" }
 
 [dev-dependencies]
 criterion = "0.3.0"

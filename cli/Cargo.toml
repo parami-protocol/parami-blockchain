@@ -1,6 +1,6 @@
 [package]
 name = "parami-cli"
-version = "2.0.0"
+version = "3.2.0"
 authors = ["Parami Devs <info@parami.io>"]
 description = "Parami node implementation in Rust."
 build = "build.rs"
@@ -93,7 +93,7 @@ pallet-staking = { git = "https://github.com/paritytech/substrate", version = "3
 pallet-grandpa = { git = "https://github.com/paritytech/substrate", version = "3.1.0" }
 
 # parami-specific dependencies
-parami-runtime = { version = "2.0.0", path = "../runtime" }
+parami-runtime = { version = "3.2.0", path = "../runtime" }
 parami-rpc = { version = "2.0.0", path = "../rpc" }
 parami-primitives = { version = "2.0.0", path = "../primitives" }
 parami-executor = { version = "2.0.0", path = "../executor" }

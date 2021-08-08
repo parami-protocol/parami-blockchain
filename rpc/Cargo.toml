@@ -13,7 +13,8 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 jsonrpc-core = "15.1.0"
 parami-primitives = { version = "2.0.0", path = "../primitives" }
-parami-runtime = { version = "2.0.0", path = "../runtime" }
+parami-runtime = { version = "3.2.0", path = "../runtime" }
+
 pallet-contracts-rpc = { git = "https://github.com/paritytech/substrate", version = "3.0.0" }
 pallet-mmr-rpc = { git = "https://github.com/paritytech/substrate", version = "3.0.0" }
 pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", version = "3.0.0" }
