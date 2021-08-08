@@ -1,8 +1,6 @@
 [workspace]
 resolver = "2"
 members = [
-    "bench",
-    "browser-testing",
     "cli",
     "executor",
     "primitives",
