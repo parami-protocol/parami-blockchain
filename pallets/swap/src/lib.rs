@@ -558,6 +558,7 @@ pub mod pallet {
 
             // UniswapV2Pair.swap
             ensure!(asset_amount_out > 0, Error::<T>::InsufficientOutputAmount);
+            // FIXME: check asset_amount_out > minimum_balance
             ensure!(
                 asset_amount_out < pair.asset_reserve,
                 Error::<T>::InsufficientLiquidity
