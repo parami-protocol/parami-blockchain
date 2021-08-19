@@ -89,7 +89,6 @@ struct Allocation {
     balances: Vec<(String, String)>,
 }
 
-
 // Give each initial participant the allocation,
 fn get_initial_allocation() -> Result<(Vec<(AccountId, Balance)>, Balance), String> {
     use std::fs::File;
@@ -128,7 +127,8 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
     // and
     // for i in 1 2 3 4 ; do for j in session; do subkey --ed25519 inspect "$secret"//fir//$j//$i; done; done
 
-    let (initial_alloc, _initial_total) =  get_initial_allocation().expect("can not get initial allocation");
+    let (initial_alloc, _initial_total) =
+        get_initial_allocation().expect("can not get initial allocation");
 
     let initial_authorities: Vec<(
         AccountId,

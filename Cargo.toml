@@ -13,6 +13,7 @@ members = [
     "pallets/airdrop",
     "pallets/chainbridge",
     "pallets/cross-assets",
+    "pallets/bridge",
     # "pallets/assets",
     # "pallets/swap",
     # "pallets/nft",

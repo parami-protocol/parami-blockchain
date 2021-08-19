@@ -98,7 +98,7 @@ parami-cross-assets = { path = "../pallets/cross-assets", default-features = fal
 # parami-swap = { path = "../pallets/swap", default-features = false }
 
 parami-ad = { path = "../pallets/ad", default-features = false }
-
+parami-bridge = { package = "parami-bridge", path = "../pallets/bridge", default-features = false }
 [build-dependencies]
 substrate-wasm-builder = { version = "4.0.0" }
 
@@ -175,6 +175,7 @@ std = [
     "pallet-assets/std",
     # "parami-swap/std",
     "parami-ad/std",
+    "parami-bridge/std"
 ]
 runtime-benchmarks = [
     "frame-benchmarking",

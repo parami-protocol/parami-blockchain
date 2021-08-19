@@ -90,7 +90,7 @@ impl InstanceFilter<Call> for ProxyType {
 			ProxyType::Any => true,
 			ProxyType::JustTransfer => {
 				matches!(c, Call::Balances(pallet_balances::Call::transfer(..)))
-			},
+			}
 			ProxyType::JustUtility => matches!(c, Call::Utility(..)),
 		}
 	}
