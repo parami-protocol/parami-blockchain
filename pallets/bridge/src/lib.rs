@@ -1,6 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use frame_support::{pallet_prelude::*, traits::Currency, transactional};
+use frame_support::{pallet_prelude::*, traits::{Currency, EnsureOrigin, ExistenceRequirement::KeepAlive, ReservableCurrency},transactional};
 use frame_system::pallet_prelude::*;
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
@@ -58,7 +58,8 @@ type H160 = [u8; 20];
 #[frame_support::pallet]
 pub mod module {
     use super::*;
-
+    use frame_support::pallet_prelude::*;
+    use frame_system::pallet_prelude::*;
     #[pallet::config]
     pub trait Config: frame_system::Config {
         /// The overarching event type.
@@ -66,6 +67,8 @@ pub mod module {
 
         /// The currency trait.
         type Currency: Currency<Self::AccountId>;
+
+        type ConfigOrigin: EnsureOrigin<Self::Origin>;
     }
 
     #[pallet::error]
@@ -77,7 +80,9 @@ pub mod module {
 
         InsufficientBalance,
 
-        InsufficientAdmin
+        InsufficientAdmin,
+
+        TransforFail
     }
 
     #[pallet::event]
@@ -210,10 +215,9 @@ pub mod module {
             let admin = BridgeAdmin::<T>::get();
             ensure!(admin.is_some(), Error::<T>::InsufficientAdmin);
               if  let Some(s)  = admin  {
-                  let res = T::Currency::deposit_into_existing(&s, value);
-                  if res.is_ok() {
-                      Self::deposit_event(Event::Desposit(to_eth_addr, who, value));
-                  }
+               let res=  T::Currency::transfer(&who,&s,value,KeepAlive);
+                  ensure!(res.is_ok(),  Error::<T>::TransforFail);
+                 Self::deposit_event(Event::Desposit(to_eth_addr, who, value));
               }
             Ok((None, Pays::No).into())
         }

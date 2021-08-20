@@ -38,7 +38,7 @@ use frame_support::{
 use frame_support::{traits::InstanceFilter, PalletId};
 use frame_system::{
     limits::{BlockLength, BlockWeights},
-    EnsureOneOf, EnsureRoot,
+    EnsureOneOf, EnsureRoot
 };
 use pallet_contracts::weights::WeightInfo;
 use pallet_election_provider_multi_phase::FallbackStrategy;
@@ -1170,6 +1170,7 @@ impl pallet_mmr::Config for Runtime {
 impl parami_bridge::Config for Runtime {
     type Event = Event;
     type Currency = Balances;
+    type ConfigOrigin = EnsureRootOrHalfCouncil;
 }
 
 /*

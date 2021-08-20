@@ -281,6 +281,9 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
         "5FnaseCGczaTq5xjgyvQLnu9ZFcNzR99KGXZ3A9yDDHp6fHv"
             .parse()
             .unwrap(),
+        "5FHQBHC4c5Fyeo5rnqQBHkynmWNVJzWRYtaGfJgYBp1qLVRv"
+            .parse()
+            .unwrap(),
     ];
 
     let mut genesis = testnet_genesis(initial_authorities, root_key, Some(endowed_accounts));
