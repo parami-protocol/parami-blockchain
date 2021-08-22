@@ -421,7 +421,7 @@ impl parami_airdrop::Config for Runtime {
 }
 
 parameter_types! {
-    pub const MyChainId: u8 = 233;
+    pub const MyChainId: u32 = 233;
     pub const ProposalLifetime: BlockNumber = 50;
 }
 
