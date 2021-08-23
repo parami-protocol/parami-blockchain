@@ -82,8 +82,7 @@ pub mod module {
         NoPermission,
 
         InsufficientBalance,
-
-        TransforFail,
+        
     }
 
     #[pallet::event]
