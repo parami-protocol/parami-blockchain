@@ -1,6 +1,10 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use frame_support::{pallet_prelude::*, traits::{Currency, EnsureOrigin, ExistenceRequirement::KeepAlive, ReservableCurrency},transactional};
+use frame_support::{
+    pallet_prelude::*,
+    traits::{Currency, EnsureOrigin, ExistenceRequirement::KeepAlive},
+    transactional,
+};
 use frame_system::pallet_prelude::*;
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
@@ -54,12 +58,11 @@ pub enum Erc20Event<Balance, AccountId> {
 
 type BalanceOf<T> =
     <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-type H160 = [u8; 20];
 #[frame_support::pallet]
 pub mod module {
     use super::*;
-    use frame_support::pallet_prelude::*;
-    use frame_system::pallet_prelude::*;
+    use frame_support::traits::WithdrawReasons;
+
     #[pallet::config]
     pub trait Config: frame_system::Config {
         /// The overarching event type.
@@ -80,9 +83,7 @@ pub mod module {
 
         InsufficientBalance,
 
-        InsufficientAdmin,
-
-        TransforFail
+        TransforFail,
     }
 
     #[pallet::event]
@@ -200,7 +201,7 @@ pub mod module {
             Ok((None, Pays::No).into())
         }
 
-        #[pallet::weight((100_000, DispatchClass::Operational, Pays::Yes))]
+        #[pallet::weight((100_000, DispatchClass::Operational, Pays::No))]
         #[transactional]
         pub fn desposit(
             origin: OriginFor<T>,
@@ -212,13 +213,10 @@ pub mod module {
                 T::Currency::free_balance(&who) > value,
                 Error::<T>::InsufficientBalance
             );
-            let admin = BridgeAdmin::<T>::get();
-            ensure!(admin.is_some(), Error::<T>::InsufficientAdmin);
-              if  let Some(s)  = admin  {
-               let res=  T::Currency::transfer(&who,&s,value,KeepAlive);
-                  ensure!(res.is_ok(),  Error::<T>::TransforFail);
-                 Self::deposit_event(Event::Desposit(to_eth_addr, who, value));
-              }
+            let _ =
+                T::Currency::withdraw(&who, value, WithdrawReasons::TRANSACTION_PAYMENT, KeepAlive);
+            Self::deposit_event(Event::Desposit(to_eth_addr, who, value));
+
             Ok((None, Pays::No).into())
         }
 

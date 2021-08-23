@@ -38,7 +38,7 @@ use frame_support::{
 use frame_support::{traits::InstanceFilter, PalletId};
 use frame_system::{
     limits::{BlockLength, BlockWeights},
-    EnsureOneOf, EnsureRoot
+    EnsureOneOf, EnsureRoot,
 };
 use pallet_contracts::weights::WeightInfo;
 use pallet_election_provider_multi_phase::FallbackStrategy;
