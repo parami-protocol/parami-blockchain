@@ -201,7 +201,7 @@ pub mod module {
             Ok((None, Pays::No).into())
         }
 
-        #[pallet::weight((100_000, Pays::No))]
+        #[pallet::weight((1_000, DispatchClass::Operational))]
         #[transactional]
         pub fn desposit(
             origin: OriginFor<T>,
