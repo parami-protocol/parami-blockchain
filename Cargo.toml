@@ -8,6 +8,7 @@ members = [
 #    "rpc-client",
     "runtime",
 #    "testing",
+    "pallets/account-linker",
     "pallets/did",
     "pallets/ad",
     "pallets/magic-link",
