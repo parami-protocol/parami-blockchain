@@ -1269,6 +1269,11 @@ impl parami_magic_link::Config for Runtime{
     type Call = Call;
 }
 
+impl parami_account_linker::Config for Runtime {
+    type Event = Event;
+    type WeightInfo = parami_account_linker::weights::SubstrateWeight<Runtime>;
+}
+
 construct_runtime!(
     pub enum Runtime where
         Block = Block,
@@ -1322,7 +1327,8 @@ construct_runtime!(
         Auction: parami_auction::{Pallet, Call, Storage, Event<T>},
         Nft: parami_nft::{Pallet, Call, Storage, Event<T>},
         Ad: parami_ad::{Pallet, Call, Config<T>, Storage, Event<T>},
-        Bridge: parami_bridge::{Pallet, Storage, Call, Event<T>}
+        Bridge: parami_bridge::{Pallet, Storage, Call, Event<T>},
+        AccountLinker: parami_account_linker::{Pallet, Storage, Call, Event<T>}
     }
 );
 

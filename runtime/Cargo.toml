@@ -91,6 +91,7 @@ orml-nft = { path = "../orml/nft", default-features = false }
 orml-auction = { path = "../orml/auction", default-features = false }
 
 # own pallets
+parami-account-linker = { path = "../pallets/account-linker", default-features = false }
 parami-did = { path = "../pallets/did", default-features = false }
 parami-airdrop = { path = "../pallets/airdrop", default-features = false }
 chainbridge = { path = "../pallets/chainbridge", default-features = false }
