@@ -5,13 +5,12 @@ Dana-v3 testnet.
 ## Versions
 
 ```
-rustc 1.54.0 (a178d0322 2021-07-26)
-rustc 1.57.0-nightly (e30b68353 2021-09-05)
+rustc 1.55.0 (32da73ab1 2021-08-23)
+rustc 1.57.0-nightly (41dfaaa3c 2021-10-10)
 
-substrate-parami 3.0.0+monthly-2021-09+1
-substrate 4.0.0-dev+monthly-2021-09+1
+substrate-node-template v3.0.0+monthly-2021-10
+substrate polkadot-v0.9.11
 ```
-
 
 ```bash
 $ rustup toolchain install nightly-2021-09-05

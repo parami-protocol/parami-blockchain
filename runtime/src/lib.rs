@@ -51,8 +51,10 @@ use pallet_grandpa::{
     fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
+#[cfg(any(feature = "std", test))]
+pub use pallet_staking::StakerStatus;
 use pallet_transaction_payment::{CurrencyAdapter, Multiplier, TargetedFeeAdjustment};
-use parami_primitives::{
+pub use parami_primitives::{
     constants::{
         CENTS, DAYS, DOLLARS, EPOCH_DURATION_IN_BLOCKS, EPOCH_DURATION_IN_SLOTS, HOURS, MILLICENTS,
         MILLISECS_PER_BLOCK, MINUTES, PRIMARY_PROBABILITY, SLOT_DURATION,
@@ -69,6 +71,13 @@ pub mod opaque {
 
     pub use sp_runtime::OpaqueExtrinsic as UncheckedExtrinsic;
 
+    /// Opaque block header type.
+    pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
+    /// Opaque block type.
+    pub type Block = generic::Block<Header, UncheckedExtrinsic>;
+    /// Opaque block identifier type.
+    pub type BlockId = generic::BlockId<Block>;
+
     impl_opaque_keys! {
         pub struct SessionKeys {
             pub authority_discovery: AuthorityDiscovery,
@@ -78,6 +87,13 @@ pub mod opaque {
         }
     }
 }
+
+/// The BABE epoch configuration at genesis.
+pub const BABE_GENESIS_EPOCH_CONFIG: sp_consensus_babe::BabeEpochConfiguration =
+    sp_consensus_babe::BabeEpochConfiguration {
+        c: PRIMARY_PROBABILITY,
+        allowed_slots: sp_consensus_babe::AllowedSlots::PrimaryAndSecondaryPlainSlots,
+    };
 
 // To learn more about runtime versioning and what each of the following value means:
 //   https://substrate.dev/docs/en/knowledgebase/runtime/upgrades#runtime-versioning
@@ -1172,7 +1188,7 @@ impl parami_did::Config for Runtime {
 construct_runtime!(
     pub enum Runtime where
         Block = Block,
-        NodeBlock = Block,
+        NodeBlock = opaque::Block,
         UncheckedExtrinsic = UncheckedExtrinsic
     {
         System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
@@ -1246,7 +1262,6 @@ pub type SignedExtra = (
     frame_system::CheckWeight<Runtime>,
     pallet_transaction_payment::ChargeTransactionPayment<Runtime>,
 );
-/// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -1323,10 +1338,10 @@ impl_runtime_apis! {
             sp_consensus_babe::BabeGenesisConfiguration {
                 slot_duration: Babe::slot_duration(),
                 epoch_length: EpochDuration::get(),
-                c: PRIMARY_PROBABILITY,
+                c: BABE_GENESIS_EPOCH_CONFIG.c,
                 genesis_authorities: Babe::authorities().to_vec(),
                 randomness: Babe::randomness(),
-                allowed_slots: sp_consensus_babe::AllowedSlots::PrimaryAndSecondaryPlainSlots,
+                allowed_slots: BABE_GENESIS_EPOCH_CONFIG.allowed_slots,
             }
         }
 
