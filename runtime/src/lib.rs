@@ -1169,6 +1169,91 @@ impl pallet_vesting::Config for Runtime {
     const MAX_VESTING_SCHEDULES: u32 = 28;
 }
 
+impl parami_ad::Config for Runtime {
+    type Event = Event;
+    type Currency = Balances;
+    type ConfigOrigin = EnsureRootOrHalfCouncil;
+}
+
+parameter_types! {
+    pub const AirdropPalletId: PalletId = PalletId(*b"py/adrop");
+}
+
+impl parami_airdrop::Config for Runtime {
+    type PalletId = AirdropPalletId;
+    type Event = Event;
+    type Currency = Balances;
+}
+
+parameter_types! {
+    pub const MinimumAuctionDuration: BlockNumber = 300; // 300 blocks
+    pub const AuctionTimeToClose: u32 = 100800; // Default 100800 Blocks
+    pub const AdsListDuration: u32 = 100800;
+}
+
+impl orml_auction::Config for Runtime {
+    type Event = Event;
+    type Balance = <Self as pallet_assets::Config>::Balance;
+    type AuctionId = u64;
+    type Handler = Auction;
+    type WeightInfo = ();
+}
+
+impl parami_auction::Config for Runtime {
+    type Event = Event;
+    type Currency = Balances;
+    type MinimumAuctionDuration = MinimumAuctionDuration;
+    type Handler = Auction;
+    type AuctionTimeToClose = AuctionTimeToClose;
+    type AdsListDuration = AdsListDuration;
+}
+
+impl parami_bridge::Config for Runtime {
+    type Event = Event;
+    type Currency = Balances;
+    type ConfigOrigin = EnsureRootOrHalfCouncil;
+}
+
+parameter_types! {
+    pub const MyChainId: parami_chainbridge::ChainId = 233;
+    pub const ChainBridgePalletId: PalletId = PalletId(*b"chnbrdge");
+    pub const ProposalLifetime: BlockNumber = 50;
+}
+
+impl parami_chainbridge::Config for Runtime {
+    type Event = Event;
+    type AdminOrigin = frame_system::EnsureRoot<Self::AccountId>;
+    type Proposal = Call;
+    type ChainId = MyChainId;
+    type PalletId = ChainBridgePalletId;
+    type ProposalLifetime = ProposalLifetime;
+    type WeightInfo = parami_chainbridge::weights::SubstrateWeight<Runtime>;
+}
+
+parameter_types! {
+    // NOTE: chain id is 233 for Parami.
+    // NOTE: chain id is 0 for ETH(or testnet).
+    // &blake2_128(b"hash")
+    pub HashId: parami_chainbridge::ResourceId = parami_chainbridge::derive_resource_id(233,
+        b"\x97\xed\xaaiYd8\x13m\xcd\x12\x85S\xe9\x04\xbc\x03\xf5&Bor}'\x0bi\x84\x1f\xb6\xcfP\xd3"
+    );
+    // &blake2_128(b"AD3")
+    // 000000000000000000000000000000c76ebe4a02bbc34786d860b355f5a5ce00
+    // Note: Chain ID is 0 indicating this is native to another chain
+    pub NativeTokenId: parami_chainbridge::ResourceId = parami_chainbridge::derive_resource_id(0,
+        b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xc7n\xbeJ\x02\xbb\xc3G\x86\xd8`\xb3U\xf5\xa5\xce\x00"
+    );
+}
+
+impl parami_xassets::Config for Runtime {
+    type Event = Event;
+    type BridgeOrigin = parami_chainbridge::EnsureBridge<Runtime>;
+    type Currency = Balances;
+    type HashId = HashId;
+    type NativeTokenId = NativeTokenId;
+    type WeightInfo = parami_xassets::weights::SubstrateWeight<Runtime>;
+}
+
 parameter_types! {
     pub const DidDeposit: Balance = 1 * DOLLARS;
 }
@@ -1182,6 +1267,52 @@ impl parami_did::Config for Runtime {
     type Call = Call;
     type Time = Timestamp;
     type WeightInfo = ();
+}
+
+impl parami_linker::Config for Runtime {
+    type Event = Event;
+    type WeightInfo = parami_linker::weights::SubstrateWeight<Runtime>;
+}
+
+impl parami_magic::Config for Runtime {
+    type Event = Event;
+    type Currency = Balances;
+    type ConfigOrigin = EnsureRootOrHalfCouncil;
+    type Call = Call;
+}
+
+parameter_types! {
+    pub const CreateClassDeposit: Balance = 500 * CENTS;
+    pub const CreateAssetDeposit: Balance = 100 * CENTS;
+    pub const MaxClassMetadata: u32 = 100;
+    pub const MaxTokenMetadata: u32 = 100;
+}
+
+impl orml_nft::Config for Runtime {
+    type ClassId = u32;
+    type TokenId = u64;
+    type ClassData = parami_nft::ClassData<Balance>;
+    type TokenData = parami_nft::AssetData<Balance>;
+    type MaxClassMetadata = MaxClassMetadata;
+    type MaxTokenMetadata = MaxTokenMetadata;
+}
+
+impl parami_nft::Config for Runtime {
+    type Event = Event;
+    type CreateClassDeposit = CreateClassDeposit;
+    type CreateAssetDeposit = CreateAssetDeposit;
+    type Currency = Balances;
+    type PalletId = NftPalletId;
+    type AssetsHandler = Auction;
+    type WeightInfo = parami_nft::weights::SubstrateWeight<Runtime>;
+}
+
+impl parami_swap::Config for Runtime {
+    type Event = Event;
+    type Currency = Balances;
+    type NativeBalance = Balance;
+    // avoid name confliction with AssetBalance struct
+    type SwapAssetBalance = <Self as pallet_assets::Config>::Balance;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
@@ -1228,19 +1359,20 @@ construct_runtime!(
         Utility: pallet_utility::{Pallet, Call, Event},
         Vesting: pallet_vesting::{Pallet, Call, Storage, Event<T>, Config<T>},
 
-        // OrmlAuction: orml_auction::{Pallet, Storage, Event<T>},
-        // OrmlNft: orml_nft::{Pallet, Storage} = 100,
+        OrmlAuction: orml_auction::{Pallet, Storage, Event<T>},
+        OrmlNft: orml_nft::{Pallet, Storage} = 100,
 
-        // AccountLinker: parami_account_linker::{Pallet, Storage, Call, Event<T>}
-        // Ad: parami_ad::{Pallet, Call, Config<T>, Storage, Event<T>},
-        // Airdrop: parami_airdrop::{Pallet, Call, Config<T>, Storage, Event<T>},
-        // Auction: parami_auction::{Pallet, Call, Storage, Event<T>},
-        // Bridge: parami_bridge::{Pallet, Storage, Call, Event<T>},
-        // CrossAssets: parami_cross_assets::{Pallet, Call, Event<T>},
+        Ad: parami_ad::{Pallet, Call, Config<T>, Storage, Event<T>},
+        Airdrop: parami_airdrop::{Pallet, Call, Config<T>, Storage, Event<T>},
+        Auction: parami_auction::{Pallet, Call, Storage, Event<T>},
+        Bridge: parami_bridge::{Pallet, Storage, Call, Event<T>},
+        ChainBridge: parami_chainbridge::{Pallet, Storage, Call, Event<T>},
+        XAssets: parami_xassets::{Pallet, Call, Event<T>},
         Did: parami_did::{Pallet, Call, Storage, Event<T>},
-        // Magic: parami_magic_link::{Pallet, Call, Storage,Event<T>},
-        // Nft: parami_nft::{Pallet, Call, Storage, Event<T>},
-        // Swap: parami_swap::{Pallet, Call, Storage, Event<T>},
+        Linker: parami_linker::{Pallet, Storage, Call, Event<T>},
+        Magic: parami_magic::{Pallet, Call, Storage,Event<T>},
+        Nft: parami_nft::{Pallet, Call, Storage, Event<T>},
+        Swap: parami_swap::{Pallet, Call, Storage, Event<T>},
     }
 );
 

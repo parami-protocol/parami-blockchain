@@ -14,30 +14,35 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
+use codec::Codec;
+use frame_support::{
+    dispatch::{DispatchError, DispatchResult, DispatchResultWithPostInfo},
+    ensure,
+    traits::{Currency, ReservableCurrency, Time, UnfilteredDispatchable},
+    weights::GetDispatchInfo,
+};
+use scale_info::TypeInfo;
+use sp_core::sr25519;
+use sp_io::hashing::keccak_256;
+use sp_runtime::{
+    traits::{IdentifyAccount, LookupError, Member, StaticLookup, Verify},
+    MultiAddress,
+};
+use sp_std::prelude::*;
+
+use weights::WeightInfo;
+
+type BalanceOf<T> =
+    <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+
+// Use 0x34(b'4') as prefix, so you will get a `N-did` after base58encode_check.
+pub type DidMethodSpecId = [u8; 20];
+
 #[frame_support::pallet]
 pub mod pallet {
-    pub use super::weights::WeightInfo;
-    use codec::Codec;
-    use frame_support::{
-        pallet_prelude::*,
-        traits::{Currency, ReservableCurrency, Time, UnfilteredDispatchable},
-        weights::GetDispatchInfo,
-    };
+    use super::*;
+    use frame_support::pallet_prelude::*;
     use frame_system::pallet_prelude::*;
-    use scale_info::TypeInfo;
-    use sp_core::sr25519;
-    use sp_io::hashing::keccak_256;
-    use sp_runtime::{
-        traits::{IdentifyAccount, LookupError, Member, StaticLookup, Verify},
-        MultiAddress,
-    };
-    use sp_std::prelude::*;
-
-    type BalanceOf<T> =
-        <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-
-    // Use 0x34(b'4') as prefix, so you will get a `N-did` after base58encode_check.
-    pub type DidMethodSpecId = [u8; 20];
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
@@ -127,7 +132,7 @@ pub mod pallet {
     }
 
     #[pallet::hooks]
-    impl<T: Config> Hooks<T::BlockNumber> for Pallet<T> {}
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
 
     #[pallet::error]
     pub enum Error<T> {
@@ -320,85 +325,85 @@ pub mod pallet {
             Ok(Pays::No.into())
         }
     }
+}
 
-    impl<T: Config> Pallet<T> {
-        pub fn register_did(
-            who: T::AccountId,
-            id: DidMethodSpecId,
-            referrer: Option<DidMethodSpecId>,
-        ) -> Result<(), DispatchError> {
-            if let Some(r) = referrer.as_ref() {
-                ensure!(
-                    <Metadata<T>>::contains_key(r),
-                    Error::<T>::ReferrerNotExists
-                );
-            }
+impl<T: Config> Pallet<T> {
+    pub fn register_did(
+        who: T::AccountId,
+        id: DidMethodSpecId,
+        referrer: Option<DidMethodSpecId>,
+    ) -> Result<(), DispatchError> {
+        if let Some(r) = referrer.as_ref() {
+            ensure!(
+                <Metadata<T>>::contains_key(r),
+                Error::<T>::ReferrerNotExists
+            );
+        }
 
-            Metadata::<T>::try_mutate::<_, _, Error<T>, _>(id, |maybe_value| {
-                ensure!(maybe_value.is_none(), Error::<T>::DidExists);
+        Metadata::<T>::try_mutate::<_, _, Error<T>, _>(id, |maybe_value| {
+            ensure!(maybe_value.is_none(), Error::<T>::DidExists);
 
-                *maybe_value = Some((who.clone(), Default::default(), T::Time::now(), false));
-                Ok(())
-            })?;
-            DidOf::<T>::insert(who.clone(), id);
-            // TODO: handle overflow?
-            TotalDids::<T>::mutate(|v| {
-                *v = Some(v.as_ref().copied().unwrap_or_default() + 1);
-            });
-
-            if let Some(referrer) = referrer {
-                ReferrerOf::<T>::insert(id, referrer);
-                Self::deposit_event(Event::Assigned(id, who, Some(referrer)));
-            } else {
-                Self::deposit_event(Event::Assigned(id, who, None));
-            }
-
+            *maybe_value = Some((who.clone(), Default::default(), T::Time::now(), false));
             Ok(())
+        })?;
+        DidOf::<T>::insert(who.clone(), id);
+        // TODO: handle overflow?
+        TotalDids::<T>::mutate(|v| {
+            *v = Some(v.as_ref().copied().unwrap_or_default() + 1);
+        });
+
+        if let Some(referrer) = referrer {
+            ReferrerOf::<T>::insert(id, referrer);
+            Self::deposit_event(Event::Assigned(id, who, Some(referrer)));
+        } else {
+            Self::deposit_event(Event::Assigned(id, who, None));
         }
 
-        /// Lookup an T::AccountIndex to get an Id, if there's one there.
-        pub fn lookup_index(index: DidMethodSpecId) -> Option<T::AccountId> {
-            Metadata::<T>::get(index).map(|x| x.0)
-        }
+        Ok(())
+    }
 
-        pub fn lookup_account(a: T::AccountId) -> Option<DidMethodSpecId> {
-            DidOf::<T>::get(a)
-        }
+    /// Lookup an T::AccountIndex to get an Id, if there's one there.
+    pub fn lookup_index(index: DidMethodSpecId) -> Option<T::AccountId> {
+        Metadata::<T>::get(index).map(|x| x.0)
+    }
 
-        /// Lookup an address to get an Id, if there's one there.
-        pub fn lookup_address(a: MultiAddress<T::AccountId, ()>) -> Option<T::AccountId> {
-            match a {
-                MultiAddress::Id(i) => Some(i),
-                MultiAddress::Address20(i) => Self::lookup_index(i),
-                _ => None,
-            }
-        }
+    pub fn lookup_account(a: T::AccountId) -> Option<DidMethodSpecId> {
+        DidOf::<T>::get(a)
+    }
 
-        pub fn is_did(a: MultiAddress<T::AccountId, ()>) -> bool {
-            match a {
-                MultiAddress::Address20(_) => true,
-                _ => false,
-            }
-        }
-
-        pub fn is_account_id(a: MultiAddress<T::AccountId, ()>) -> bool {
-            match a {
-                MultiAddress::Id(_) => true,
-                _ => false,
-            }
+    /// Lookup an address to get an Id, if there's one there.
+    pub fn lookup_address(a: MultiAddress<T::AccountId, ()>) -> Option<T::AccountId> {
+        match a {
+            MultiAddress::Id(i) => Some(i),
+            MultiAddress::Address20(i) => Self::lookup_index(i),
+            _ => None,
         }
     }
 
-    impl<T: Config> StaticLookup for Pallet<T> {
-        type Source = MultiAddress<T::AccountId, ()>;
-        type Target = T::AccountId;
-
-        fn lookup(a: Self::Source) -> Result<Self::Target, LookupError> {
-            Self::lookup_address(a).ok_or(LookupError)
+    pub fn is_did(a: MultiAddress<T::AccountId, ()>) -> bool {
+        match a {
+            MultiAddress::Address20(_) => true,
+            _ => false,
         }
+    }
 
-        fn unlookup(a: Self::Target) -> Self::Source {
-            MultiAddress::Id(a)
+    pub fn is_account_id(a: MultiAddress<T::AccountId, ()>) -> bool {
+        match a {
+            MultiAddress::Id(_) => true,
+            _ => false,
         }
+    }
+}
+
+impl<T: Config> StaticLookup for Pallet<T> {
+    type Source = MultiAddress<T::AccountId, ()>;
+    type Target = T::AccountId;
+
+    fn lookup(a: Self::Source) -> Result<Self::Target, LookupError> {
+        Self::lookup_address(a).ok_or(LookupError)
+    }
+
+    fn unlookup(a: Self::Target) -> Self::Source {
+        MultiAddress::Id(a)
     }
 }

@@ -433,8 +433,9 @@ pub fn testnet_genesis(
             max_members: 999,
         },
         vesting: Default::default(),
-        // airdrop: Default::default(),
-        // ad: Default::default(),
+
+        airdrop: Default::default(),
+        ad: Default::default(),
     }
 }
 

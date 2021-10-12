@@ -3,7 +3,7 @@ authors = ['Parami Devs <info@parami.io>']
 edition = '2018'
 homepage = 'https://parami.io'
 license = 'GPL-3.0-only WITH Classpath-exception-2.0'
-name = 'parami-did'
+name = 'parami-ad'
 publish = false
 repository = 'https://github.com/parami-protocol/parami-blockchain/'
 version = '3.0.0'
@@ -11,11 +11,27 @@ version = '3.0.0'
 [package.metadata.docs.rs]
 targets = ['x86_64-unknown-linux-gnu']
 
+[dependencies.parami-primitives]
+default-features = false
+path = '../../primitives'
+
+[dependencies.parami-did]
+default-features = false
+path = '../did'
+
+[dependencies.parami-nft]
+default-features = false
+path = '../nft'
+
 [dependencies.codec]
 default-features = false
-features = ['derive']
+features = ['derive', 'max-encoded-len']
 package = 'parity-scale-codec'
 version = '2.2.0'
+
+[dependencies]
+serde = { version = '1.0', optional = true }
+num-traits = { version = '0.2', default-features = false }
 
 [dependencies.frame-benchmarking]
 default-features = false
@@ -29,6 +45,36 @@ git = 'https://github.com/paritytech/substrate.git'
 branch = 'polkadot-v0.9.11'
 
 [dependencies.frame-system]
+default-features = false
+git = 'https://github.com/paritytech/substrate.git'
+branch = 'polkadot-v0.9.11'
+
+[dependencies.orml-nft]
+default-features = false
+git = 'https://github.com/open-web3-stack/open-runtime-module-library.git'
+branch = 'v0.9.11'
+
+[dependencies.orml-traits]
+default-features = false
+git = 'https://github.com/open-web3-stack/open-runtime-module-library.git'
+branch = 'v0.9.11'
+
+[dependencies.pallet-assets]
+default-features = false
+git = 'https://github.com/paritytech/substrate.git'
+branch = 'polkadot-v0.9.11'
+
+[dependencies.pallet-balances]
+default-features = false
+git = 'https://github.com/paritytech/substrate.git'
+branch = 'polkadot-v0.9.11'
+
+[dependencies.pallet-staking]
+default-features = false
+git = 'https://github.com/paritytech/substrate.git'
+branch = 'polkadot-v0.9.11'
+
+[dependencies.pallet-timestamp]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
 branch = 'polkadot-v0.9.11'
@@ -58,11 +104,23 @@ default-features = false
 git = 'https://github.com/paritytech/substrate.git'
 branch = 'polkadot-v0.9.11'
 
-[dev-dependencies.pallet-balances]
+[dev-dependencies.frame-election-provider-support]
 git = 'https://github.com/paritytech/substrate.git'
 branch = 'polkadot-v0.9.11'
 
-[dev-dependencies.pallet-timestamp]
+[dev-dependencies.pallet-proxy]
+git = 'https://github.com/paritytech/substrate.git'
+branch = 'polkadot-v0.9.11'
+
+[dev-dependencies.pallet-session]
+git = 'https://github.com/paritytech/substrate.git'
+branch = 'polkadot-v0.9.11'
+
+[dev-dependencies.pallet-staking-reward-curve]
+git = 'https://github.com/paritytech/substrate.git'
+branch = 'polkadot-v0.9.11'
+
+[dev-dependencies.pallet-utility]
 git = 'https://github.com/paritytech/substrate.git'
 branch = 'polkadot-v0.9.11'
 
@@ -76,7 +134,17 @@ std = [
     'frame-benchmarking/std',
     'frame-support/std',
     'frame-system/std',
+    'orml-nft/std',
+    'orml-traits/std',
+    'pallet-assets/std',
+    'pallet-balances/std',
+    'pallet-staking/std',
+    'pallet-timestamp/std',
+    'parami-did/std',
+    'parami-nft/std',
+    'parami-primitives/std',
     'scale-info/std',
+    'serde',
     'sp-core/std',
     'sp-io/std',
     'sp-runtime/std',
