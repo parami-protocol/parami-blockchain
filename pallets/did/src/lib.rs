@@ -160,48 +160,17 @@ pub mod pallet {
         #[pallet::weight(T::WeightInfo::register())]
         pub fn register(
             origin: OriginFor<T>,
-            public: T::Public,
             referrer: Option<DidMethodSpecId>,
         ) -> DispatchResultWithPostInfo {
             let who = ensure_signed(origin)?;
             ensure!(!<DidOf<T>>::contains_key(&who), Error::<T>::DidExists);
 
-            let acct = public.clone().into_account();
-            ensure!(who == acct, Error::<T>::NotOwner);
-
-            let hash = keccak_256(public.as_ref());
+            let raw = T::AccountId::encode(&who);
+            let hash = keccak_256(&raw);
             let mut id = [0u8; 20];
             id.copy_from_slice(&hash[12..]);
 
             Self::register_did(who.clone(), id, referrer)?;
-
-            let now_timestamp = T::Time::now();
-            let now_block_number = <frame_system::Pallet<T>>::block_number();
-            <UpdatedBy<T>>::insert(id, (who, now_block_number, now_timestamp));
-
-            Ok(().into())
-        }
-
-        /// Register a new DID for other users.
-        #[pallet::weight(T::WeightInfo::register_for())]
-        pub fn register_for(origin: OriginFor<T>, public: T::Public) -> DispatchResultWithPostInfo {
-            let who = ensure_signed(origin)?;
-
-            let my_id = <DidOf<T>>::get(&who).ok_or(Error::<T>::NotExists)?;
-            let (_account, amount, _when, revoked) =
-                Metadata::<T>::get(my_id).ok_or(Error::<T>::NotExists)?;
-            ensure!(!revoked, Error::<T>::Revoked);
-            ensure!(amount >= T::Deposit::get(), Error::<T>::InsufficientDeposit);
-
-            let acct = public.clone().into_account();
-            // If someone register_for for itself, referrer/empty check won't pass.
-            // ensure!(who != acct, Error::<T>::NotOwner);
-
-            let hash = keccak_256(public.as_ref());
-            let mut id = [0u8; 20];
-            id.copy_from_slice(&hash[12..]);
-
-            Self::register_did(acct, id, Some(my_id))?;
 
             let now_timestamp = T::Time::now();
             let now_block_number = <frame_system::Pallet<T>>::block_number();
@@ -259,70 +228,6 @@ pub mod pallet {
             <UpdatedBy<T>>::insert(id, (who, now_block_number, now_timestamp));
 
             Ok(().into())
-        }
-
-        // change_owner
-        #[pallet::weight(0)]
-        pub fn change_controller(
-            origin: OriginFor<T>,
-            identity: DidMethodSpecId,
-            new_owner: T::AccountId,
-        ) -> DispatchResult {
-            let who = ensure_signed(origin)?;
-            let (owner, _, _, _) = Metadata::<T>::get(identity).ok_or(Error::<T>::NotExists)?;
-
-            ControllerOf::<T>::try_mutate(identity, |maybe_owner| -> DispatchResult {
-                if maybe_owner.is_none() {
-                    ensure!(owner == who, Error::<T>::NotOwner);
-                } else {
-                    ensure!(maybe_owner.as_ref().unwrap() == &who, Error::<T>::NotOwner);
-                }
-
-                *maybe_owner = Some(new_owner.clone());
-                Ok(())
-            })?;
-
-            Self::deposit_event(Event::ControllerChanged(identity, new_owner));
-
-            let now_timestamp = T::Time::now();
-            let now_block_number = <frame_system::Pallet<T>>::block_number();
-            <UpdatedBy<T>>::insert(identity, (who, now_block_number, now_timestamp));
-
-            Ok(().into())
-        }
-
-        #[pallet::weight({
-            let dispatch_info = call.get_dispatch_info();
-            (
-                dispatch_info.weight
-                    .saturating_add(10_000)
-                    // AccountData for inner call origin accountdata.
-                    .saturating_add(T::DbWeight::get().reads_writes(1, 1)),
-                dispatch_info.class,
-            )
-        })]
-        pub fn call(
-            origin: OriginFor<T>,
-            identity: DidMethodSpecId,
-            call: Box<<T as Config>::Call>,
-        ) -> DispatchResultWithPostInfo {
-            // This is a public call, so we ensure that the origin is some signed account.
-            let sender = ensure_signed(origin)?;
-
-            // owner is the mapping account of did
-            let (owner, _, _, _) = Metadata::<T>::get(identity).ok_or(Error::<T>::NotExists)?;
-            // changed owner is the controller account
-            if let Some(changed_owner) = ControllerOf::<T>::get(identity) {
-                ensure!(sender == changed_owner, Error::<T>::NotOwner);
-            } else {
-                ensure!(sender == owner, Error::<T>::NotOwner);
-            }
-
-            let res = call.dispatch_bypass_filter(frame_system::RawOrigin::Signed(owner).into());
-
-            Self::deposit_event(Event::CallDone(res.map(|_| ()).map_err(|e| e.error)));
-
-            Ok(Pays::No.into())
         }
     }
 }
