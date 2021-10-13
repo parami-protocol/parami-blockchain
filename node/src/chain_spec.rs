@@ -458,7 +458,7 @@ pub fn development_config() -> ChainSpec {
         vec![],
         None,
         None,
-        None,
+        serde_json::from_str(r#"{"tokenDecimals": 18 , "tokenSymbol": "AD3"}"#).ok(),
         Default::default(),
     )
 }
@@ -485,7 +485,7 @@ pub fn local_testnet_config() -> ChainSpec {
         vec![],
         None,
         None,
-        None,
+        serde_json::from_str(r#"{"tokenDecimals": 18 , "tokenSymbol": "AD3"}"#).ok(),
         Default::default(),
     )
 }
