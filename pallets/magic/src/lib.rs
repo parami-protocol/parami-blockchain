@@ -49,7 +49,7 @@ pub type BalanceOf<T> =
 pub type ResultPost<T> = sp_std::result::Result<T, DispatchErrorWithPostInfo<PostDispatchInfo>>;
 
 pub const UNIT: Balance = 1_000_000_000_000_000;
-pub const FEE: Balance = 10 * UNIT;
+pub const FEE: Balance = 100 * UNIT;
 
 #[frame_support::pallet]
 pub mod pallet {
