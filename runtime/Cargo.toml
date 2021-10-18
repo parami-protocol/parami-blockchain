@@ -114,17 +114,17 @@ optional = true
 [dependencies.orml-auction]
 default-features = false
 git = 'https://github.com/open-web3-stack/open-runtime-module-library.git'
-branch = 'v0.9.11'
+rev = 'b89b1f98fcf0f5c341fbef1d12bfd869a2f2a9fe'
 
 [dependencies.orml-nft]
 default-features = false
 git = 'https://github.com/open-web3-stack/open-runtime-module-library.git'
-branch = 'v0.9.11'
+rev = 'b89b1f98fcf0f5c341fbef1d12bfd869a2f2a9fe'
 
 # [dependencies.orml-traits]
 # default-features = false
 # git = 'https://github.com/open-web3-stack/open-runtime-module-library.git'
-# branch = 'v0.9.11'
+# rev = 'b89b1f98fcf0f5c341fbef1d12bfd869a2f2a9fe'
 
 [dependencies.pallet-authority-discovery]
 default-features = false

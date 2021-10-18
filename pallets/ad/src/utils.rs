@@ -139,7 +139,7 @@ pub mod test_helper {
         frame_system::Pallet::<T>::assert_last_event(generic_event.into());
     }
 
-    pub fn signer<T: Config>(who: T::AccountId) -> sp_runtime::MultiSigner
+    pub fn signer<T: Config>(who: AccountIdOf<T>) -> sp_runtime::MultiSigner
     where
         T: frame_system::Config<AccountId = sp_runtime::AccountId32>,
     {
@@ -148,7 +148,7 @@ pub mod test_helper {
         ))
     }
 
-    pub fn reserved_balance<T: Config>(who: &T::AccountId) -> BalanceOf<T> {
+    pub fn reserved_balance<T: Config>(who: &AccountIdOf<T>) -> BalanceOf<T> {
         <T as Config>::Currency::reserved_balance(who)
     }
 

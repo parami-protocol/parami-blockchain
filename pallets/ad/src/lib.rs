@@ -38,12 +38,10 @@ use sp_std::vec::Vec;
 use utils::*;
 
 type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
-pub type AdvertiserOf<T> =
-    Advertiser<<T as pallet_timestamp::Config>::Moment, <T as frame_system::Config>::AccountId>;
-pub type AdvertisementOf<T> =
-    Advertisement<<T as pallet_timestamp::Config>::Moment, <T as frame_system::Config>::AccountId>;
-pub type BalanceOf<T> =
-    <<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+type MomentOf<T> = <T as pallet_timestamp::Config>::Moment;
+pub type AdvertiserOf<T> = Advertiser<MomentOf<T>, AccountIdOf<T>>;
+pub type AdvertisementOf<T> = Advertisement<MomentOf<T>, AccountIdOf<T>>;
+pub type BalanceOf<T> = <<T as pallet::Config>::Currency as Currency<AccountIdOf<T>>>::Balance;
 pub type BalanceOfAsset<T> = <T as pallet_assets::Config>::Balance;
 pub type ResultPost<T> = sp_std::result::Result<T, DispatchErrorWithPostInfo<PostDispatchInfo>>;
 
@@ -628,8 +626,8 @@ impl<T: Config> Pallet<T> {
         Ok(did.expect("Must be Some"))
     }
 
-    fn lookup_index(did: DidMethodSpecId) -> ResultPost<<T as frame_system::Config>::AccountId> {
-        let who: Option<T::AccountId> = parami_did::Pallet::<T>::lookup_index(did);
+    fn lookup_index(did: DidMethodSpecId) -> ResultPost<AccountIdOf<T>> {
+        let who: Option<AccountIdOf<T>> = parami_did::Pallet::<T>::lookup_index(did);
         ensure!(who.is_some(), Error::<T>::ObsoletedDID);
         Ok(who.expect("Must be Some"))
     }
