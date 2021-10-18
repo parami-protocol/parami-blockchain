@@ -14,26 +14,15 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-use codec::Codec;
-use frame_support::{
-    dispatch::{DispatchError, DispatchResult, DispatchResultWithPostInfo},
-    ensure,
-    traits::{Currency, ReservableCurrency, Time, UnfilteredDispatchable},
-    weights::GetDispatchInfo,
-};
-use scale_info::TypeInfo;
-use sp_core::sr25519;
+use frame_support::{dispatch::DispatchResultWithPostInfo, ensure, traits::Time};
 use sp_io::hashing::keccak_256;
 use sp_runtime::{
-    traits::{IdentifyAccount, LookupError, Member, StaticLookup, Verify},
+    traits::{LookupError, StaticLookup},
     MultiAddress,
 };
 use sp_std::prelude::*;
 
 use weights::WeightInfo;
-
-type BalanceOf<T> =
-    <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 // Use 0x34(b'4') as prefix, so you will get a `N-did` after base58encode_check.
 pub type DidMethodSpecId = [u8; 20];
@@ -48,26 +37,6 @@ pub mod pallet {
     pub trait Config: frame_system::Config {
         /// The overarching event type.
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
-
-        /// The currency trait.
-        type Currency: ReservableCurrency<Self::AccountId>;
-
-        /// The deposit needed for reserving a did.
-        #[pallet::constant]
-        type Deposit: Get<BalanceOf<Self>>;
-
-        /// The public key type, MultiSigner
-        type Public: IdentifyAccount<AccountId = Self::AccountId>
-            + AsRef<[u8]>
-            + From<sr25519::Public>
-            + Member
-            + Codec
-            + TypeInfo;
-
-        type Signature: Verify<Signer = Self::Public> + Member + Codec;
-
-        /// A sudo-able call.
-        type Call: Parameter + UnfilteredDispatchable<Origin = Self::Origin> + GetDispatchInfo;
 
         type Time: Time;
 
@@ -84,7 +53,7 @@ pub mod pallet {
         _,
         Blake2_128Concat,
         DidMethodSpecId,
-        (T::AccountId, BalanceOf<T>, <T::Time as Time>::Moment, bool),
+        (T::AccountId, <T::Time as Time>::Moment, bool),
     >;
 
     /// The account id of a did.
@@ -113,11 +82,6 @@ pub mod pallet {
         (T::AccountId, T::BlockNumber, <T::Time as Time>::Moment),
     >;
 
-    /// Tracking total dids
-    #[pallet::storage]
-    #[pallet::getter(fn total_dids)]
-    pub(super) type TotalDids<T: Config> = StorageValue<_, u32>;
-
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
@@ -125,8 +89,6 @@ pub mod pallet {
         Assigned(DidMethodSpecId, T::AccountId, Option<DidMethodSpecId>),
         /// A DID has been freed up (unassigned). \[index\]
         Revoked(DidMethodSpecId),
-        /// A Did call is done
-        CallDone(DispatchResult),
         /// Controller is changed, \[did, new_controller\]
         ControllerChanged(DidMethodSpecId, T::AccountId),
     }
@@ -150,8 +112,6 @@ pub mod pallet {
         AccountIdRequired,
         /// Referrer does not exist
         ReferrerNotExists,
-        /// Deposit to low
-        InsufficientDeposit,
     }
 
     #[pallet::call]
@@ -165,37 +125,35 @@ pub mod pallet {
             let who = ensure_signed(origin)?;
             ensure!(!<DidOf<T>>::contains_key(&who), Error::<T>::DidExists);
 
+            if let Some(r) = referrer.as_ref() {
+                ensure!(
+                    <Metadata<T>>::contains_key(r),
+                    Error::<T>::ReferrerNotExists
+                );
+            }
+
             let raw = T::AccountId::encode(&who);
             let hash = keccak_256(&raw);
-            let mut id = [0u8; 20];
-            id.copy_from_slice(&hash[12..]);
+            let mut id: DidMethodSpecId = [0u8; 20];
+            id.copy_from_slice(&hash[..20]);
 
-            Self::register_did(who.clone(), id, referrer)?;
+            Metadata::<T>::try_mutate::<_, _, Error<T>, _>(id, |maybe_value| {
+                ensure!(maybe_value.is_none(), Error::<T>::DidExists);
+
+                *maybe_value = Some((who.clone(), T::Time::now(), false));
+                Ok(())
+            })?;
+            DidOf::<T>::insert(who.clone(), id);
+            if let Some(referrer) = referrer {
+                ReferrerOf::<T>::insert(id, referrer);
+                Self::deposit_event(Event::Assigned(id, who.clone(), Some(referrer)));
+            } else {
+                Self::deposit_event(Event::Assigned(id, who.clone(), None));
+            }
 
             let now_timestamp = T::Time::now();
             let now_block_number = <frame_system::Pallet<T>>::block_number();
             <UpdatedBy<T>>::insert(id, (who, now_block_number, now_timestamp));
-
-            Ok(().into())
-        }
-
-        /// Lock balance.
-        #[pallet::weight(T::WeightInfo::lock())]
-        pub fn lock(
-            origin: OriginFor<T>,
-            #[pallet::compact] amount: BalanceOf<T>,
-        ) -> DispatchResultWithPostInfo {
-            let who = ensure_signed(origin)?;
-
-            ensure!(amount >= T::Deposit::get(), Error::<T>::InsufficientDeposit);
-            let id = <DidOf<T>>::get(&who).ok_or(Error::<T>::NotExists)?;
-            Metadata::<T>::try_mutate(id, |maybe_value| {
-                let (_account, current_amount, _when, revoked) =
-                    maybe_value.as_mut().ok_or(Error::<T>::NotExists)?;
-                ensure!(!(*revoked), Error::<T>::Revoked);
-                *current_amount += amount;
-                T::Currency::reserve(&who, amount)
-            })?;
 
             Ok(().into())
         }
@@ -208,18 +166,13 @@ pub mod pallet {
 
             let id = <DidOf<T>>::get(&who).ok_or(Error::<T>::NotExists)?;
             Metadata::<T>::try_mutate::<_, _, Error<T>, _>(id, |maybe_value| {
-                let (account, amount, _when, revoked) =
-                    maybe_value.take().ok_or(Error::<T>::NotExists)?;
+                let (account, _when, revoked) = maybe_value.take().ok_or(Error::<T>::NotExists)?;
                 ensure!(&account == &who, Error::<T>::NotOwner);
                 ensure!(!revoked, Error::<T>::Revoked);
-                T::Currency::unreserve(&who, amount);
                 // set created timestamp = 0
-                *maybe_value = Some((who.clone(), amount, Default::default(), true));
+                *maybe_value = Some((who.clone(), Default::default(), true));
                 Ok(())
             })?;
-            TotalDids::<T>::mutate(|v| {
-                *v = Some(v.as_ref().copied().unwrap_or_default() - 1);
-            });
 
             Self::deposit_event(Event::<T>::Revoked(id));
 
@@ -233,40 +186,6 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-    pub fn register_did(
-        who: T::AccountId,
-        id: DidMethodSpecId,
-        referrer: Option<DidMethodSpecId>,
-    ) -> Result<(), DispatchError> {
-        if let Some(r) = referrer.as_ref() {
-            ensure!(
-                <Metadata<T>>::contains_key(r),
-                Error::<T>::ReferrerNotExists
-            );
-        }
-
-        Metadata::<T>::try_mutate::<_, _, Error<T>, _>(id, |maybe_value| {
-            ensure!(maybe_value.is_none(), Error::<T>::DidExists);
-
-            *maybe_value = Some((who.clone(), Default::default(), T::Time::now(), false));
-            Ok(())
-        })?;
-        DidOf::<T>::insert(who.clone(), id);
-        // TODO: handle overflow?
-        TotalDids::<T>::mutate(|v| {
-            *v = Some(v.as_ref().copied().unwrap_or_default() + 1);
-        });
-
-        if let Some(referrer) = referrer {
-            ReferrerOf::<T>::insert(id, referrer);
-            Self::deposit_event(Event::Assigned(id, who, Some(referrer)));
-        } else {
-            Self::deposit_event(Event::Assigned(id, who, None));
-        }
-
-        Ok(())
-    }
-
     /// Lookup an T::AccountIndex to get an Id, if there's one there.
     pub fn lookup_index(index: DidMethodSpecId) -> Option<T::AccountId> {
         Metadata::<T>::get(index).map(|x| x.0)

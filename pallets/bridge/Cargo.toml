@@ -33,11 +33,6 @@ default-features = false
 git = 'https://github.com/paritytech/substrate.git'
 branch = 'polkadot-v0.9.11'
 
-[dependencies.pallet-proxy]
-default-features = false
-git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.11'
-
 [dependencies.pallet-timestamp]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
@@ -86,7 +81,6 @@ std = [
     'frame-benchmarking/std',
     'frame-support/std',
     'frame-system/std',
-    'pallet-proxy/std',
     'pallet-timestamp/std',
     'scale-info/std',
     'serde',

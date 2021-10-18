@@ -62,65 +62,6 @@ impl pallet_utility::Config for Runtime {
     type Call = Call;
     type WeightInfo = ();
 }
-parameter_types! {
-    pub const ProxyDepositBase: u64 = 1;
-    pub const ProxyDepositFactor: u64 = 1;
-    pub const MaxProxies: u16 = 4;
-    pub const MaxPending: u32 = 2;
-    pub const AnnouncementDepositBase: u64 = 1;
-    pub const AnnouncementDepositFactor: u64 = 1;
-}
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
-pub enum ProxyType {
-    Any,
-    JustTransfer,
-    JustUtility,
-}
-impl Default for ProxyType {
-    fn default() -> Self {
-        Self::Any
-    }
-}
-impl InstanceFilter<Call> for ProxyType {
-    fn filter(&self, c: &Call) -> bool {
-        match self {
-            ProxyType::Any => true,
-            ProxyType::JustTransfer => {
-                matches!(c, Call::Balances(pallet_balances::Call::transfer(..)))
-            }
-            ProxyType::JustUtility => matches!(c, Call::Utility(..)),
-        }
-    }
-    fn is_superset(&self, o: &Self) -> bool {
-        self == &ProxyType::Any || self == o
-    }
-}
-pub struct BaseFilter;
-impl Filter<Call> for BaseFilter {
-    fn filter(c: &Call) -> bool {
-        match *c {
-            // Remark is used as a no-op call in the benchmarking
-            Call::System(SystemCall::remark(_)) => true,
-            Call::System(_) => false,
-            _ => true,
-        }
-    }
-}
-impl pallet_proxy::Config for Runtime {
-    type Event = Event;
-    type Call = Call;
-    type Currency = Balances;
-    type ProxyType = ProxyType;
-    type ProxyDepositBase = ProxyDepositBase;
-    type ProxyDepositFactor = ProxyDepositFactor;
-    type MaxProxies = MaxProxies;
-    type WeightInfo = ();
-    type CallHasher = BlakeTwo256;
-    type MaxPending = MaxPending;
-    type AnnouncementDepositBase = AnnouncementDepositBase;
-    type AnnouncementDepositFactor = AnnouncementDepositFactor;
-}
-
 impl parami_bridge::Config for Runtime {
     type Event = Event;
     type Currency = Balances;
@@ -139,7 +80,6 @@ construct_runtime!(
     {
         System: frame_system::{Module, Call, Config, Storage, Event<T>},
         Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
-        Proxy: pallet_proxy::{Module, Call, Storage, Event<T>},
         Utility: pallet_utility::{Module, Call, Event},
         Bridge: parami_bridge::{Module, Call, Event<T>},
     }

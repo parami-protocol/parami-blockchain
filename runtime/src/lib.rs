@@ -6,7 +6,7 @@
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-use codec::{Decode, Encode, MaxEncodedLen};
+use codec::{Decode, Encode};
 use sp_api::impl_runtime_apis;
 use sp_core::{
     crypto::KeyTypeId,
@@ -25,7 +25,7 @@ use sp_runtime::{
         SaturatedConversion, StaticLookup, Verify,
     },
     transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
-    ApplyExtrinsicResult, FixedPointNumber, Perbill, Percent, Permill, Perquintill, RuntimeDebug,
+    ApplyExtrinsicResult, FixedPointNumber, Perbill, Percent, Permill, Perquintill,
 };
 use sp_std::prelude::*;
 #[cfg(feature = "std")]
@@ -36,8 +36,8 @@ use frame_election_provider_support::{onchain, ElectionProvider, Supports};
 use frame_support::{
     construct_runtime, parameter_types,
     traits::{
-        Contains, Currency, Imbalance, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
-        OnUnbalanced, U128CurrencyToVote,
+        Contains, Currency, Imbalance, KeyOwnerProofSystem, LockIdentifier, OnUnbalanced,
+        U128CurrencyToVote,
     },
     weights::{
         constants::{BlockExecutionWeight, RocksDbWeight, WEIGHT_PER_SECOND},
@@ -816,90 +816,6 @@ impl pallet_offences::Config for Runtime {
     type OnOffenceHandler = Staking;
 }
 
-parameter_types! {
-    // One storage item; key size 32, value size 8; .
-    pub const ProxyDepositBase: Balance = deposit(1, 8);
-    // Additional storage item size of 33 bytes.
-    pub const ProxyDepositFactor: Balance = deposit(0, 33);
-    pub const MaxProxies: u16 = 32;
-    pub const AnnouncementDepositBase: Balance = deposit(1, 8);
-    pub const AnnouncementDepositFactor: Balance = deposit(0, 66);
-    pub const MaxPending: u16 = 32;
-}
-
-/// The type used to represent the kinds of proxying allowed.
-#[derive(
-    Clone,
-    Copy,
-    Decode,
-    Encode,
-    Eq,
-    MaxEncodedLen,
-    Ord,
-    PartialEq,
-    PartialOrd,
-    RuntimeDebug,
-    scale_info::TypeInfo,
-)]
-pub enum ProxyType {
-    Any,
-    NonTransfer,
-    Governance,
-    Staking,
-}
-
-impl Default for ProxyType {
-    fn default() -> Self {
-        Self::Any
-    }
-}
-
-impl InstanceFilter<Call> for ProxyType {
-    fn filter(&self, c: &Call) -> bool {
-        match self {
-            ProxyType::Any => true,
-            ProxyType::NonTransfer => !matches!(
-                c,
-                Call::Balances(..) | Call::Vesting(pallet_vesting::Call::vested_transfer { .. })
-            ),
-            ProxyType::Governance => matches!(
-                c,
-                Call::Democracy(..)
-                    | Call::Council(..)
-                    | Call::Society(..)
-                    | Call::TechnicalCommittee(..)
-                    | Call::Elections(..)
-                    | Call::Treasury(..)
-            ),
-            ProxyType::Staking => matches!(c, Call::Staking(..)),
-        }
-    }
-    fn is_superset(&self, o: &Self) -> bool {
-        match (self, o) {
-            (x, y) if x == y => true,
-            (ProxyType::Any, _) => true,
-            (_, ProxyType::Any) => false,
-            (ProxyType::NonTransfer, _) => true,
-            _ => false,
-        }
-    }
-}
-
-impl pallet_proxy::Config for Runtime {
-    type Event = Event;
-    type Call = Call;
-    type Currency = Balances;
-    type ProxyType = ProxyType;
-    type ProxyDepositBase = ProxyDepositBase;
-    type ProxyDepositFactor = ProxyDepositFactor;
-    type MaxProxies = MaxProxies;
-    type WeightInfo = pallet_proxy::weights::SubstrateWeight<Runtime>;
-    type MaxPending = MaxPending;
-    type CallHasher = BlakeTwo256;
-    type AnnouncementDepositBase = AnnouncementDepositBase;
-    type AnnouncementDepositFactor = AnnouncementDepositFactor;
-}
-
 impl pallet_randomness_collective_flip::Config for Runtime {}
 
 parameter_types! {
@@ -1259,14 +1175,9 @@ parameter_types! {
 }
 
 impl parami_did::Config for Runtime {
-    type Currency = Balances;
-    type Deposit = DidDeposit;
     type Event = Event;
-    type Public = sp_runtime::MultiSigner;
-    type Signature = Signature;
-    type Call = Call;
     type Time = Timestamp;
-    type WeightInfo = ();
+    type WeightInfo = parami_did::weights::SubstrateWeight<Runtime>;
 }
 
 impl parami_linker::Config for Runtime {
@@ -1342,7 +1253,6 @@ construct_runtime!(
         Mmr: pallet_mmr::{Pallet, Storage},
         Multisig: pallet_multisig::{Pallet, Call, Storage, Event<T>},
         Offences: pallet_offences::{Pallet, Storage, Event},
-        Proxy: pallet_proxy::{Pallet, Call, Storage, Event<T>},
         RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Storage},
         Recovery: pallet_recovery::{Pallet, Call, Storage, Event<T>},
         Scheduler: pallet_scheduler::{Pallet, Call, Storage, Event<T>},
@@ -1696,7 +1606,6 @@ impl_runtime_apis! {
             list_benchmark!(list, extra, pallet_mmr, Mmr);
             list_benchmark!(list, extra, pallet_multisig, Multisig);
             list_benchmark!(list, extra, pallet_offences, OffencesBench::<Runtime>);
-            list_benchmark!(list, extra, pallet_proxy, Proxy);
             list_benchmark!(list, extra, pallet_scheduler, Scheduler);
             list_benchmark!(list, extra, pallet_session, SessionBench::<Runtime>);
             list_benchmark!(list, extra, pallet_society, Society);
@@ -1756,7 +1665,6 @@ impl_runtime_apis! {
             add_benchmark!(params, batches, pallet_mmr, Mmr);
             add_benchmark!(params, batches, pallet_multisig, Multisig);
             add_benchmark!(params, batches, pallet_offences, OffencesBench::<Runtime>);
-            add_benchmark!(params, batches, pallet_proxy, Proxy);
             add_benchmark!(params, batches, pallet_scheduler, Scheduler);
             add_benchmark!(params, batches, pallet_session, SessionBench::<Runtime>);
             add_benchmark!(params, batches, pallet_society, Society);

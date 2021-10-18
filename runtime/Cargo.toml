@@ -232,11 +232,6 @@ git = 'https://github.com/paritytech/substrate.git'
 branch = 'polkadot-v0.9.11'
 optional = true
 
-[dependencies.pallet-proxy]
-default-features = false
-git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.11'
-
 [dependencies.pallet-randomness-collective-flip]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
@@ -429,7 +424,6 @@ runtime-benchmarks = [
     'pallet-multisig/runtime-benchmarks',
     'pallet-offences-benchmarking',
     'pallet-offences/runtime-benchmarks',
-    'pallet-proxy/runtime-benchmarks',
     # 'pallet-randomness-collective-flip/runtime-benchmarks',
     # 'pallet-recovery/runtime-benchmarks',
     'pallet-scheduler/runtime-benchmarks',
@@ -492,7 +486,6 @@ std = [
     'pallet-mmr/std',
     'pallet-multisig/std',
     'pallet-offences/std',
-    'pallet-proxy/std',
     'pallet-randomness-collective-flip/std',
     'pallet-recovery/std',
     'pallet-scheduler/std',
