@@ -26,7 +26,6 @@ use sp_std::prelude::*;
 
 use weights::WeightInfo;
 
-type EthAddress = [u8; 20];
 type Signature = [u8; 65];
 
 #[frame_support::pallet]
@@ -57,7 +56,7 @@ pub mod pallet {
     #[pallet::storage]
     #[pallet::getter(fn eth_addresses)]
     pub(super) type EthereumLink<T: Config> =
-        StorageMap<_, Blake2_128Concat, T::AccountId, Vec<EthAddress>, ValueQuery>;
+        StorageMap<_, Blake2_128Concat, T::AccountId, Vec<Vec<u8>>, ValueQuery>;
 
     #[pallet::storage]
     #[pallet::getter(fn btc_addresses)]
@@ -112,7 +111,7 @@ pub mod pallet {
             origin: OriginFor<T>,
             account: T::AccountId,
             index: u32,
-            address: EthAddress,
+            address: Vec<u8>,
             expiring_block_number: T::BlockNumber,
             sig: Signature,
         ) -> DispatchResultWithPostInfo {

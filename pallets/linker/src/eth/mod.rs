@@ -1,13 +1,13 @@
 use codec::Encode;
 use sp_std::prelude::*;
 
-pub fn address_from_sig(msg: [u8; 32], sig: [u8; 65]) -> Result<[u8; 20], sp_io::EcdsaVerifyError> {
+pub fn address_from_sig(msg: [u8; 32], sig: [u8; 65]) -> Result<Vec<u8>, sp_io::EcdsaVerifyError> {
     let pubkey = sp_io::crypto::secp256k1_ecdsa_recover(&sig, &msg)?;
     let hashed_pk = sp_io::hashing::keccak_256(&pubkey);
 
     let mut addr = [0u8; 20];
     addr[..20].copy_from_slice(&hashed_pk[12..32]);
-    Ok(addr)
+    Ok(addr.to_vec())
 }
 
 pub fn eth_data_hash(mut data: Vec<u8>) -> Result<[u8; 32], &'static str> {

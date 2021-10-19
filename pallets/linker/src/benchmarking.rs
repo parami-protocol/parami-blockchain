@@ -14,7 +14,7 @@ benchmarks! {
         let caller = account("caller", 0, 0);
         let account_id: T::AccountId = account("Alice", 0, SEED);
         let index: u32 = 0;
-        let address: EthAddress = [16, 146, 71, 235, 177, 95, 237, 92, 255, 45, 73, 190, 133, 132, 185, 41, 14, 77, 9, 207];
+        let address = vec![16, 146, 71, 235, 177, 95, 237, 92, 255, 45, 73, 190, 133, 132, 185, 41, 14, 77, 9, 207];
         let expiring_block_number: u32 = 10000;
         let sig: Signature = [133, 13, 66, 20, 141, 102, 233, 186, 153, 38, 81, 149, 29, 16, 191, 87, 206, 103, 230, 184, 32, 165, 174, 40, 221, 54, 212, 61, 132, 38, 254, 39, 19, 118, 77, 20, 241, 238, 52, 206, 124, 232, 254, 37, 109, 69, 191, 253, 242, 19, 48, 32, 92, 134, 123, 2, 6, 223, 233, 225, 129, 41, 235, 116, 28];
     }:  link_eth(RawOrigin::Signed(caller), account_id.clone(), index, address, expiring_block_number.into(), sig)

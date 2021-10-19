@@ -1,11 +1,12 @@
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
+use sp_core::H256;
 use sp_runtime::RuntimeDebug;
 use sp_std::prelude::*;
 
 pub type ChainId = u8;
 pub type DepositNonce = u64;
-pub type ResourceId = [u8; 32];
+pub type ResourceId = H256;
 
 #[derive(Clone, Copy, Decode, Encode, Eq, Ord, PartialEq, PartialOrd, RuntimeDebug, TypeInfo)]
 pub enum ProposalStatus {

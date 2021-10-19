@@ -15,6 +15,7 @@ mod tests;
 mod benchmarking;
 
 use frame_support::{dispatch::DispatchResultWithPostInfo, ensure, traits::Time};
+use sp_core::H160;
 use sp_io::hashing::keccak_256;
 use sp_runtime::{
     traits::{LookupError, StaticLookup},
@@ -24,8 +25,7 @@ use sp_std::prelude::*;
 
 use weights::WeightInfo;
 
-// Use 0x34(b'4') as prefix, so you will get a `N-did` after base58encode_check.
-pub type DidMethodSpecId = [u8; 20];
+pub type DidMethodSpecId = H160;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -134,8 +134,7 @@ pub mod pallet {
 
             let raw = T::AccountId::encode(&who);
             let hash = keccak_256(&raw);
-            let mut id: DidMethodSpecId = [0u8; 20];
-            id.copy_from_slice(&hash[..20]);
+            let id = DidMethodSpecId::from_slice(&hash[..20]);
 
             Metadata::<T>::try_mutate::<_, _, Error<T>, _>(id, |maybe_value| {
                 ensure!(maybe_value.is_none(), Error::<T>::DidExists);
@@ -199,7 +198,7 @@ impl<T: Config> Pallet<T> {
     pub fn lookup_address(a: MultiAddress<T::AccountId, ()>) -> Option<T::AccountId> {
         match a {
             MultiAddress::Id(i) => Some(i),
-            MultiAddress::Address20(i) => Self::lookup_index(i),
+            MultiAddress::Address20(i) => Self::lookup_index(i.into()),
             _ => None,
         }
     }
