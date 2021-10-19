@@ -194,7 +194,7 @@ pub mod pallet {
                 Error::<T>::InvalidTagType
             );
             ensure!(name.len() > 1000, Error::<T>::VecTooLong);
-            Tags::<T>::insert(tag_type, name);
+            <Tags<T>>::insert(tag_type, name);
             Ok(().into())
         }
 
@@ -205,7 +205,7 @@ pub mod pallet {
             #[pallet::compact] coefficient: PerU16,
         ) -> DispatchResultWithPostInfo {
             T::ConfigOrigin::ensure_origin(origin)?;
-            TimeDecayCoefficient::<T>::put(coefficient);
+            <TimeDecayCoefficient<T>>::put(coefficient);
             Ok(().into())
         }
 
@@ -216,7 +216,7 @@ pub mod pallet {
             #[pallet::compact] extra_reward: Balance,
         ) -> DispatchResultWithPostInfo {
             T::ConfigOrigin::ensure_origin(origin)?;
-            ExtraReward::<T>::put(extra_reward);
+            <ExtraReward<T>>::put(extra_reward);
             Ok(().into())
         }
 
@@ -230,7 +230,7 @@ pub mod pallet {
             let who: AccountIdOf<T> = ensure_signed(origin)?;
             let did: DidMethodSpecId = Self::ensure_did(&who)?;
             ensure!(
-                Advertisers::<T>::get(&did).is_none(),
+                <Advertisers<T>>::get(&did).is_none(),
                 Error::<T>::AdvertiserExists
             );
 
@@ -251,7 +251,7 @@ pub mod pallet {
                 KeepAlive,
             )?;
 
-            let deposit = AdvertiserDeposit::<T>::get();
+            let deposit = <AdvertiserDeposit<T>>::get();
 
             <pallet_assets::Pallet<T> as Transfer<AccountIdOf<T>>>::transfer(
                 asset_id,
@@ -282,8 +282,8 @@ pub mod pallet {
                 deposit_account,
                 reward_pool_account,
             };
-            Advertisers::<T>::insert(did, a);
-            AdvertiserById::<T>::insert(advertiser_id, did);
+            <Advertisers<T>>::insert(did, a);
+            <AdvertiserById<T>>::insert(advertiser_id, did);
             Self::deposit_event(Event::CreatedAdvertiser(who, did, advertiser_id));
             Ok(().into())
         }
@@ -322,8 +322,8 @@ pub mod pallet {
 
             let did: DidMethodSpecId = Self::ensure_did(&who)?;
             let ad_id = Self::inc_id()?;
-            let advertiser = Advertisers::<T>::get(&did).ok_or(Error::<T>::AdvertiserNotExists)?;
-            let deposit = AdDeposit::<T>::get();
+            let advertiser = <Advertisers<T>>::get(&did).ok_or(Error::<T>::AdvertiserNotExists)?;
+            let deposit = <AdDeposit<T>>::get();
 
             <pallet_assets::Pallet<T> as Transfer<AccountIdOf<T>>>::transfer(
                 asset_id,
@@ -348,7 +348,7 @@ pub mod pallet {
                 media_reward_rate,
                 metadata,
             };
-            Advertisements::<T>::insert(advertiser.advertiser_id, ad_id, ad);
+            <Advertisements<T>>::insert(advertiser.advertiser_id, ad_id, ad);
             Self::deposit_event(Event::CreatedAd(did, advertiser.advertiser_id, ad_id));
             Ok(().into())
         }
@@ -368,8 +368,8 @@ pub mod pallet {
             let advertiser_did: DidMethodSpecId = Self::ensure_did(&advertiser)?;
 
             let advertiser =
-                Advertisers::<T>::get(&advertiser_did).ok_or(Error::<T>::AdvertiserNotExists)?;
-            let ad = Advertisements::<T>::get(advertiser.advertiser_id, ad_id)
+                <Advertisers<T>>::get(&advertiser_did).ok_or(Error::<T>::AdvertiserNotExists)?;
+            let ad = <Advertisements<T>>::get(advertiser.advertiser_id, ad_id)
                 .ok_or(Error::<T>::AdvertisementNotExists)?;
             let user = Self::lookup_index(user_did)?;
             let media = Self::lookup_index(media_did)?;
@@ -379,7 +379,7 @@ pub mod pallet {
                 Error::<T>::InvalidTagScoreDeltaLen
             );
             ensure!(
-                Rewards::<T>::get(ad_id, (user_did, media_did)).is_none(),
+                <Rewards<T>>::get(ad_id, (user_did, media_did)).is_none(),
                 Error::<T>::DuplicatedReward
             );
 
@@ -413,7 +413,7 @@ pub mod pallet {
             //     KeepAlive,
             // )?;
 
-            Rewards::<T>::insert(ad_id, (user_did, media_did), ());
+            <Rewards<T>>::insert(ad_id, (user_did, media_did), ());
             Self::deposit_event(Event::AdReward(advertiser.advertiser_id, ad_id, reward));
             Ok(().into())
         }
@@ -436,8 +436,8 @@ pub mod pallet {
             let sender: AccountIdOf<T> = ensure_signed(origin)?;
 
             let advertiser =
-                Advertisers::<T>::get(&advertiser_did).ok_or(Error::<T>::AdvertiserNotExists)?;
-            let ad = Advertisements::<T>::get(advertiser.advertiser_id, ad_id)
+                <Advertisers<T>>::get(&advertiser_did).ok_or(Error::<T>::AdvertiserNotExists)?;
+            let ad = <Advertisements<T>>::get(advertiser.advertiser_id, ad_id)
                 .ok_or(Error::<T>::AdvertisementNotExists)?;
             let user = Self::lookup_index(user_did)?;
             let media = Self::lookup_index(media_did)?;
@@ -464,7 +464,7 @@ pub mod pallet {
             );
 
             ensure!(
-                Rewards::<T>::get(ad_id, (user_did, media_did)).is_none(),
+                <Rewards<T>>::get(ad_id, (user_did, media_did)).is_none(),
                 Error::<T>::DuplicatedReward
             );
             let (reward, reward_media, reward_user) =
@@ -536,7 +536,7 @@ pub mod pallet {
                 // )?;
             }
 
-            let extra_reward = ExtraReward::<T>::get();
+            let extra_reward = <ExtraReward<T>>::get();
             if free > extra_reward {
                 <pallet_assets::Pallet<T> as Transfer<AccountIdOf<T>>>::transfer(
                     asset_id,
@@ -567,7 +567,7 @@ pub mod pallet {
                 // )?;
             }
 
-            Rewards::<T>::insert(ad_id, (user_did, media_did), ());
+            <Rewards<T>>::insert(ad_id, (user_did, media_did), ());
             Self::deposit_event(Event::AdReward(advertiser.advertiser_id, ad_id, reward));
             Ok(().into())
         }
@@ -607,13 +607,13 @@ pub mod pallet {
     #[pallet::genesis_build]
     impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
         fn build(&self) {
-            AdvertiserDeposit::<T>::put(self.advertiser_deposit);
-            AdDeposit::<T>::put(self.ad_deposit);
-            ExtraReward::<T>::put(self.extra_reward);
-            StakingRewardRate::<T>::put(self.staking_reward_rate);
-            TimeDecayCoefficient::<T>::put(self.time_decay_coefficient);
+            <AdvertiserDeposit<T>>::put(self.advertiser_deposit);
+            <AdDeposit<T>>::put(self.ad_deposit);
+            <ExtraReward<T>>::put(self.extra_reward);
+            <StakingRewardRate<T>>::put(self.staking_reward_rate);
+            <TimeDecayCoefficient<T>>::put(self.time_decay_coefficient);
             for (tag, name) in &self.tag_names {
-                Tags::<T>::insert(tag, name);
+                <Tags<T>>::insert(tag, name);
             }
         }
     }
@@ -642,7 +642,7 @@ impl<T: Config> Pallet<T> {
     }
 
     fn inc_id() -> Result<GlobalId, DispatchError> {
-        NextId::<T>::try_mutate(|id| -> Result<GlobalId, DispatchError> {
+        <NextId<T>>::try_mutate(|id| -> Result<GlobalId, DispatchError> {
             let current_id = *id;
             *id = id
                 .checked_add(GlobalId::one())

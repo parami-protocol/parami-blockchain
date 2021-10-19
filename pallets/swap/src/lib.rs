@@ -180,7 +180,7 @@ pub mod pallet {
                 <pallet_assets::Pallet<T>>::minimum_balance(asset_id)
             );
 
-            ensure!(!Swap::<T>::contains_key(asset_id), Error::<T>::Exists);
+            ensure!(!<Swap<T>>::contains_key(asset_id), Error::<T>::Exists);
 
             // create pool account
             let pool_account_id = Self::asset_account_id(asset_id);
@@ -233,7 +233,7 @@ pub mod pallet {
                 <T::Lookup as StaticLookup>::unlookup(pool_account_id),
             )?;
 
-            Swap::<T>::insert(
+            <Swap<T>>::insert(
                 asset_id,
                 SwapPair {
                     account: Self::asset_account_id(asset_id),
@@ -258,7 +258,7 @@ pub mod pallet {
             let origin = ensure_signed(origin)?;
 
             let sender = origin;
-            let mut pair = Swap::<T>::get(asset_id).ok_or(Error::<T>::SwapNotFound)?;
+            let mut pair = <Swap<T>>::get(asset_id).ok_or(Error::<T>::SwapNotFound)?;
 
             log::info!("trade pair => {:?}", pair);
             let lp_asset_id = asset_id + T::AssetId::from(1_000_000_u32);
@@ -373,7 +373,7 @@ pub mod pallet {
             )?;
 
             // LP handling
-            LiquidityProvider::<T>::try_mutate_exists(
+            <LiquidityProvider<T>>::try_mutate_exists(
                 asset_id,
                 sender.clone(),
                 |maybe_lp| -> DispatchResult {
@@ -396,7 +396,7 @@ pub mod pallet {
                 .checked_add(minted_liquidity)
                 .ok_or(Error::<T>::Overflow)?;
                 */
-            Swap::<T>::insert(asset_id, pair);
+            <Swap<T>>::insert(asset_id, pair);
 
             Self::deposit_event(Event::LiquidityAdded(sender, asset_id));
 
@@ -413,7 +413,7 @@ pub mod pallet {
 
             let sender = origin;
             let liquidity: u128 = liquidity.into();
-            let mut pair = Swap::<T>::get(asset_id).ok_or(Error::<T>::SwapNotFound)?;
+            let mut pair = <Swap<T>>::get(asset_id).ok_or(Error::<T>::SwapNotFound)?;
 
             let lp_asset_id = asset_id + T::AssetId::from(1_000_000_u32);
             // total liquidity
@@ -465,7 +465,7 @@ pub mod pallet {
                 Error::<T>::InsufficientPoolAssetAmount
             );
             ensure!(
-                LiquidityProvider::<T>::get(asset_id, sender.clone()) >= liquidity,
+                <LiquidityProvider<T>>::get(asset_id, sender.clone()) >= liquidity,
                 Error::<T>::InsufficientLiquidity
             );
 
@@ -485,7 +485,7 @@ pub mod pallet {
             )?;
 
             // LP handling
-            LiquidityProvider::<T>::try_mutate_exists(
+            <LiquidityProvider<T>>::try_mutate_exists(
                 asset_id,
                 sender.clone(),
                 |maybe_lp| -> DispatchResult {
@@ -510,7 +510,7 @@ pub mod pallet {
                 .checked_sub(liquidity.into())
                 .ok_or(Error::<T>::Overflow)?;
             */
-            Swap::<T>::insert(asset_id, pair);
+            <Swap<T>>::insert(asset_id, pair);
 
             Self::deposit_event(Event::LiquidityRemoved(sender, asset_id));
 
@@ -526,7 +526,7 @@ pub mod pallet {
             let origin = ensure_signed(origin)?;
             let sender = origin;
 
-            let mut pair = Swap::<T>::get(asset_id).ok_or(Error::<T>::SwapNotFound)?;
+            let mut pair = <Swap<T>>::get(asset_id).ok_or(Error::<T>::SwapNotFound)?;
 
             let pool_account_id = Self::asset_account_id(asset_id);
 
@@ -585,7 +585,7 @@ pub mod pallet {
 
             pair.native_reserve = Self::native_pool(asset_id).1.into();
             pair.asset_reserve = Self::asset_pool(asset_id).1.into();
-            Swap::<T>::insert(asset_id, pair);
+            <Swap<T>>::insert(asset_id, pair);
 
             log::debug!(
                 "swap native={:?} for asset={:?}",
@@ -606,7 +606,7 @@ pub mod pallet {
             let origin = ensure_signed(origin)?;
             let sender = origin;
 
-            let mut pair = Swap::<T>::get(asset_id).ok_or(Error::<T>::SwapNotFound)?;
+            let mut pair = <Swap<T>>::get(asset_id).ok_or(Error::<T>::SwapNotFound)?;
 
             let pool_account_id = Self::asset_account_id(asset_id);
 
@@ -668,7 +668,7 @@ pub mod pallet {
 
             pair.native_reserve = Self::native_pool(asset_id).1.into();
             pair.asset_reserve = Self::asset_pool(asset_id).1.into();
-            Swap::<T>::insert(asset_id, pair);
+            <Swap<T>>::insert(asset_id, pair);
 
             log::debug!(
                 "swap asset={:?} for native={:?}",

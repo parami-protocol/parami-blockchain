@@ -150,7 +150,7 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             ensure_root(origin)?;
             let admin = T::Lookup::lookup(admin)?;
-            BridgeAdmin::<T>::put(admin);
+            <BridgeAdmin<T>>::put(admin);
             Ok((None, Pays::No).into())
         }
 
@@ -175,7 +175,7 @@ pub mod pallet {
                 Error::<T>::NoPermission
             );
             let to = T::Lookup::lookup(to)?;
-            Erc20Txs::<T>::mutate_exists(tx_hash.clone(), |maybe_tx| {
+            <Erc20Txs<T>>::mutate_exists(tx_hash.clone(), |maybe_tx| {
                 if maybe_tx.is_none() {
                     let _ = T::Currency::deposit_creating(&to, value);
                     *maybe_tx = Some(Erc20Event::Redeem {
@@ -234,9 +234,9 @@ pub mod pallet {
                 who == Self::bridge_admin().ok_or(Error::<T>::BridgeAdminNotSet)?,
                 Error::<T>::NoPermission
             );
-            Erc20Txs::<T>::mutate_exists(tx_hash.clone(), |maybe_tx| {
+            <Erc20Txs<T>>::mutate_exists(tx_hash.clone(), |maybe_tx| {
                 if maybe_tx.is_none() {
-                    Erc20Balances::<T>::mutate(&eth_addr, |balance| {
+                    <Erc20Balances<T>>::mutate(&eth_addr, |balance| {
                         *balance = balance.saturating_add(value);
                     });
                     *maybe_tx = Some(Erc20Event::Transfer {
@@ -270,9 +270,9 @@ pub mod pallet {
                 Error::<T>::NoPermission
             );
             let to = T::Lookup::lookup(to)?;
-            Erc20Txs::<T>::mutate_exists(tx_hash.clone(), |maybe_tx| {
+            <Erc20Txs<T>>::mutate_exists(tx_hash.clone(), |maybe_tx| {
                 if maybe_tx.is_none() {
-                    Erc20Balances::<T>::mutate(from_eth_addr.clone(), |balance| {
+                    <Erc20Balances<T>>::mutate(from_eth_addr.clone(), |balance| {
                         if *balance >= value {
                             *balance -= value;
                             let _ = T::Currency::deposit_creating(&to, value);

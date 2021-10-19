@@ -148,20 +148,20 @@ pub mod pallet {
             );
 
             ensure!(
-                StableAccountByMagic::<T>::get(&magic_account).is_none(),
+                <StableAccountByMagic<T>>::get(&magic_account).is_none(),
                 Error::<T>::MagicAccountExists
             );
             ensure!(
-                StableAccountByMagic::<T>::get(&controller_account).is_none(),
+                <StableAccountByMagic<T>>::get(&controller_account).is_none(),
                 Error::<T>::ControllerIsMagic
             );
 
             ensure!(
-                StableAccounts::<T>::get(&controller_account).is_none(),
+                <StableAccounts<T>>::get(&controller_account).is_none(),
                 Error::<T>::ControllerAccountExists
             );
             ensure!(
-                StableAccounts::<T>::get(&magic_account).is_none(),
+                <StableAccounts<T>>::get(&magic_account).is_none(),
                 Error::<T>::MagicIsController
             );
 
@@ -186,8 +186,8 @@ pub mod pallet {
                 KeepAlive,
             )?;
 
-            StableAccounts::<T>::insert(&sa.controller_account, &sa);
-            StableAccountByMagic::<T>::insert(&sa.magic_account, &sa.controller_account);
+            <StableAccounts<T>>::insert(&sa.controller_account, &sa);
+            <StableAccountByMagic<T>>::insert(&sa.magic_account, &sa.controller_account);
 
             Self::deposit_event(Event::CreatedStableAccount(
                 sa.stash_account.clone(),
@@ -212,26 +212,26 @@ pub mod pallet {
             );
 
             ensure!(
-                StableAccountByMagic::<T>::get(&new_controller).is_none(),
+                <StableAccountByMagic<T>>::get(&new_controller).is_none(),
                 Error::<T>::ControllerIsMagic
             );
             ensure!(
-                StableAccounts::<T>::get(&new_controller).is_none(),
+                <StableAccounts<T>>::get(&new_controller).is_none(),
                 Error::<T>::ControllerAccountExists
             );
 
-            let old_controller = StableAccountByMagic::<T>::get(magic_account)
+            let old_controller = <StableAccountByMagic<T>>::get(magic_account)
                 .ok_or(Error::<T>::ObsoletedMagicAccount)?;
             ensure!(
                 old_controller != new_controller,
                 Error::<T>::NewControllerEqualToOldController
             );
 
-            let mut sa = StableAccounts::<T>::get(old_controller)
+            let mut sa = <StableAccounts<T>>::get(old_controller)
                 .ok_or(Error::<T>::StableAccountNotFound)?;
             sa.new_controller_account = Some(new_controller);
 
-            StableAccounts::<T>::insert(&sa.controller_account, &sa);
+            <StableAccounts<T>>::insert(&sa.controller_account, &sa);
 
             Self::deposit_event(Event::PreparedControllerChanging(
                 sa.stash_account.clone(),
@@ -256,15 +256,15 @@ pub mod pallet {
             );
 
             ensure!(
-                StableAccountByMagic::<T>::get(&new_controller).is_none(),
+                <StableAccountByMagic<T>>::get(&new_controller).is_none(),
                 Error::<T>::ControllerIsMagic
             );
             ensure!(
-                StableAccounts::<T>::get(&new_controller).is_none(),
+                <StableAccounts<T>>::get(&new_controller).is_none(),
                 Error::<T>::ControllerAccountExists
             );
 
-            let mut sa = StableAccounts::<T>::get(&old_controller)
+            let mut sa = <StableAccounts<T>>::get(&old_controller)
                 .ok_or(Error::<T>::StableAccountNotFound)?;
             ensure!(
                 sa.new_controller_account
@@ -280,9 +280,9 @@ pub mod pallet {
             sa.new_controller_account = None;
             sa.controller_account = new_controller;
 
-            StableAccounts::<T>::remove(&old_controller);
-            StableAccounts::<T>::insert(&sa.controller_account, &sa);
-            StableAccountByMagic::<T>::insert(&sa.magic_account, &sa.controller_account);
+            <StableAccounts<T>>::remove(&old_controller);
+            <StableAccounts<T>>::insert(&sa.controller_account, &sa);
+            <StableAccountByMagic<T>>::insert(&sa.magic_account, &sa.controller_account);
 
             Self::deposit_event(Event::ChangedController(
                 sa.stash_account.clone(),
@@ -306,7 +306,7 @@ pub mod pallet {
             call: Box<<T as Config>::Call>,
         ) -> DispatchResultWithPostInfo {
             let controller_account = ensure_signed(origin)?;
-            let sa = StableAccounts::<T>::get(controller_account)
+            let sa = <StableAccounts<T>>::get(controller_account)
                 .ok_or(Error::<T>::StableAccountNotFound)?;
             ensure!(
                 sa.new_controller_account.is_none(),
@@ -363,7 +363,7 @@ impl<T: Config> Pallet<T> {
     }
 
     fn inc_id() -> Result<GlobalId, DispatchError> {
-        NextId::<T>::try_mutate(|id| -> Result<GlobalId, DispatchError> {
+        <NextId<T>>::try_mutate(|id| -> Result<GlobalId, DispatchError> {
             let current_id = *id;
             *id = id
                 .checked_add(GlobalId::one())

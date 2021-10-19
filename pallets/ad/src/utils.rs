@@ -63,8 +63,8 @@ pub fn calc_reward<T: Config>(
     let now = now::<T>();
     for (i, &(t, c)) in ad.tag_coefficients.iter().enumerate() {
         let old_s = {
-            let (old_s, old_time) = UserTagScores::<T>::get(user_did, t);
-            decayed_score::<T::Moment>(old_s, old_time, now, TimeDecayCoefficient::<T>::get())
+            let (old_s, old_time) = <UserTagScores<T>>::get(user_did, t);
+            decayed_score::<T::Moment>(old_s, old_time, now, <TimeDecayCoefficient<T>>::get())
         };
 
         {
@@ -86,7 +86,7 @@ pub fn calc_reward<T: Config>(
             let delta: i64 = tag_score_delta[i] as i64;
             let s = saturate_score(old_s + delta) as TagScore;
             ensure!(s >= 0, Error::<T>::SomethingTerribleHappened);
-            UserTagScores::<T>::insert(&user_did, t, (s, now));
+            <UserTagScores<T>>::insert(&user_did, t, (s, now));
         }
     }
 
@@ -94,7 +94,7 @@ pub fn calc_reward<T: Config>(
     let reward_media = ad.media_reward_rate.mul_ceil(reward);
     let reward_user = reward.saturating_sub(reward_media);
 
-    let srr = StakingRewardRate::<T>::get();
+    let srr = <StakingRewardRate<T>>::get();
     let reward_user = srr
         .mul_ceil(staked_balance_by_controller::<T>(user))
         .saturating_add(reward_user);

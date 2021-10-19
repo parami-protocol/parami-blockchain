@@ -206,7 +206,7 @@ pub mod pallet {
             );
 
             // check bidder is an advertiser
-            let bidder_did = AdsPallet::<T>::ensure_did(&from)?;
+            let bidder_did = <AdsPallet<T>>::ensure_did(&from)?;
             let advertiser = <parami_ad::Advertisers<T>>::get(&bidder_did)
                 .ok_or(Error::<T>::BidderIsNotAdvertiser)?;
             let _ads = <parami_ad::Advertisements<T>>::get(advertiser.advertiser_id, ad_id)
@@ -216,7 +216,7 @@ pub mod pallet {
             let auction = OrmlAuction::<T>::auction_info(id).ok_or(Error::<T>::AuctionNotExist)?;
             OrmlAuction::<T>::bid(origin.clone(), id, value)?;
 
-            CurrentAds::<T>::insert(id, (advertiser.advertiser_id, ad_id));
+            <CurrentAds<T>>::insert(id, (advertiser.advertiser_id, ad_id));
 
             Self::auction_bid_handler(
                 block_number,
@@ -356,7 +356,7 @@ where
                     if let Some(last_bidder) = last_bidder {
                         if !last_bid_price.is_zero() {
                             // last advertiser
-                            let last_bidder_did = AdsPallet::<T>::ensure_did(&last_bidder).unwrap();
+                            let last_bidder_did = <AdsPallet<T>>::ensure_did(&last_bidder).unwrap();
                             let last_advertiser =
                                 <parami_ad::Advertisers<T>>::get(&last_bidder_did).unwrap();
 

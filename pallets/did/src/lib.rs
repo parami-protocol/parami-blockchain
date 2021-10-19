@@ -66,12 +66,6 @@ pub mod pallet {
     pub(super) type ReferrerOf<T: Config> =
         StorageMap<_, Identity, DidMethodSpecId, DidMethodSpecId>;
 
-    /// The special controller of a did, used for account recovery.
-    #[pallet::storage]
-    #[pallet::getter(fn controller_of)]
-    pub(super) type ControllerOf<T: Config> =
-        StorageMap<_, Identity, DidMethodSpecId, T::AccountId>;
-
     /// Tracking the latest identity update.
     #[pallet::storage]
     #[pallet::getter(fn updated_by)]
@@ -136,15 +130,15 @@ pub mod pallet {
             let hash = keccak_256(&raw);
             let id = DidMethodSpecId::from_slice(&hash[..20]);
 
-            Metadata::<T>::try_mutate::<_, _, Error<T>, _>(id, |maybe_value| {
+            <Metadata<T>>::try_mutate::<_, _, Error<T>, _>(id, |maybe_value| {
                 ensure!(maybe_value.is_none(), Error::<T>::DidExists);
 
                 *maybe_value = Some((who.clone(), T::Time::now(), false));
                 Ok(())
             })?;
-            DidOf::<T>::insert(who.clone(), id);
+            <DidOf<T>>::insert(who.clone(), id);
             if let Some(referrer) = referrer {
-                ReferrerOf::<T>::insert(id, referrer);
+                <ReferrerOf<T>>::insert(id, referrer);
                 Self::deposit_event(Event::Assigned(id, who.clone(), Some(referrer)));
             } else {
                 Self::deposit_event(Event::Assigned(id, who.clone(), None));
@@ -164,7 +158,7 @@ pub mod pallet {
             let who = ensure_signed(origin)?;
 
             let id = <DidOf<T>>::get(&who).ok_or(Error::<T>::NotExists)?;
-            Metadata::<T>::try_mutate::<_, _, Error<T>, _>(id, |maybe_value| {
+            <Metadata<T>>::try_mutate::<_, _, Error<T>, _>(id, |maybe_value| {
                 let (account, _when, revoked) = maybe_value.take().ok_or(Error::<T>::NotExists)?;
                 ensure!(&account == &who, Error::<T>::NotOwner);
                 ensure!(!revoked, Error::<T>::Revoked);
@@ -187,11 +181,11 @@ pub mod pallet {
 impl<T: Config> Pallet<T> {
     /// Lookup an T::AccountIndex to get an Id, if there's one there.
     pub fn lookup_index(index: DidMethodSpecId) -> Option<T::AccountId> {
-        Metadata::<T>::get(index).map(|x| x.0)
+        <Metadata<T>>::get(index).map(|x| x.0)
     }
 
     pub fn lookup_account(a: T::AccountId) -> Option<DidMethodSpecId> {
-        DidOf::<T>::get(a)
+        <DidOf<T>>::get(a)
     }
 
     /// Lookup an address to get an Id, if there's one there.

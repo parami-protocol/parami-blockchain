@@ -312,7 +312,7 @@ pub mod pallet {
 
             for _ in 0..quantity {
                 let asset_id =
-                    NextAssetId::<T>::try_mutate(|id| -> Result<T::AssetId, DispatchError> {
+                    <NextAssetId<T>>::try_mutate(|id| -> Result<T::AssetId, DispatchError> {
                         let current_id = *id;
                         *id = id
                             .checked_add(&(Into::into(1u32)))
@@ -323,8 +323,8 @@ pub mod pallet {
 
                 new_asset_ids.push(asset_id);
 
-                if AssetsByOwner::<T>::contains_key(&sender) {
-                    AssetsByOwner::<T>::try_mutate(&sender, |asset_ids| -> DispatchResult {
+                if <AssetsByOwner<T>>::contains_key(&sender) {
+                    <AssetsByOwner<T>>::try_mutate(&sender, |asset_ids| -> DispatchResult {
                         ensure!(
                             !asset_ids.iter().any(|i| asset_id == *i),
                             Error::<T>::AssetIdAlreadyExists
@@ -335,12 +335,12 @@ pub mod pallet {
                 } else {
                     let mut assets = Vec::<T::AssetId>::new();
                     assets.push(asset_id);
-                    AssetsByOwner::<T>::insert(&sender, assets)
+                    <AssetsByOwner<T>>::insert(&sender, assets)
                 }
 
                 let nft_token_id =
                     OrmlNft::<T>::mint(&sender, class_id, metadata.clone(), new_nft_data.clone())?;
-                Assets::<T>::insert(asset_id, (class_id, nft_token_id));
+                <Assets<T>>::insert(asset_id, (class_id, nft_token_id));
                 last_token_id = nft_token_id;
 
                 // generate nft fraction
@@ -353,7 +353,7 @@ pub mod pallet {
                         media: Vec::new(),
                         owner: Default::default(),
                     };
-                    AdsSlots::<T>::insert(asset_id, ads_slot);
+                    <AdsSlots<T>>::insert(asset_id, ads_slot);
 
                     // create fraction
                     <pallet_assets::Pallet<T>>::create(
@@ -451,7 +451,7 @@ pub mod pallet {
                 let item = &x;
                 let owner = &sender.clone();
 
-                let nft_info = Assets::<T>::get(item.1).ok_or(Error::<T>::AssetIdNotFound)?;
+                let nft_info = <Assets<T>>::get(item.1).ok_or(Error::<T>::AssetIdNotFound)?;
                 let class_detail =
                     OrmlNft::<T>::classes(nft_info.0).ok_or(Error::<T>::ClassIdNotFound)?;
 
@@ -493,8 +493,8 @@ pub mod pallet {
                 Error::<T>::SignOwnAsset
             );
 
-            if AssetSupporters::<T>::contains_key(&asset_id) {
-                AssetSupporters::<T>::try_mutate(asset_id, |supporters| -> DispatchResult {
+            if <AssetSupporters<T>>::contains_key(&asset_id) {
+                <AssetSupporters<T>>::try_mutate(asset_id, |supporters| -> DispatchResult {
                     let supporters = supporters.as_mut().ok_or("Empty supporters")?;
                     supporters.push(sender);
                     Ok(())
@@ -503,7 +503,7 @@ pub mod pallet {
             } else {
                 let mut new_supporters = Vec::new();
                 new_supporters.push(sender);
-                AssetSupporters::<T>::insert(asset_id, new_supporters);
+                <AssetSupporters<T>>::insert(asset_id, new_supporters);
                 Ok(().into())
             }
         }
@@ -516,15 +516,15 @@ impl<T: Config> Pallet<T> {
         to: &T::AccountId,
         asset_id: T::AssetId,
     ) -> DispatchResult {
-        AssetsByOwner::<T>::try_mutate(&sender, |asset_ids| -> DispatchResult {
+        <AssetsByOwner<T>>::try_mutate(&sender, |asset_ids| -> DispatchResult {
             let asset_index = asset_ids.iter().position(|x| *x == asset_id).unwrap();
             asset_ids.remove(asset_index);
 
             Ok(())
         })?;
 
-        if AssetsByOwner::<T>::contains_key(to) {
-            AssetsByOwner::<T>::try_mutate(&to, |asset_ids| -> DispatchResult {
+        if <AssetsByOwner<T>>::contains_key(to) {
+            <AssetsByOwner<T>>::try_mutate(&to, |asset_ids| -> DispatchResult {
                 ensure!(
                     !asset_ids.iter().any(|i| asset_id == *i),
                     Error::<T>::AssetIdAlreadyExists
@@ -535,7 +535,7 @@ impl<T: Config> Pallet<T> {
         } else {
             let mut asset_ids = Vec::<T::AssetId>::new();
             asset_ids.push(asset_id);
-            AssetsByOwner::<T>::insert(&to, asset_ids);
+            <AssetsByOwner<T>>::insert(&to, asset_ids);
         }
 
         Ok(())
@@ -546,7 +546,7 @@ impl<T: Config> Pallet<T> {
         to: &T::AccountId,
         asset_id: T::AssetId,
     ) -> Result<<T as orml_nft::Config>::TokenId, DispatchError> {
-        let nft_info = Assets::<T>::get(asset_id).ok_or(Error::<T>::AssetIdNotFound)?;
+        let nft_info = <Assets<T>>::get(asset_id).ok_or(Error::<T>::AssetIdNotFound)?;
 
         let class_detail = OrmlNft::<T>::classes(nft_info.0).ok_or(Error::<T>::ClassIdNotFound)?;
 
@@ -568,7 +568,7 @@ impl<T: Config> Pallet<T> {
         sender: &T::AccountId,
         asset_id: &T::AssetId,
     ) -> Result<bool, DispatchError> {
-        let nft_info = Assets::<T>::get(asset_id).ok_or(Error::<T>::AssetIdNotFound)?;
+        let nft_info = <Assets<T>>::get(asset_id).ok_or(Error::<T>::AssetIdNotFound)?;
 
         let asset_detail =
             OrmlNft::<T>::tokens(nft_info.0, nft_info.1).ok_or(Error::<T>::AssetInfoNotFound)?;
@@ -594,8 +594,8 @@ impl<T: Config> Pallet<T> {
             media,
             owner,
         };
-        AdsSlots::<T>::insert(asset_id, ads_slot);
-        // AdsSlots::<T>::try_mutate(asset_id, |slot| -> DispatchResult{
+        <AdsSlots<T>>::insert(asset_id, ads_slot);
+        // <AdsSlots<T>>::try_mutate(asset_id, |slot| -> DispatchResult{
         //     let ads_slot = slot.as_mut().ok_or("empty slot")?;
 
         //     ads_slot.start_time = <frame_system::Pallet<T>>::block_number();

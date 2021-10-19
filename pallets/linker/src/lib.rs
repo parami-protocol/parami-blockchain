@@ -139,7 +139,7 @@ pub mod pallet {
                 eth::address_from_sig(msg, sig).map_err(|_| Error::<T>::EcdsaRecoverFailure)?;
             ensure!(addr == address, Error::<T>::UnexpectedAddress);
 
-            EthereumLink::<T>::mutate(&account, |addrs| {
+            <EthereumLink<T>>::mutate(&account, |addrs| {
                 let index = index as usize;
                 // NOTE: allow linking `MAX_ETH_LINKS` eth addresses.
                 if (index >= addrs.len()) && (addrs.len() != MAX_ETH_LINKS) {
@@ -236,7 +236,7 @@ pub mod pallet {
 
             ensure!(addr == address, Error::<T>::UnexpectedAddress);
 
-            BitcoinLink::<T>::mutate(&account, |addrs| {
+            <BitcoinLink<T>>::mutate(&account, |addrs| {
                 let index = index as usize;
                 // NOTE: allow linking `MAX_BTC_LINKS` btc addresses.
                 if (index >= addrs.len()) && (addrs.len() != MAX_BTC_LINKS) {
