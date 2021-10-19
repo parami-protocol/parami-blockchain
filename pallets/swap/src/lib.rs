@@ -27,6 +27,7 @@ use sp_runtime::traits::{
 
 const PALLET_ID: PalletId = PalletId(*b"paraswap");
 const MINIMUM_LIQUIDITY: u128 = 1_000;
+const OFFSET: u32 = 2_147_483_648_u32;
 
 #[derive(Clone, Decode, Default, Encode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct SwapPair<AccountId> {
@@ -167,7 +168,7 @@ pub mod pallet {
 
             // constrait on asset_id
             ensure!(
-                asset_id < T::AssetId::from(1_000_000_u32),
+                asset_id < T::AssetId::from(OFFSET),
                 Error::<T>::AssetNotFound
             );
 
@@ -200,8 +201,7 @@ pub mod pallet {
             )?;
 
             // create lp-token
-            // offset asset_id by 1_000_000, constraint, won't save
-            let lp_asset_id = asset_id + T::AssetId::from(1_000_000_u32);
+            let lp_asset_id = asset_id + T::AssetId::from(OFFSET);
             <pallet_assets::Pallet<T>>::create(
                 origin.clone(),
                 lp_asset_id,
@@ -261,7 +261,7 @@ pub mod pallet {
             let mut pair = <Swap<T>>::get(asset_id).ok_or(Error::<T>::SwapNotFound)?;
 
             log::info!("trade pair => {:?}", pair);
-            let lp_asset_id = asset_id + T::AssetId::from(1_000_000_u32);
+            let lp_asset_id = asset_id + T::AssetId::from(OFFSET);
 
             // sender's native balance check
             ensure!(native_amount > Zero::zero(), Error::<T>::NativeAmountIsZero);
@@ -415,7 +415,7 @@ pub mod pallet {
             let liquidity: u128 = liquidity.into();
             let mut pair = <Swap<T>>::get(asset_id).ok_or(Error::<T>::SwapNotFound)?;
 
-            let lp_asset_id = asset_id + T::AssetId::from(1_000_000_u32);
+            let lp_asset_id = asset_id + T::AssetId::from(OFFSET);
             // total liquidity
             let total_supply: u128 = <pallet_assets::Pallet<T>>::total_supply(lp_asset_id).into();
 

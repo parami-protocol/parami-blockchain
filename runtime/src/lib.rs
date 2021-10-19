@@ -14,6 +14,7 @@ use sp_core::{
     OpaqueMetadata,
 };
 use sp_inherents::{CheckInherentsResult, InherentData};
+use sp_io::hashing::blake2_128;
 #[cfg(any(feature = "std", test))]
 use sp_runtime::BuildStorage;
 use sp_runtime::{
@@ -101,11 +102,11 @@ pub const BABE_GENESIS_EPOCH_CONFIG: sp_consensus_babe::BabeEpochConfiguration =
 pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("parami"),
     impl_name: create_runtime_str!("parami-node"),
-    authoring_version: 10,
+    authoring_version: 20,
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
     //   `spec_version`, and `authoring_version` are the same between Wasm and native.
-    spec_version: 270,
+    spec_version: 300,
     impl_version: 0,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 2,
@@ -120,33 +121,45 @@ pub fn native_version() -> NativeVersion {
     }
 }
 
-pub struct ParamiBaseCallFilter;
-impl Contains<Call> for ParamiBaseCallFilter {
-    fn contains(c: &Call) -> bool {
-        use pallet_identity::Data;
+/// more than 1/2
+type HalfCouncil = pallet_collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
+type EnsureRootOrHalfCouncil = EnsureOneOf<
+    AccountId,
+    EnsureRoot<AccountId>,
+    HalfCouncil,
+>;
 
-        match c {
-            // identity rule check
-            Call::Identity(pallet_identity::Call::set_identity { info }) => {
-                info.legal == Data::None && info.riot == Data::None && {
-                    // only accepts Raw keys for info.additional
-                    info.additional.iter().all(
-                        |(k, _v)| {
-                            if let Data::Raw(_) = k {
-                                true
-                            } else {
-                                false
-                            }
-                        },
-                    )
-                }
-            }
-            _ => true,
-        }
-    }
+/// at least 3/5
+type PluralityCouncil = pallet_collective::EnsureProportionAtLeast<_3, _5, AccountId, CouncilCollective>;
+type EnsureRootOrPluralityCouncil = EnsureOneOf<
+    AccountId,
+    EnsureRoot<AccountId>,
+    PluralityCouncil,
+>;
+
+/// at least 3/4
+type MajoritarianCouncil = pallet_collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>;
+type EnsureRootOrMajoritarianCouncil = EnsureOneOf<
+    AccountId,
+    EnsureRoot<AccountId>,
+    MajoritarianCouncil,
+>;
+
+/// whole
+type OverallCouncil = pallet_collective::EnsureProportionAtLeast<_1, _1, AccountId, CouncilCollective>;
+type EnsureRootOrOverallCouncil = EnsureOneOf<
+    AccountId,
+    EnsureRoot<AccountId>,
+    OverallCouncil,
+>;
+
+impl frame_election_provider_support::onchain::Config for Runtime {
+    type Accuracy = Perbill;
+    type DataProvider = Staking;
 }
 
 const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
+
 parameter_types! {
     pub const Version: RuntimeVersion = VERSION;
     pub const BlockHashCount: BlockNumber = 2400;
@@ -157,11 +170,16 @@ parameter_types! {
     pub const SS58Prefix: u8 = 42;
 }
 
-// Configure FRAME pallets to include in runtime.
-
-impl frame_election_provider_support::onchain::Config for Runtime {
-    type Accuracy = Perbill;
-    type DataProvider = Staking;
+pub struct ParamiBaseCallFilter;
+impl Contains<Call> for ParamiBaseCallFilter {
+    fn contains(c: &Call) -> bool {
+        match c {
+            Call::Assets(pallet_assets::Call::create { .. }) => {
+                false
+            }
+            _ => true,
+        }
+    }
 }
 
 impl frame_system::Config for Runtime {
@@ -499,33 +517,23 @@ impl pallet_democracy::Config for Runtime {
     type VoteLockingPeriod = VoteLockingPeriod;
     type MinimumDeposit = MinimumDeposit;
     /// A straight majority of the council can decide what their next motion is.
-    type ExternalOrigin =
-        pallet_collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>;
+    type ExternalOrigin = HalfCouncil;
     /// A super-majority can have the next scheduled referendum be a straight majority-carries vote.
-    type ExternalMajorityOrigin =
-        pallet_collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>;
+    type ExternalMajorityOrigin = MajoritarianCouncil;
     /// A unanimous council can have the next scheduled referendum be a straight default-carries
     /// (NTB) vote.
-    type ExternalDefaultOrigin =
-        pallet_collective::EnsureProportionAtLeast<_1, _1, AccountId, CouncilCollective>;
+    type ExternalDefaultOrigin = OverallCouncil;
     /// Two thirds of the technical committee can have an ExternalMajority/ExternalDefault vote
     /// be tabled immediately and with a shorter voting/enactment period.
-    type FastTrackOrigin =
-        pallet_collective::EnsureProportionAtLeast<_2, _3, AccountId, TechnicalCollective>;
-    type InstantOrigin =
-        pallet_collective::EnsureProportionAtLeast<_1, _1, AccountId, TechnicalCollective>;
+    type FastTrackOrigin = MajoritarianCouncil;
+    type InstantOrigin = OverallCouncil;
     type InstantAllowed = InstantAllowed;
     type FastTrackVotingPeriod = FastTrackVotingPeriod;
-    // To cancel a proposal which has been passed, 2/3 of the council must agree to it.
-    type CancellationOrigin =
-        pallet_collective::EnsureProportionAtLeast<_2, _3, AccountId, CouncilCollective>;
+    // To cancel a proposal which has been passed, 3/4 of the council must agree to it.
+    type CancellationOrigin = MajoritarianCouncil;
     // To cancel a proposal before it has been passed, the technical committee must be unanimous or
     // Root must agree.
-    type CancelProposalOrigin = EnsureOneOf<
-        AccountId,
-        EnsureRoot<AccountId>,
-        pallet_collective::EnsureProportionAtLeast<_1, _1, AccountId, TechnicalCollective>,
-    >;
+    type CancelProposalOrigin = EnsureRootOrOverallCouncil;
     type BlacklistOrigin = EnsureRoot<AccountId>;
     // Any single technical committee member may veto a coming council proposal, however they can
     // only do it once and it lasts only for the cool-off period.
@@ -723,30 +731,6 @@ impl pallet_grandpa::Config for Runtime {
 }
 
 parameter_types! {
-    pub const BasicDeposit: Balance = 10 * DOLLARS;       // 258 bytes on-chain
-    pub const FieldDeposit: Balance = 250 * CENTS;        // 66 bytes on-chain
-    pub const SubAccountDeposit: Balance = 2 * DOLLARS;   // 53 bytes on-chain
-    pub const MaxSubAccounts: u32 = 100;
-    pub const MaxAdditionalFields: u32 = 100;
-    pub const MaxRegistrars: u32 = 20;
-}
-
-impl pallet_identity::Config for Runtime {
-    type Event = Event;
-    type Currency = Balances;
-    type BasicDeposit = BasicDeposit;
-    type FieldDeposit = FieldDeposit;
-    type SubAccountDeposit = SubAccountDeposit;
-    type MaxSubAccounts = MaxSubAccounts;
-    type MaxAdditionalFields = MaxAdditionalFields;
-    type MaxRegistrars = MaxRegistrars;
-    type Slashed = Treasury;
-    type ForceOrigin = EnsureRootOrHalfCouncil;
-    type RegistrarOrigin = EnsureRootOrHalfCouncil;
-    type WeightInfo = pallet_identity::weights::SubstrateWeight<Runtime>;
-}
-
-parameter_types! {
     pub const MaxKeys: u32 = 10_000;
     pub const MaxPeerInHeartbeats: u32 = 10_000;
     pub const MaxPeerDataEncodingSize: u32 = 1_000;
@@ -765,11 +749,6 @@ impl pallet_im_online::Config for Runtime {
     type MaxPeerDataEncodingSize = MaxPeerDataEncodingSize;
 }
 
-type EnsureRootOrHalfCouncil = EnsureOneOf<
-    AccountId,
-    EnsureRoot<AccountId>,
-    pallet_collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>,
->;
 impl pallet_membership::Config<pallet_membership::Instance1> for Runtime {
     type Event = Event;
     type AddOrigin = EnsureRootOrHalfCouncil;
@@ -846,7 +825,7 @@ impl pallet_scheduler::Config for Runtime {
     type PalletsOrigin = OriginCaller;
     type Call = Call;
     type MaximumWeight = MaximumSchedulerWeight;
-    type ScheduleOrigin = EnsureRoot<AccountId>;
+    type ScheduleOrigin = EnsureRootOrHalfCouncil;
     type MaxScheduledPerBlock = MaxScheduledPerBlock;
     type WeightInfo = pallet_scheduler::weights::SubstrateWeight<Runtime>;
 }
@@ -897,8 +876,7 @@ impl pallet_society::Config for Runtime {
     type MembershipChanged = ();
     type RotationPeriod = RotationPeriod;
     type MaxLockDuration = MaxLockDuration;
-    type FounderSetOrigin =
-        pallet_collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
+    type FounderSetOrigin = HalfCouncil;
     type SuspensionJudgementOrigin = pallet_society::EnsureFounder<Runtime>;
     type MaxCandidateIntake = MaxCandidateIntake;
     type ChallengePeriod = ChallengePeriod;
@@ -937,11 +915,7 @@ impl pallet_staking::Config for Runtime {
     type BondingDuration = BondingDuration;
     type SlashDeferDuration = SlashDeferDuration;
     /// A super-majority of the council can cancel the slash.
-    type SlashCancelOrigin = EnsureOneOf<
-        AccountId,
-        EnsureRoot<AccountId>,
-        pallet_collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>,
-    >;
+    type SlashCancelOrigin = EnsureRootOrMajoritarianCouncil;
     type SessionInterface = Self;
     type EraPayout = pallet_staking::ConvertCurve<RewardCurve>;
     type NextNewSession = Session;
@@ -1044,16 +1018,8 @@ parameter_types! {
 impl pallet_treasury::Config for Runtime {
     type PalletId = TreasuryPalletId;
     type Currency = Balances;
-    type ApproveOrigin = EnsureOneOf<
-        AccountId,
-        EnsureRoot<AccountId>,
-        pallet_collective::EnsureProportionAtLeast<_3, _5, AccountId, CouncilCollective>,
-    >;
-    type RejectOrigin = EnsureOneOf<
-        AccountId,
-        EnsureRoot<AccountId>,
-        pallet_collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>,
-    >;
+    type ApproveOrigin = EnsureRootOrPluralityCouncil;
+    type RejectOrigin = EnsureRootOrHalfCouncil;
     type Event = Event;
     type OnSlash = ();
     type ProposalBond = ProposalBond;
@@ -1124,14 +1090,8 @@ impl parami_auction::Config for Runtime {
     type AdsListDuration = AdsListDuration;
 }
 
-impl parami_bridge::Config for Runtime {
-    type Event = Event;
-    type Currency = Balances;
-    type ConfigOrigin = EnsureRootOrHalfCouncil;
-}
-
 parameter_types! {
-    pub const MyChainId: parami_chainbridge::ChainId = 233;
+    pub const ParamiChainId: parami_chainbridge::ChainId = 233;
     pub const ChainBridgePalletId: PalletId = PalletId(*b"chnbrdge");
     pub const ProposalLifetime: BlockNumber = 50;
 }
@@ -1140,25 +1100,19 @@ impl parami_chainbridge::Config for Runtime {
     type Event = Event;
     type AdminOrigin = frame_system::EnsureRoot<Self::AccountId>;
     type Proposal = Call;
-    type ChainId = MyChainId;
+    type ChainId = ParamiChainId;
     type PalletId = ChainBridgePalletId;
     type ProposalLifetime = ProposalLifetime;
-    type WeightInfo = parami_chainbridge::weights::SubstrateWeight<Runtime>;
+    type WeightInfo = ();
 }
 
 parameter_types! {
-    // NOTE: chain id is 233 for Parami.
-    // NOTE: chain id is 0 for ETH(or testnet).
     // &blake2_128(b"hash")
-    pub HashId: parami_chainbridge::ResourceId = parami_chainbridge::derive_resource_id(233,
-        b"\x97\xed\xaaiYd8\x13m\xcd\x12\x85S\xe9\x04\xbc\x03\xf5&Bor}'\x0bi\x84\x1f\xb6\xcfP\xd3"
-    );
+    pub HashId: parami_chainbridge::ResourceId = parami_chainbridge::derive_resource_id(233, &blake2_128(b"hash"));
+
     // &blake2_128(b"AD3")
-    // 000000000000000000000000000000c76ebe4a02bbc34786d860b355f5a5ce00
     // Note: Chain ID is 0 indicating this is native to another chain
-    pub NativeTokenId: parami_chainbridge::ResourceId = parami_chainbridge::derive_resource_id(0,
-        b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xc7n\xbeJ\x02\xbb\xc3G\x86\xd8`\xb3U\xf5\xa5\xce\x00"
-    );
+    pub NativeTokenId: parami_chainbridge::ResourceId = parami_chainbridge::derive_resource_id(0, &blake2_128(b"AD3"));
 }
 
 impl parami_xassets::Config for Runtime {
@@ -1248,7 +1202,6 @@ construct_runtime!(
         Elections: pallet_elections_phragmen::{Pallet, Call, Storage, Event<T>, Config<T>},
         Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event, ValidateUnsigned},
         Historical: pallet_session::historical::{Pallet},
-        Identity: pallet_identity::{Pallet, Call, Storage, Event<T>},
         ImOnline: pallet_im_online::{Pallet, Call, Storage, Event<T>, ValidateUnsigned, Config<T>},
         Mmr: pallet_mmr::{Pallet, Storage},
         Multisig: pallet_multisig::{Pallet, Call, Storage, Event<T>},
@@ -1275,8 +1228,7 @@ construct_runtime!(
         Ad: parami_ad::{Pallet, Call, Config<T>, Storage, Event<T>},
         Airdrop: parami_airdrop::{Pallet, Call, Config<T>, Storage, Event<T>},
         Auction: parami_auction::{Pallet, Call, Storage, Event<T>},
-        Bridge: parami_bridge::{Pallet, Storage, Call, Event<T>},
-        ChainBridge: parami_chainbridge::{Pallet, Storage, Call, Event<T>},
+        ChainBridge: parami_chainbridge::{Pallet, Call, Storage, Event<T>},
         XAssets: parami_xassets::{Pallet, Call, Event<T>},
         Did: parami_did::{Pallet, Call, Storage, Event<T>},
         Linker: parami_linker::{Pallet, Storage, Call, Event<T>},
@@ -1599,7 +1551,6 @@ impl_runtime_apis! {
             list_benchmark!(list, extra, pallet_election_provider_multi_phase, ElectionProviderMultiPhase);
             list_benchmark!(list, extra, pallet_elections_phragmen, Elections);
             list_benchmark!(list, extra, pallet_grandpa, Grandpa);
-            list_benchmark!(list, extra, pallet_identity, Identity);
             list_benchmark!(list, extra, pallet_im_online, ImOnline);
             list_benchmark!(list, extra, pallet_membership, TechnicalMembership);
             // list_benchmark!(list, extra, pallet_lottery, Lottery);
@@ -1658,7 +1609,6 @@ impl_runtime_apis! {
             add_benchmark!(params, batches, pallet_election_provider_multi_phase, ElectionProviderMultiPhase);
             add_benchmark!(params, batches, pallet_elections_phragmen, Elections);
             add_benchmark!(params, batches, pallet_grandpa, Grandpa);
-            add_benchmark!(params, batches, pallet_identity, Identity);
             add_benchmark!(params, batches, pallet_im_online, ImOnline);
             // add_benchmark!(params, batches, pallet_lottery, Lottery);
             add_benchmark!(params, batches, pallet_membership, TechnicalMembership);

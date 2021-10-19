@@ -21,6 +21,7 @@ use sp_runtime::{
 
 type AccountPublic = <Signature as Verify>::Signer;
 
+const PROPERTIES: &str = r#"{"tokenDecimals": 18 , "tokenSymbol": "AD3"}"#;
 const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 
 /// Node `ChainSpec` extensions.
@@ -247,8 +248,8 @@ pub fn staging_testnet_config() -> ChainSpec {
             TelemetryEndpoints::new(vec![(STAGING_TELEMETRY_URL.to_string(), 0)])
                 .expect("Staging telemetry url is valid; qed"),
         ),
-        None,
-        serde_json::from_str(r#"{"tokenDecimals": 18 , "tokenSymbol": "AD3"}"#).ok(),
+        Some("ad3"),
+        serde_json::from_str(PROPERTIES).ok(),
         Default::default(),
     )
 }
@@ -457,8 +458,8 @@ pub fn development_config() -> ChainSpec {
         development_config_genesis,
         vec![],
         None,
-        None,
-        serde_json::from_str(r#"{"tokenDecimals": 18 , "tokenSymbol": "AD3"}"#).ok(),
+        Some("ad3"),
+        serde_json::from_str(PROPERTIES).ok(),
         Default::default(),
     )
 }
@@ -484,8 +485,8 @@ pub fn local_testnet_config() -> ChainSpec {
         local_testnet_genesis,
         vec![],
         None,
-        None,
-        serde_json::from_str(r#"{"tokenDecimals": 18 , "tokenSymbol": "AD3"}"#).ok(),
+        Some("ad3"),
+        serde_json::from_str(PROPERTIES).ok(),
         Default::default(),
     )
 }

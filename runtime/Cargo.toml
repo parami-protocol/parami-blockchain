@@ -28,10 +28,6 @@ path = '../pallets/airdrop'
 default-features = false
 path = '../pallets/auction'
 
-[dependencies.parami-bridge]
-default-features = false
-path = '../pallets/bridge'
-
 [dependencies.parami-chainbridge]
 default-features = false
 path = '../pallets/chainbridge'
@@ -121,11 +117,6 @@ default-features = false
 git = 'https://github.com/open-web3-stack/open-runtime-module-library.git'
 rev = 'b89b1f98fcf0f5c341fbef1d12bfd869a2f2a9fe'
 
-# [dependencies.orml-traits]
-# default-features = false
-# git = 'https://github.com/open-web3-stack/open-runtime-module-library.git'
-# rev = 'b89b1f98fcf0f5c341fbef1d12bfd869a2f2a9fe'
-
 [dependencies.pallet-authority-discovery]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
@@ -197,11 +188,6 @@ git = 'https://github.com/paritytech/substrate.git'
 branch = 'polkadot-v0.9.11'
 
 [dependencies.pallet-im-online]
-default-features = false
-git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.11'
-
-[dependencies.pallet-identity]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
 branch = 'polkadot-v0.9.11'
@@ -417,7 +403,6 @@ runtime-benchmarks = [
     'pallet-election-provider-multi-phase/runtime-benchmarks',
     'pallet-elections-phragmen/runtime-benchmarks',
     'pallet-grandpa/runtime-benchmarks',
-    'pallet-identity/runtime-benchmarks',
     'pallet-im-online/runtime-benchmarks',
     'pallet-membership/runtime-benchmarks',
     'pallet-mmr/runtime-benchmarks',
@@ -443,14 +428,12 @@ runtime-benchmarks = [
     'parami-ad/runtime-benchmarks',
     'parami-airdrop/runtime-benchmarks',
     'parami-auction/runtime-benchmarks',
-    'parami-bridge/runtime-benchmarks',
     'parami-chainbridge/runtime-benchmarks',
     'parami-xassets/runtime-benchmarks',
     'parami-did/runtime-benchmarks',
     'parami-linker/runtime-benchmarks',
     'parami-magic/runtime-benchmarks',
     'parami-nft/runtime-benchmarks',
-    # 'parami-primitives/runtime-benchmarks',
     'parami-swap/runtime-benchmarks',
     'serde',
     'sp-runtime/runtime-benchmarks',
@@ -465,7 +448,6 @@ std = [
     'frame-system-rpc-runtime-api/std',
     'orml-auction/std',
     'orml-nft/std',
-    # 'orml-traits/std',
     'pallet-assets/std',
     'pallet-authority-discovery/std',
     'pallet-authorship/std',
@@ -480,7 +462,6 @@ std = [
     'pallet-election-provider-multi-phase/std',
     'pallet-elections-phragmen/std',
     'pallet-grandpa/std',
-    'pallet-identity/std',
     'pallet-im-online/std',
     'pallet-membership/std',
     'pallet-mmr/std',
@@ -504,7 +485,6 @@ std = [
     'parami-ad/std',
     'parami-airdrop/std',
     'parami-auction/std',
-    'parami-bridge/std',
     'parami-chainbridge/std',
     'parami-xassets/std',
     'parami-did/std',
