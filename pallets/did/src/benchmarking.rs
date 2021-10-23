@@ -2,76 +2,45 @@ use super::*;
 
 #[allow(unused)]
 use crate::Pallet as Did;
-use frame_benchmarking::{benchmarks, impl_benchmark_test_suite, whitelisted_caller};
+use frame_benchmarking::{account, benchmarks, impl_benchmark_test_suite, whitelisted_caller};
 use frame_system::RawOrigin;
 
 benchmarks! {
     register {
-        // referrer setting
-        let public: T::Public = sr25519::Public([1; 32]).into();
-        let caller: T::AccountId = public.clone().into_account();
-        T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
-        whitelist_account!(caller);
-        Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), public, None)?;
-        let ref_id = Did::<T>::did_of(caller).unwrap();
+        let caller: T::AccountId = whitelisted_caller();
 
-        // caller setting
-        let public: T::Public = sr25519::Public([2; 32]).into();
-        let caller: T::AccountId = public.clone().into_account();
-        T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
-        whitelist_account!(caller);
-    }: register(RawOrigin::Signed(caller.clone()), public, Some(ref_id))
+        let referer: T::AccountId = account::<T::AccountId>("referer", 1, 1);
+
+        Did::<T>::register(RawOrigin::Signed(referer.clone()).into(), None)?;
+
+        let referer = DidOf::<T>::get(referer);
+    }: _(RawOrigin::Signed(caller), referer)
     verify {
-        assert_eq!(Did::<T>::total_dids(), Some(2), "should create did");
+        let caller: T::AccountId = whitelisted_caller();
+        assert_ne!(DidOf::<T>::get(caller), None);
     }
 
-    register_for {
-        use frame_support::traits::Get;
+    transfer {
+        let caller: T::AccountId = whitelisted_caller();
+        Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), None)?;
 
-        let min_deposit = <T as Did::Config>::Deposit::get();
-        // referrer setting
-        let public: T::Public = sr25519::Public([1; 32]).into();
-        let caller: T::AccountId = public.clone().into_account();
-        T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
-        whitelist_account!(caller);
-        Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), public, None)?;
-        Did::<T>::lock(RawOrigin::Signed(caller.clone()).into(), min_deposit)?;
-
-        let public: T::Public = sr25519::Public([2; 32]).into();
-    }: register_for(RawOrigin::Signed(caller.clone()), public)
+        let receiver: T::AccountId = account::<T::AccountId>("receiver", 1, 1);
+    }: _(RawOrigin::Signed(caller), receiver)
     verify {
-        assert_eq!(Did::<T>::total_dids(), Some(2), "should create did");
-    }
+        let caller: T::AccountId = whitelisted_caller();
+        assert_eq!(DidOf::<T>::get(caller), None);
 
-    lock {
-        use frame_support::traits::Get;
-
-        let min_deposit = <T as Did::Config>::Deposit::get();
-        // referrer setting
-        let public: T::Public = sr25519::Public([1; 32]).into();
-        let caller: T::AccountId = public.clone().into_account();
-        T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
-        whitelist_account!(caller);
-        Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), public, None)?;
-    }: lock(RawOrigin::Signed(caller.clone()), min_deposit)
-    verify {
-        assert_eq!(Did::<T>::total_dids(), Some(1), "should create did");
+        let receiver: T::AccountId = account::<T::AccountId>("receiver", 1, 1);
+        assert_ne!(DidOf::<T>::get(receiver), None);
     }
 
     revoke {
-        use frame_support::traits::Get;
-
-        let min_deposit = <T as Did::Config>::Deposit::get();
-        // referrer setting
-        let public: T::Public = sr25519::Public([1; 32]).into();
-        let caller: T::AccountId = public.clone().into_account();
-        T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
-        whitelist_account!(caller);
-        Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), public, None)?;
-        Did::<T>::lock(RawOrigin::Signed(caller.clone()).into(), min_deposit)?;
-    }: revoke(RawOrigin::Signed(caller.clone()))
+        let caller: T::AccountId = whitelisted_caller();
+        Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), None)?;
+    }: _(RawOrigin::Signed(caller))
     verify {
-        assert_eq!(Did::<T>::total_dids(), Some(0), "should revoke did");
+        let caller: T::AccountId = whitelisted_caller();
+        assert_eq!(DidOf::<T>::get(caller), None);
     }
 }
 

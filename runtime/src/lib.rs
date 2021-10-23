@@ -22,7 +22,7 @@ use sp_runtime::{
     curve::PiecewiseLinear,
     generic, impl_opaque_keys,
     traits::{
-        BlakeTwo256, Block as BlockT, ConvertInto, Extrinsic, NumberFor, OpaqueKeys,
+        BlakeTwo256, Block as BlockT, ConvertInto, Extrinsic, Keccak256, NumberFor, OpaqueKeys,
         SaturatedConversion, StaticLookup, Verify,
     },
     transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
@@ -1130,6 +1130,8 @@ parameter_types! {
 
 impl parami_did::Config for Runtime {
     type Event = Event;
+    type DecentralizedId = sp_core::H160;
+    type Hashing = Keccak256;
     type Time = Timestamp;
     type WeightInfo = parami_did::weights::SubstrateWeight<Runtime>;
 }

@@ -14,18 +14,24 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-use frame_support::{dispatch::DispatchResultWithPostInfo, ensure, traits::Time};
-use sp_core::H160;
-use sp_io::hashing::keccak_256;
+mod types;
+
+use frame_support::{
+    dispatch::DispatchResult,
+    ensure,
+    traits::{EnsureOrigin, Time},
+};
+use scale_info::TypeInfo;
 use sp_runtime::{
-    traits::{LookupError, StaticLookup},
+    traits::{
+        Hash, LookupError, MaybeDisplay, MaybeMallocSizeOf, MaybeSerializeDeserialize, Member,
+        SimpleBitOps, StaticLookup,
+    },
     MultiAddress,
 };
 use sp_std::prelude::*;
 
 use weights::WeightInfo;
-
-pub type DidMethodSpecId = H160;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -35,12 +41,31 @@ pub mod pallet {
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
-        /// The overarching event type.
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+
+        type DecentralizedId: Parameter
+            + Member
+            + MaybeSerializeDeserialize
+            // + Debug
+            + MaybeDisplay
+            + SimpleBitOps
+            + Ord
+            + Default
+            + Copy
+            // + CheckEqual
+            + sp_std::hash::Hash
+            + AsRef<[u8]>
+            + AsMut<[u8]>
+            + Into<[u8; 20]>
+            + From<[u8; 20]>
+            + MaybeMallocSizeOf
+            + MaxEncodedLen
+            + TypeInfo;
+
+        type Hashing: Hash<Output = Self::Hash> + TypeInfo;
 
         type Time: Time;
 
-        /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
     }
 
@@ -48,43 +73,36 @@ pub mod pallet {
     #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(PhantomData<T>);
 
+    /// The metadata of a did.
     #[pallet::storage]
     pub(super) type Metadata<T: Config> = StorageMap<
         _,
-        Blake2_128Concat,
-        DidMethodSpecId,
-        (T::AccountId, <T::Time as Time>::Moment, bool),
+        Identity,
+        T::DecentralizedId,
+        types::Metadata<T::AccountId, <T::Time as Time>::Moment>,
     >;
 
-    /// The account id of a did.
+    /// The did of an account id.
     #[pallet::storage]
     #[pallet::getter(fn did_of)]
-    pub(super) type DidOf<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, DidMethodSpecId>;
+    pub(super) type DidOf<T: Config> =
+        StorageMap<_, Twox64Concat, T::AccountId, T::DecentralizedId>;
 
+    /// The inviter did of a did.
     #[pallet::storage]
     #[pallet::getter(fn referrer_of)]
     pub(super) type ReferrerOf<T: Config> =
-        StorageMap<_, Identity, DidMethodSpecId, DidMethodSpecId>;
-
-    /// Tracking the latest identity update.
-    #[pallet::storage]
-    #[pallet::getter(fn updated_by)]
-    pub(super) type UpdatedBy<T: Config> = StorageMap<
-        _,
-        Blake2_128Concat,
-        DidMethodSpecId,
-        (T::AccountId, T::BlockNumber, <T::Time as Time>::Moment),
-    >;
+        StorageMap<_, Identity, T::DecentralizedId, T::DecentralizedId>;
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
-        /// A DID was assigned. \[index, who, referrer\]
-        Assigned(DidMethodSpecId, T::AccountId, Option<DidMethodSpecId>),
-        /// A DID has been freed up (unassigned). \[index\]
-        Revoked(DidMethodSpecId),
-        /// Controller is changed, \[did, new_controller\]
-        ControllerChanged(DidMethodSpecId, T::AccountId),
+        /// New DID assigned to AccountId, invited by DID. \[did, who, referrer\]
+        Assigned(T::DecentralizedId, T::AccountId, Option<T::DecentralizedId>),
+        /// Existed DID revoked. \[did\]
+        Revoked(T::DecentralizedId),
+        /// Existed DID transferred from one AccountId to another AccountId. \[did, from, to\]
+        Transferred(T::DecentralizedId, T::AccountId, T::AccountId),
     }
 
     #[pallet::hooks]
@@ -92,19 +110,11 @@ pub mod pallet {
 
     #[pallet::error]
     pub enum Error<T> {
+        /// DID already exists
+        Exists,
         /// DID does not exist
         NotExists,
-        /// DID already exists
-        DidExists,
-        /// The index is assigned to another account
-        NotOwner,
-        /// The DID was not available or revoked
-        InUse,
-        /// DID is revoked
-        Revoked,
-        /// Only accepts account ID
-        AccountIdRequired,
-        /// Referrer does not exist
+        /// Referrer DID does not exist
         ReferrerNotExists,
     }
 
@@ -114,10 +124,11 @@ pub mod pallet {
         #[pallet::weight(T::WeightInfo::register())]
         pub fn register(
             origin: OriginFor<T>,
-            referrer: Option<DidMethodSpecId>,
-        ) -> DispatchResultWithPostInfo {
+            referrer: Option<T::DecentralizedId>,
+        ) -> DispatchResult {
             let who = ensure_signed(origin)?;
-            ensure!(!<DidOf<T>>::contains_key(&who), Error::<T>::DidExists);
+
+            ensure!(!<DidOf<T>>::contains_key(&who), Error::<T>::Exists);
 
             if let Some(r) = referrer.as_ref() {
                 ensure!(
@@ -126,88 +137,150 @@ pub mod pallet {
                 );
             }
 
-            let raw = T::AccountId::encode(&who);
-            let hash = keccak_256(&raw);
-            let id = DidMethodSpecId::from_slice(&hash[..20]);
+            let created = T::Time::now();
+            let height = <frame_system::Pallet<T>>::block_number();
 
-            <Metadata<T>>::try_mutate::<_, _, Error<T>, _>(id, |maybe_value| {
-                ensure!(maybe_value.is_none(), Error::<T>::DidExists);
+            // TODO: use a HMAC-based algorithm.
+            let mut raw = T::AccountId::encode(&who);
+            let mut ord = T::BlockNumber::encode(&height);
+            raw.append(&mut ord);
 
-                *maybe_value = Some((who.clone(), T::Time::now(), false));
-                Ok(())
-            })?;
-            <DidOf<T>>::insert(who.clone(), id);
+            let did = <T as pallet::Config>::Hashing::hash(&raw);
+            let did = Self::truncate(&did);
+
+            <Metadata<T>>::insert(
+                did,
+                types::Metadata {
+                    account: who.clone(),
+                    created,
+                    revoked: false,
+                },
+            );
+            <DidOf<T>>::insert(who.clone(), did);
             if let Some(referrer) = referrer {
-                <ReferrerOf<T>>::insert(id, referrer);
-                Self::deposit_event(Event::Assigned(id, who.clone(), Some(referrer)));
-            } else {
-                Self::deposit_event(Event::Assigned(id, who.clone(), None));
+                <ReferrerOf<T>>::insert(did, referrer);
             }
 
-            let now_timestamp = T::Time::now();
-            let now_block_number = <frame_system::Pallet<T>>::block_number();
-            <UpdatedBy<T>>::insert(id, (who, now_block_number, now_timestamp));
+            Self::deposit_event(Event::<T>::Assigned(did, who, referrer));
 
-            Ok(().into())
+            Ok(())
         }
 
-        /// Rovoke a DID, which will never be used in the future.
-        /// This means that you refuse to use this AccountID for identify.
-        #[pallet::weight(T::WeightInfo::revoke())]
-        pub fn revoke(origin: OriginFor<T>) -> DispatchResultWithPostInfo {
+        /// Transfer a new DID.
+        #[pallet::weight(T::WeightInfo::transfer())]
+        pub fn transfer(origin: OriginFor<T>, account: T::AccountId) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
-            let id = <DidOf<T>>::get(&who).ok_or(Error::<T>::NotExists)?;
-            <Metadata<T>>::try_mutate::<_, _, Error<T>, _>(id, |maybe_value| {
-                let (account, _when, revoked) = maybe_value.take().ok_or(Error::<T>::NotExists)?;
-                ensure!(&account == &who, Error::<T>::NotOwner);
-                ensure!(!revoked, Error::<T>::Revoked);
-                // set created timestamp = 0
-                *maybe_value = Some((who.clone(), Default::default(), true));
-                Ok(())
-            })?;
+            ensure!(!<DidOf<T>>::contains_key(&account), Error::<T>::Exists);
 
-            Self::deposit_event(Event::<T>::Revoked(id));
+            let did = <DidOf<T>>::get(&who).ok_or(Error::<T>::NotExists)?;
 
-            let now_timestamp = T::Time::now();
-            let now_block_number = <frame_system::Pallet<T>>::block_number();
-            <UpdatedBy<T>>::insert(id, (who, now_block_number, now_timestamp));
+            <Metadata<T>>::mutate(did, |maybe| {
+                if let Some(metadata) = maybe {
+                    *metadata = types::Metadata {
+                        account: account.clone(),
+                        ..*metadata
+                    };
+                }
+            });
 
-            Ok(().into())
+            <DidOf<T>>::remove(who.clone());
+            <DidOf<T>>::insert(account.clone(), did);
+
+            Self::deposit_event(Event::<T>::Transferred(did, who, account));
+
+            Ok(())
+        }
+
+        /// Revoke a new DID.
+        #[pallet::weight(T::WeightInfo::revoke())]
+        pub fn revoke(origin: OriginFor<T>) -> DispatchResult {
+            let who = ensure_signed(origin)?;
+
+            let did = <DidOf<T>>::get(&who).ok_or(Error::<T>::NotExists)?;
+
+            <Metadata<T>>::mutate(did, |maybe| {
+                if let Some(metadata) = maybe {
+                    *metadata = types::Metadata {
+                        account: metadata.account.clone(),
+                        created: Default::default(),
+                        revoked: true,
+                    };
+                }
+            });
+
+            <DidOf<T>>::remove(who.clone());
+
+            Self::deposit_event(Event::<T>::Revoked(did));
+
+            Ok(())
+        }
+    }
+
+    #[pallet::genesis_config]
+    pub struct GenesisConfig<T: Config> {
+        pub ids: Vec<(T::AccountId, T::DecentralizedId)>,
+    }
+
+    #[cfg(feature = "std")]
+    impl<T: Config> Default for GenesisConfig<T> {
+        fn default() -> Self {
+            Self {
+                ids: Default::default(),
+            }
+        }
+    }
+
+    #[cfg(feature = "std")]
+    impl<T: Config> GenesisConfig<T> {
+        pub fn build_storage(&self) -> Result<sp_runtime::Storage, String> {
+            <Self as GenesisBuild<T>>::build_storage(self)
+        }
+
+        pub fn assimilate_storage(&self, storage: &mut sp_runtime::Storage) -> Result<(), String> {
+            <Self as GenesisBuild<T>>::assimilate_storage(self, storage)
+        }
+    }
+
+    #[pallet::genesis_build]
+    impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
+        fn build(&self) {
+            let created = T::Time::now();
+
+            for (id, did) in &self.ids {
+                <Metadata<T>>::insert(
+                    did,
+                    types::Metadata {
+                        account: id.clone(),
+                        created,
+                        revoked: false,
+                    },
+                );
+                <DidOf<T>>::insert(id.clone(), did);
+            }
         }
     }
 }
 
 impl<T: Config> Pallet<T> {
-    /// Lookup an T::AccountIndex to get an Id, if there's one there.
-    pub fn lookup_index(index: DidMethodSpecId) -> Option<T::AccountId> {
-        <Metadata<T>>::get(index).map(|x| x.0)
+    fn truncate<H1: Default + AsMut<[u8]>, H2: AsRef<[u8]>>(src: &H2) -> H1 {
+        let src = src.as_ref();
+        let mut dest = H1::default();
+        let len = dest.as_mut().len();
+        assert!(len <= src.len());
+        dest.as_mut().copy_from_slice(&src[(src.len() - len)..]);
+        dest
     }
 
-    pub fn lookup_account(a: T::AccountId) -> Option<DidMethodSpecId> {
-        <DidOf<T>>::get(a)
+    fn lookup_index(did: T::DecentralizedId) -> Option<T::AccountId> {
+        <Metadata<T>>::get(did).map(|x| x.account)
     }
 
-    /// Lookup an address to get an Id, if there's one there.
-    pub fn lookup_address(a: MultiAddress<T::AccountId, ()>) -> Option<T::AccountId> {
+    fn lookup_address(a: MultiAddress<T::AccountId, ()>) -> Option<T::AccountId> {
         match a {
             MultiAddress::Id(i) => Some(i),
-            MultiAddress::Address20(i) => Self::lookup_index(i.into()),
+            MultiAddress::Address20(a) => Self::lookup_index(a.into()),
             _ => None,
-        }
-    }
-
-    pub fn is_did(a: MultiAddress<T::AccountId, ()>) -> bool {
-        match a {
-            MultiAddress::Address20(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_account_id(a: MultiAddress<T::AccountId, ()>) -> bool {
-        match a {
-            MultiAddress::Id(_) => true,
-            _ => false,
         }
     }
 }
@@ -220,7 +293,33 @@ impl<T: Config> StaticLookup for Pallet<T> {
         Self::lookup_address(a).ok_or(LookupError)
     }
 
-    fn unlookup(a: Self::Target) -> Self::Source {
-        MultiAddress::Id(a)
+    fn unlookup(i: Self::Target) -> Self::Source {
+        MultiAddress::Id(i)
+    }
+}
+
+pub struct EnsureDid<AccountId>(sp_std::marker::PhantomData<AccountId>);
+impl<T: pallet::Config> EnsureOrigin<T::Origin> for EnsureDid<T> {
+    type Success = (T::DecentralizedId, T::AccountId);
+
+    fn try_origin(o: T::Origin) -> Result<Self::Success, T::Origin> {
+        use frame_support::traits::OriginTrait;
+        use frame_system::RawOrigin;
+
+        o.into().and_then(|o| match o {
+            RawOrigin::Signed(who) => {
+                let did = <DidOf<T>>::get(&who).ok_or(T::Origin::none())?;
+
+                Ok((did, who))
+            }
+            r => Err(T::Origin::from(r)),
+        })
+    }
+
+    #[cfg(feature = "runtime-benchmarks")]
+    fn successful_origin() -> T::Origin {
+        use frame_system::RawOrigin;
+
+        T::Origin::from(RawOrigin::Root)
     }
 }
