@@ -44,7 +44,7 @@ use frame_support::{
         constants::{BlockExecutionWeight, RocksDbWeight, WEIGHT_PER_SECOND},
         DispatchClass, IdentityFee, Weight,
     },
-    PalletId,
+    Blake2_256, PalletId,
 };
 use frame_system::{EnsureOneOf, EnsureRoot};
 use pallet_contracts::weights::WeightInfo;
@@ -1182,6 +1182,22 @@ impl parami_swap::Config for Runtime {
     type SwapAssetBalance = <Self as pallet_assets::Config>::Balance;
 }
 
+parameter_types! {
+    pub const SubmissionFee: Balance = 1 * DOLLARS;
+}
+
+impl parami_tag::Config for Runtime {
+    type Event = Event;
+    type Currency = Balances;
+    type DecentralizedId = <Self as parami_did::Config>::DecentralizedId;
+    type Hashing = Blake2_256;
+    type SubmissionFee = SubmissionFee;
+    type Time = Timestamp;
+    type CallOrigin = parami_did::EnsureDid<Self>;
+    type ForceOrigin = EnsureRootOrHalfCouncil;
+    type WeightInfo = ();
+}
+
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(
     pub enum Runtime where
@@ -1237,6 +1253,7 @@ construct_runtime!(
         Magic: parami_magic::{Pallet, Call, Storage,Event<T>},
         Nft: parami_nft::{Pallet, Call, Storage, Event<T>},
         Swap: parami_swap::{Pallet, Call, Storage, Event<T>},
+        Tag: parami_tag::{Pallet, Call, Storage, Event<T>},
     }
 );
 
@@ -1558,10 +1575,10 @@ impl_runtime_apis! {
             // list_benchmark!(list, extra, pallet_lottery, Lottery);
             list_benchmark!(list, extra, pallet_mmr, Mmr);
             list_benchmark!(list, extra, pallet_multisig, Multisig);
-            list_benchmark!(list, extra, pallet_offences, OffencesBench::<Runtime>);
+            // list_benchmark!(list, extra, pallet_offences, OffencesBench::<Runtime>);
             list_benchmark!(list, extra, pallet_scheduler, Scheduler);
-            list_benchmark!(list, extra, pallet_session, SessionBench::<Runtime>);
-            list_benchmark!(list, extra, pallet_society, Society);
+            // list_benchmark!(list, extra, pallet_session, SessionBench::<Runtime>);
+            // list_benchmark!(list, extra, pallet_society, Society);
             list_benchmark!(list, extra, pallet_staking, Staking);
             list_benchmark!(list, extra, pallet_timestamp, Timestamp);
             list_benchmark!(list, extra, pallet_tips, Tips);
@@ -1569,7 +1586,8 @@ impl_runtime_apis! {
             list_benchmark!(list, extra, pallet_utility, Utility);
             list_benchmark!(list, extra, pallet_vesting, Vesting);
 
-            // list_benchmark!(list, extra, parami_did, Did);
+            list_benchmark!(list, extra, parami_did, Did);
+            list_benchmark!(list, extra, parami_tag, Tag);
 
             let storage_info = AllPalletsWithSystem::storage_info();
 
@@ -1616,10 +1634,10 @@ impl_runtime_apis! {
             add_benchmark!(params, batches, pallet_membership, TechnicalMembership);
             add_benchmark!(params, batches, pallet_mmr, Mmr);
             add_benchmark!(params, batches, pallet_multisig, Multisig);
-            add_benchmark!(params, batches, pallet_offences, OffencesBench::<Runtime>);
+            // add_benchmark!(params, batches, pallet_offences, OffencesBench::<Runtime>);
             add_benchmark!(params, batches, pallet_scheduler, Scheduler);
-            add_benchmark!(params, batches, pallet_session, SessionBench::<Runtime>);
-            add_benchmark!(params, batches, pallet_society, Society);
+            // add_benchmark!(params, batches, pallet_session, SessionBench::<Runtime>);
+            // add_benchmark!(params, batches, pallet_society, Society);
             add_benchmark!(params, batches, pallet_staking, Staking);
             add_benchmark!(params, batches, pallet_timestamp, Timestamp);
             add_benchmark!(params, batches, pallet_tips, Tips);
@@ -1627,7 +1645,8 @@ impl_runtime_apis! {
             add_benchmark!(params, batches, pallet_utility, Utility);
             add_benchmark!(params, batches, pallet_vesting, Vesting);
 
-            // add_benchmark!(params, batches, parami_did, Did);
+            add_benchmark!(params, batches, parami_did, Did);
+            add_benchmark!(params, batches, parami_tag, Tag);
 
             if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
             Ok(batches)
