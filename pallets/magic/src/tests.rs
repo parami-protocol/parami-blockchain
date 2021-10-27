@@ -20,7 +20,7 @@ fn should_create() {
         assert_eq!(Balances::free_balance(alice), 98);
         assert_eq!(Balances::total_issuance(), 100);
 
-        let maybe_stash = <StableAccountOf<Test>>::get(alice);
+        let maybe_stash = <StableAccountOf<Test>>::get(&alice);
         assert_ne!(maybe_stash, None);
 
         let stash = maybe_stash.unwrap();
@@ -30,7 +30,7 @@ fn should_create() {
         assert_eq!(Balances::free_balance(stash.stash_account), 1);
         assert_eq!(Balances::free_balance(magic), 1);
 
-        assert_eq!(<ControllerAccountOf<Test>>::get(magic), Some(alice));
+        assert_eq!(<ControllerAccountOf<Test>>::get(&magic), Some(alice));
     });
 }
 
@@ -78,9 +78,9 @@ fn should_transfer() {
 
         assert_ok!(Magic::change_controller(Origin::signed(magic), bob));
 
-        assert_eq!(<StableAccountOf<Test>>::get(alice), None);
+        assert_eq!(<StableAccountOf<Test>>::get(&alice), None);
 
-        let maybe_stash = <StableAccountOf<Test>>::get(bob);
+        let maybe_stash = <StableAccountOf<Test>>::get(&bob);
         assert_ne!(maybe_stash, None);
 
         let stash = maybe_stash.unwrap();
@@ -91,6 +91,6 @@ fn should_transfer() {
         assert_eq!(Balances::free_balance(magic), 1);
         assert_ne!(Balances::free_balance(bob), 0);
 
-        assert_eq!(<ControllerAccountOf<Test>>::get(magic), Some(bob));
+        assert_eq!(<ControllerAccountOf<Test>>::get(&magic), Some(bob));
     });
 }

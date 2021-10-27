@@ -1,4 +1,4 @@
-use crate::{mock::*, Error, InfluencesOf, Metadata, TagsOf};
+use crate::{mock::*, Error, InfluencesOf, Metadata, PersonasOf};
 use frame_support::{assert_noop, assert_ok};
 use sp_core::sr25519;
 use sp_runtime::DispatchError;
@@ -15,7 +15,7 @@ fn should_create() {
 
         assert_ok!(Tag::create(Origin::signed(alice), tag.clone()));
 
-        let maybe_tag = <Metadata<Test>>::get(tag);
+        let maybe_tag = <Metadata<Test>>::get(&tag);
         assert_ne!(maybe_tag, None);
 
         assert_eq!(Balances::free_balance(alice), 99);
@@ -52,7 +52,7 @@ fn should_fail_when_insufficient() {
             Error::<Test>::InsufficientBalance
         );
 
-        let maybe_tag = <Metadata<Test>>::get(tag);
+        let maybe_tag = <Metadata<Test>>::get(&tag);
         assert_eq!(maybe_tag, None);
 
         assert_eq!(Balances::free_balance(bob), 0);
@@ -69,7 +69,7 @@ fn should_force_create() {
 
         assert_ok!(Tag::force_create(Origin::root(), tag.clone()));
 
-        let maybe_tag = <Metadata<Test>>::get(tag);
+        let maybe_tag = <Metadata<Test>>::get(&tag);
         assert_ne!(maybe_tag, None);
 
         assert_eq!(Balances::total_issuance(), 100);
@@ -90,21 +90,21 @@ fn should_scoring() {
         let did = DID::from_slice(&[0xff; 20]);
 
         assert_ok!(Tag::influence(did, tag1.clone(), 5));
-        assert_eq!(<TagsOf<Test>>::get(did, &hash1), Some(5));
+        assert_eq!(<PersonasOf<Test>>::get(&did, &hash1), Some(5));
         assert_ok!(Tag::influence(did, tag1.clone(), 3));
-        assert_eq!(<TagsOf<Test>>::get(did, &hash1), Some(8));
+        assert_eq!(<PersonasOf<Test>>::get(&did, &hash1), Some(8));
 
         assert_noop!(
             Tag::influence(did, tag2.clone(), 5),
             Error::<Test>::NotExists
         );
-        assert_eq!(<TagsOf<Test>>::get(did, &hash2), None);
+        assert_eq!(<PersonasOf<Test>>::get(&did, &hash2), None);
 
         assert_ok!(Tag::impact(did, tag1.clone(), 5));
-        assert_eq!(<InfluencesOf<Test>>::get(did, &hash1), Some(5));
+        assert_eq!(<InfluencesOf<Test>>::get(&did, &hash1), Some(5));
         assert_ok!(Tag::impact(did, tag1.clone(), 3));
-        assert_eq!(<InfluencesOf<Test>>::get(did, &hash1), Some(8));
+        assert_eq!(<InfluencesOf<Test>>::get(&did, &hash1), Some(8));
         assert_noop!(Tag::impact(did, tag2.clone(), 5), Error::<Test>::NotExists);
-        assert_eq!(<InfluencesOf<Test>>::get(did, &hash2), None);
+        assert_eq!(<InfluencesOf<Test>>::get(&did, &hash2), None);
     });
 }

@@ -33,6 +33,8 @@ use sp_std::prelude::*;
 
 use weights::WeightInfo;
 
+type MomentOf<T> = <<T as pallet::Config>::Time as Time>::Moment;
+
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
@@ -62,7 +64,7 @@ pub mod pallet {
             + MaxEncodedLen
             + TypeInfo;
 
-        type Hashing: Hash<Output = Self::Hash> + TypeInfo;
+        type Hashing: Hash + TypeInfo;
 
         type Time: Time;
 
@@ -75,12 +77,9 @@ pub mod pallet {
 
     /// The metadata of a did.
     #[pallet::storage]
-    pub(super) type Metadata<T: Config> = StorageMap<
-        _,
-        Identity,
-        T::DecentralizedId,
-        types::Metadata<T::AccountId, <T::Time as Time>::Moment>,
-    >;
+    #[pallet::getter(fn metadata)]
+    pub(super) type Metadata<T: Config> =
+        StorageMap<_, Identity, T::DecentralizedId, types::Metadata<T::AccountId, MomentOf<T>>>;
 
     /// The did of an account id.
     #[pallet::storage]
@@ -132,7 +131,7 @@ pub mod pallet {
 
             if let Some(r) = referrer.as_ref() {
                 ensure!(
-                    <Metadata<T>>::contains_key(r),
+                    <Metadata<T>>::contains_key(&r),
                     Error::<T>::ReferrerNotExists
                 );
             }
@@ -149,16 +148,16 @@ pub mod pallet {
             let did = Self::truncate(&did);
 
             <Metadata<T>>::insert(
-                did,
+                &did,
                 types::Metadata {
                     account: who.clone(),
                     created,
                     revoked: false,
                 },
             );
-            <DidOf<T>>::insert(who.clone(), did);
+            <DidOf<T>>::insert(&who, did);
             if let Some(referrer) = referrer {
-                <ReferrerOf<T>>::insert(did, referrer);
+                <ReferrerOf<T>>::insert(&did, referrer);
             }
 
             Self::deposit_event(Event::<T>::Assigned(did, who, referrer));
@@ -175,17 +174,17 @@ pub mod pallet {
 
             let did = <DidOf<T>>::get(&who).ok_or(Error::<T>::NotExists)?;
 
-            <Metadata<T>>::mutate(did, |maybe| {
-                if let Some(metadata) = maybe {
-                    *metadata = types::Metadata {
+            <Metadata<T>>::mutate(&did, |maybe| {
+                if let Some(meta) = maybe {
+                    *meta = types::Metadata {
                         account: account.clone(),
-                        ..*metadata
+                        ..*meta
                     };
                 }
             });
 
-            <DidOf<T>>::remove(who.clone());
-            <DidOf<T>>::insert(account.clone(), did);
+            <DidOf<T>>::remove(&who);
+            <DidOf<T>>::insert(&account, did);
 
             Self::deposit_event(Event::<T>::Transferred(did, who, account));
 
@@ -199,17 +198,17 @@ pub mod pallet {
 
             let did = <DidOf<T>>::get(&who).ok_or(Error::<T>::NotExists)?;
 
-            <Metadata<T>>::mutate(did, |maybe| {
-                if let Some(metadata) = maybe {
-                    *metadata = types::Metadata {
-                        account: metadata.account.clone(),
+            <Metadata<T>>::mutate(&did, |maybe| {
+                if let Some(meta) = maybe {
+                    *meta = types::Metadata {
+                        account: meta.account.clone(),
                         created: Default::default(),
                         revoked: true,
                     };
                 }
             });
 
-            <DidOf<T>>::remove(who.clone());
+            <DidOf<T>>::remove(&who);
 
             Self::deposit_event(Event::<T>::Revoked(did));
 
@@ -231,17 +230,6 @@ pub mod pallet {
         }
     }
 
-    #[cfg(feature = "std")]
-    impl<T: Config> GenesisConfig<T> {
-        pub fn build_storage(&self) -> Result<sp_runtime::Storage, String> {
-            <Self as GenesisBuild<T>>::build_storage(self)
-        }
-
-        pub fn assimilate_storage(&self, storage: &mut sp_runtime::Storage) -> Result<(), String> {
-            <Self as GenesisBuild<T>>::assimilate_storage(self, storage)
-        }
-    }
-
     #[pallet::genesis_build]
     impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
         fn build(&self) {
@@ -256,7 +244,7 @@ pub mod pallet {
                         revoked: false,
                     },
                 );
-                <DidOf<T>>::insert(id.clone(), did);
+                <DidOf<T>>::insert(&id, did);
             }
         }
     }
@@ -272,14 +260,21 @@ impl<T: Config> Pallet<T> {
         dest
     }
 
-    fn lookup_index(did: T::DecentralizedId) -> Option<T::AccountId> {
-        <Metadata<T>>::get(did).map(|x| x.account)
+    fn lookup_did(did: T::DecentralizedId) -> Option<T::AccountId> {
+        <Metadata<T>>::get(&did).map(|x| x.account)
     }
 
     fn lookup_address(a: MultiAddress<T::AccountId, ()>) -> Option<T::AccountId> {
         match a {
             MultiAddress::Id(i) => Some(i),
-            MultiAddress::Address20(a) => Self::lookup_index(a.into()),
+            MultiAddress::Address20(a) => Self::lookup_did(a.into()),
+            MultiAddress::Raw(r) => {
+                if r.len() == 20 {
+                    Self::lookup_did(Self::truncate(&r))
+                } else {
+                    None
+                }
+            }
             _ => None,
         }
     }
@@ -298,7 +293,7 @@ impl<T: Config> StaticLookup for Pallet<T> {
     }
 }
 
-pub struct EnsureDid<AccountId>(sp_std::marker::PhantomData<AccountId>);
+pub struct EnsureDid<T>(sp_std::marker::PhantomData<T>);
 impl<T: pallet::Config> EnsureOrigin<T::Origin> for EnsureDid<T> {
     type Success = (T::DecentralizedId, T::AccountId);
 

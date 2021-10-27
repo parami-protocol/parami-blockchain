@@ -437,6 +437,9 @@ pub fn testnet_genesis(
 
         airdrop: Default::default(),
         ad: Default::default(),
+        did: Default::default(),
+        magic: Default::default(),
+        tag: Default::default(),
     }
 }
 

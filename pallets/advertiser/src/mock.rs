@@ -1,10 +1,11 @@
-use crate as parami_tag;
-use frame_support::{parameter_types, traits::GenesisBuild, Blake2_256};
+use crate as parami_advertiser;
+use frame_support::{parameter_types, traits::GenesisBuild, PalletId};
 use frame_system::{self as system, EnsureRoot};
 use sp_core::{sr25519, H256};
 use sp_runtime::{
     testing::Header,
     traits::{BlakeTwo256, Keccak256},
+    Permill,
 };
 
 type UncheckedExtrinsic = system::mocking::MockUncheckedExtrinsic<Test>;
@@ -19,9 +20,10 @@ frame_support::construct_runtime!(
         System: system::{Pallet, Call, Config, Storage, Event<T>},
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
         Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
+        Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>},
 
         Did: parami_did::{Pallet, Call, Storage, Event<T>},
-        Tag: parami_tag::{Pallet, Call, Storage, Event<T>},
+        Advertiser: parami_advertiser::{Pallet, Call, Storage, Event<T>},
     }
 );
 
@@ -62,6 +64,8 @@ impl system::Config for Test {
 
 parameter_types! {
     pub const ExistentialDeposit: Balance = 1;
+    pub const MaxLocks: u32 = 50;
+    pub const MaxReserves: u32 = 50;
 }
 
 impl pallet_balances::Config for Test {
@@ -71,9 +75,9 @@ impl pallet_balances::Config for Test {
     type ExistentialDeposit = ExistentialDeposit;
     type AccountStore = System;
     type WeightInfo = ();
-    type MaxLocks = ();
-    type MaxReserves = ();
-    type ReserveIdentifier = ();
+    type MaxLocks = MaxLocks;
+    type MaxReserves = MaxReserves;
+    type ReserveIdentifier = [u8; 8];
 }
 
 parameter_types! {
@@ -87,6 +91,32 @@ impl pallet_timestamp::Config for Test {
     type WeightInfo = ();
 }
 
+parameter_types! {
+    pub const Burn: Permill = Permill::from_percent(50);
+    pub const MaxApprovals: u32 = 100;
+    pub const ProposalBond: Permill = Permill::from_percent(5);
+    pub const ProposalBondMinimum: Balance = 1;
+    pub const SpendPeriod: u64 = 1;
+    pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");
+}
+
+impl pallet_treasury::Config for Test {
+    type Currency = Balances;
+    type ApproveOrigin = EnsureRoot<Self::AccountId>;
+    type RejectOrigin = EnsureRoot<Self::AccountId>;
+    type Event = Event;
+    type OnSlash = ();
+    type ProposalBond = ProposalBond;
+    type ProposalBondMinimum = ProposalBondMinimum;
+    type SpendPeriod = SpendPeriod;
+    type Burn = Burn;
+    type PalletId = TreasuryPalletId;
+    type BurnDestination = ();
+    type WeightInfo = ();
+    type SpendFunds = ();
+    type MaxApprovals = MaxApprovals;
+}
+
 impl parami_did::Config for Test {
     type Event = Event;
     type DecentralizedId = sp_core::H160;
@@ -96,15 +126,16 @@ impl parami_did::Config for Test {
 }
 
 parameter_types! {
-    pub const SubmissionFee: Balance = 1;
+    pub const MinimalDeposit: Balance = 10;
+    pub const AdvertiserPalletId: PalletId = PalletId(*b"prm/ader");
 }
 
-impl parami_tag::Config for Test {
+impl parami_advertiser::Config for Test {
     type Event = Event;
     type Currency = Balances;
-    type DecentralizedId = DID;
-    type Hashing = Blake2_256;
-    type SubmissionFee = SubmissionFee;
+    type MinimalDeposit = MinimalDeposit;
+    type PalletId = AdvertiserPalletId;
+    type Slash = Treasury;
     type Time = Timestamp;
     type CallOrigin = parami_did::EnsureDid<Self>;
     type ForceOrigin = EnsureRoot<Self::AccountId>;

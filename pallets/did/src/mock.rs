@@ -1,5 +1,5 @@
 use crate as parami_did;
-use frame_support::parameter_types;
+use frame_support::{parameter_types, traits::GenesisBuild};
 use frame_system as system;
 use sp_core::{sr25519, H256};
 use sp_runtime::{

@@ -14,22 +14,28 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-mod types;
+pub mod types;
 
 use frame_support::{
     dispatch::DispatchResult,
     ensure,
-    traits::{Currency, ExistenceRequirement, Time, WithdrawReasons},
+    traits::{Currency, ExistenceRequirement, StoredMap, Time, WithdrawReasons},
     StorageHasher,
 };
 use scale_info::TypeInfo;
-use sp_runtime::traits::{MaybeSerializeDeserialize, Member};
+use sp_runtime::{
+    traits::{Hash, MaybeSerializeDeserialize, Member},
+    DispatchError,
+};
 use sp_std::prelude::*;
 
 use weights::WeightInfo;
 
 type BalanceOf<T> =
     <<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+type HashOf<T> = <<T as frame_system::Config>::Hashing as Hash>::Output;
+type MomentOf<T> = <<T as pallet::Config>::Time as Time>::Moment;
+type MetaOf<T> = types::Metadata<<T as pallet::Config>::DecentralizedId, MomentOf<T>>;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -77,21 +83,24 @@ pub mod pallet {
     pub struct Pallet<T>(PhantomData<T>);
 
     #[pallet::storage]
-    pub type Metadata<T: Config> = StorageMap<
-        _,
-        <T as pallet::Config>::Hashing,
-        Vec<u8>,
-        types::Metadata<T::DecentralizedId, <T::Time as Time>::Moment>,
-    >;
+    pub type Metadata<T: Config> =
+        StorageMap<_, <T as pallet::Config>::Hashing, Vec<u8>, MetaOf<T>>;
 
+    /// Tags of an advertisement
     #[pallet::storage]
     #[pallet::getter(fn tags_of)]
-    pub type TagsOf<T: Config> =
+    pub(super) type TagsOf<T: Config> = StorageMap<_, Identity, HashOf<T>, Vec<Vec<u8>>>;
+
+    /// Tags and Scores of a DID
+    #[pallet::storage]
+    #[pallet::getter(fn personas_of)]
+    pub(super) type PersonasOf<T: Config> =
         StorageDoubleMap<_, Identity, T::DecentralizedId, Identity, Vec<u8>, i64>;
 
+    /// Tags and Scores of a KOL
     #[pallet::storage]
     #[pallet::getter(fn influences_of)]
-    pub type InfluencesOf<T: Config> =
+    pub(super) type InfluencesOf<T: Config> =
         StorageDoubleMap<_, Identity, T::DecentralizedId, Identity, Vec<u8>, i64>;
 
     #[pallet::event]
@@ -118,15 +127,15 @@ pub mod pallet {
             let fee = T::SubmissionFee::get();
 
             ensure!(
-                <T as Config>::Currency::free_balance(&who) > fee,
+                T::Currency::free_balance(&who) >= fee,
                 Error::<T>::InsufficientBalance
             );
 
-            let imp = <T as Config>::Currency::burn(fee);
+            let imb = T::Currency::burn(fee);
 
-            let _ = <T as Config>::Currency::settle(
+            let _ = T::Currency::settle(
                 &who,
-                imp,
+                imb,
                 WithdrawReasons::FEE,
                 ExistenceRequirement::KeepAlive,
             );
@@ -153,6 +162,39 @@ pub mod pallet {
             Ok(())
         }
     }
+
+    #[pallet::genesis_config]
+    pub struct GenesisConfig<T> {
+        pub tags: Vec<Vec<u8>>,
+        pub phantom: PhantomData<T>,
+    }
+
+    #[cfg(feature = "std")]
+    impl<T: Config> Default for GenesisConfig<T> {
+        fn default() -> Self {
+            Self {
+                tags: Default::default(),
+                phantom: Default::default(),
+            }
+        }
+    }
+
+    #[pallet::genesis_build]
+    impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
+        fn build(&self) {
+            let created = T::Time::now();
+
+            for tag in &self.tags {
+                <Metadata<T>>::insert(
+                    tag,
+                    types::Metadata {
+                        creator: T::DecentralizedId::default(),
+                        created,
+                    },
+                );
+            }
+        }
+    }
 }
 
 impl<T: Config> Pallet<T> {
@@ -161,16 +203,16 @@ impl<T: Config> Pallet<T> {
 
         <Metadata<T>>::insert(&tag, types::Metadata { creator, created });
 
-        <Metadata<T>>::hashed_key_for(tag)
+        <Metadata<T>>::hashed_key_for(&tag)
     }
 
     /// update score of a tag for a DID
     pub fn influence(did: T::DecentralizedId, tag: Vec<u8>, delta: i64) -> DispatchResult {
         ensure!(<Metadata<T>>::contains_key(&tag), Error::<T>::NotExists);
 
-        let hash = <Metadata<T>>::hashed_key_for(tag);
+        let hash = <Metadata<T>>::hashed_key_for(&tag);
 
-        <TagsOf<T>>::mutate(did, hash, |maybe_score| {
+        <PersonasOf<T>>::mutate(&did, hash, |maybe_score| {
             if let Some(score) = maybe_score {
                 *score += delta;
             } else {
@@ -187,7 +229,7 @@ impl<T: Config> Pallet<T> {
 
         let hash = <Metadata<T>>::hashed_key_for(&tag);
 
-        <InfluencesOf<T>>::mutate(did, hash, |maybe_score| {
+        <InfluencesOf<T>>::mutate(&did, hash, |maybe_score| {
             if let Some(score) = maybe_score {
                 *score += delta;
             } else {
@@ -196,5 +238,48 @@ impl<T: Config> Pallet<T> {
         });
 
         Ok(())
+    }
+}
+
+impl<T: Config> StoredMap<Vec<u8>, Option<MetaOf<T>>> for Pallet<T> {
+    fn get(k: &Vec<u8>) -> Option<MetaOf<T>> {
+        <Metadata<T>>::get(k)
+    }
+
+    fn try_mutate_exists<R, E: From<DispatchError>>(
+        k: &Vec<u8>,
+        f: impl FnOnce(&mut Option<Option<MetaOf<T>>>) -> Result<R, E>,
+    ) -> Result<R, E> {
+        let mut some = match <Metadata<T>>::get(k) {
+            Some(some) => Some(Some(some)),
+            None => None,
+        };
+
+        let r = f(&mut some)?;
+
+        <Metadata<T>>::mutate(k, |maybe| {
+            *maybe = match some {
+                Some(some) => some,
+                None => None,
+            }
+        });
+
+        Ok(r)
+    }
+}
+
+impl<T: Config> StoredMap<HashOf<T>, Vec<Vec<u8>>> for Pallet<T> {
+    fn get(k: &HashOf<T>) -> Vec<Vec<u8>> {
+        match <TagsOf<T>>::get(k) {
+            Some(tags) => tags,
+            None => Default::default(),
+        }
+    }
+
+    fn try_mutate_exists<R, E: From<DispatchError>>(
+        k: &HashOf<T>,
+        f: impl FnOnce(&mut Option<Vec<Vec<u8>>>) -> Result<R, E>,
+    ) -> Result<R, E> {
+        <TagsOf<T>>::mutate(k, f)
     }
 }
