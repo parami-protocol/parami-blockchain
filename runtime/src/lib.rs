@@ -1141,11 +1141,19 @@ impl parami_linker::Config for Runtime {
     type WeightInfo = parami_linker::weights::SubstrateWeight<Runtime>;
 }
 
+parameter_types! {
+    pub const CreationFee: Balance = 100 * MILLICENTS;
+    pub const MagicPalletId: PalletId = PalletId(*b"prm/stab");
+}
+
 impl parami_magic::Config for Runtime {
     type Event = Event;
     type Currency = Balances;
-    type ConfigOrigin = EnsureRootOrHalfCouncil;
     type Call = Call;
+    type CreationFee = CreationFee;
+    type PalletId = MagicPalletId;
+    type Time = Timestamp;
+    type WeightInfo = parami_magic::weights::SubstrateWeight<Runtime>;
 }
 
 parameter_types! {
@@ -1587,6 +1595,7 @@ impl_runtime_apis! {
             list_benchmark!(list, extra, pallet_vesting, Vesting);
 
             list_benchmark!(list, extra, parami_did, Did);
+            list_benchmark!(list, extra, parami_magic, Magic);
             list_benchmark!(list, extra, parami_tag, Tag);
 
             let storage_info = AllPalletsWithSystem::storage_info();
@@ -1646,6 +1655,7 @@ impl_runtime_apis! {
             add_benchmark!(params, batches, pallet_vesting, Vesting);
 
             add_benchmark!(params, batches, parami_did, Did);
+            add_benchmark!(params, batches, parami_magic, Magic);
             add_benchmark!(params, batches, parami_tag, Tag);
 
             if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }

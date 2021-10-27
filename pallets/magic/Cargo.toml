@@ -11,10 +11,6 @@ version = '3.0.0'
 [package.metadata.docs.rs]
 targets = ['x86_64-unknown-linux-gnu']
 
-[dependencies.parami-primitives]
-default-features = false
-path = '../../primitives'
-
 [dependencies.codec]
 default-features = false
 features = ['derive']
@@ -36,16 +32,6 @@ git = 'https://github.com/paritytech/substrate.git'
 branch = 'polkadot-v0.9.11'
 
 [dependencies.frame-system]
-default-features = false
-git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.11'
-
-[dependencies.pallet-balances]
-default-features = false
-git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.11'
-
-[dependencies.pallet-timestamp]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
 branch = 'polkadot-v0.9.11'
@@ -75,23 +61,11 @@ default-features = false
 git = 'https://github.com/paritytech/substrate.git'
 branch = 'polkadot-v0.9.11'
 
-[dev-dependencies.frame-election-provider-support]
+[dev-dependencies.pallet-balances]
 git = 'https://github.com/paritytech/substrate.git'
 branch = 'polkadot-v0.9.11'
 
-[dev-dependencies.pallet-session]
-git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.11'
-
-[dev-dependencies.pallet-staking]
-git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.11'
-
-[dev-dependencies.pallet-staking-reward-curve]
-git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.11'
-
-[dev-dependencies.pallet-utility]
+[dev-dependencies.pallet-timestamp]
 git = 'https://github.com/paritytech/substrate.git'
 branch = 'polkadot-v0.9.11'
 
@@ -105,9 +79,6 @@ std = [
     'frame-benchmarking/std',
     'frame-support/std',
     'frame-system/std',
-    'pallet-balances/std',
-    'pallet-timestamp/std',
-    'parami-primitives/std',
     'scale-info/std',
     'serde',
     'sp-core/std',

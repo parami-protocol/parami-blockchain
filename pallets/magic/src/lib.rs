@@ -3,53 +3,38 @@
 pub use pallet::*;
 pub use types::*;
 
+#[rustfmt::skip]
+pub mod weights;
+
 #[cfg(test)]
 mod mock;
 
 #[cfg(test)]
 mod tests;
 
-// #[cfg(feature = "runtime-benchmarks")]
-// mod benchmarking;
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
 
 mod types;
 
 use frame_support::{
-    dispatch::{DispatchError, DispatchResult, DispatchResultWithPostInfo},
+    dispatch::{DispatchResult, DispatchResultWithPostInfo},
     traits::{
-        Currency, EnsureOrigin,
+        Currency,
         ExistenceRequirement::{AllowDeath, KeepAlive},
-        IsSubType, IsType, OriginTrait, ReservableCurrency,
+        Get, IsSubType, IsType, OriginTrait, ReservableCurrency, Time,
     },
     transactional,
-    weights::{GetDispatchInfo, PostDispatchInfo},
+    weights::GetDispatchInfo,
     PalletId,
 };
-use parami_primitives::Balance;
-use sp_runtime::{
-    traits::{AccountIdConversion, Dispatchable, One},
-    DispatchErrorWithPostInfo,
-};
+use sp_runtime::traits::{AccountIdConversion, Dispatchable};
 use sp_std::boxed::Box;
 
-macro_rules! s {
-    ($e: expr) => {
-        sp_runtime::SaturatedConversion::saturated_into($e)
-    };
-}
-
-pub type GlobalId = u64;
-
-pub type StableAccountOf<T> =
-    StableAccount<<T as pallet_timestamp::Config>::Moment, <T as frame_system::Config>::AccountId>;
+use weights::WeightInfo;
 
 pub type BalanceOf<T> =
     <<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-
-pub type ResultPost<T> = sp_std::result::Result<T, DispatchErrorWithPostInfo<PostDispatchInfo>>;
-
-pub const UNIT: Balance = 1_000_000_000_000_000;
-pub const FEE: Balance = 100 * UNIT;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -58,15 +43,12 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
 
     #[pallet::config]
-    pub trait Config: frame_system::Config + pallet_timestamp::Config {
+    pub trait Config: frame_system::Config {
         /// The overarching event type.
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
         /// The currency mechanism.
         type Currency: ReservableCurrency<Self::AccountId>;
-
-        /// Required `origin` for updating configuration
-        type ConfigOrigin: EnsureOrigin<Self::Origin>;
 
         /// The overarching call type.
         type Call: Parameter
@@ -75,24 +57,33 @@ pub mod pallet {
             + From<frame_system::Call<Self>>
             + IsSubType<Call<Self>>
             + IsType<<Self as frame_system::Config>::Call>;
+
+        #[pallet::constant]
+        type CreationFee: Get<BalanceOf<Self>>;
+
+        type PalletId: Get<PalletId>;
+
+        type Time: Time;
+
+        type WeightInfo: WeightInfo;
     }
 
     #[pallet::pallet]
     #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(PhantomData<T>);
 
-    /// Next available ID.
-    #[pallet::storage]
-    pub type NextId<T: Config> = StorageValue<_, GlobalId, ValueQuery>;
-
     /// map from controller account to `StableAccount`
     #[pallet::storage]
-    pub type StableAccounts<T: Config> =
-        StorageMap<_, Twox64Concat, T::AccountId, StableAccountOf<T>>;
+    pub type StableAccountOf<T: Config> = StorageMap<
+        _,
+        Twox64Concat,
+        T::AccountId,
+        StableAccount<<T::Time as Time>::Moment, T::AccountId>,
+    >;
 
     /// map from magic account to controller account
     #[pallet::storage]
-    pub type StableAccountByMagic<T: Config> =
+    pub type ControllerAccountOf<T: Config> =
         StorageMap<_, Twox64Concat, T::AccountId, T::AccountId>;
 
     #[pallet::event]
@@ -100,13 +91,6 @@ pub mod pallet {
     pub enum Event<T: Config> {
         /// CreatedStableAccount \[stash, controller, magic\]
         CreatedStableAccount(T::AccountId, T::AccountId, T::AccountId),
-        /// PreparedControllerChanging \[stash, controller, magic, new_controller\]
-        PreparedControllerChanging(
-            T::AccountId,
-            T::AccountId,
-            T::AccountId,
-            Option<T::AccountId>,
-        ),
         /// ChangedController \[stash, controller, magic\]
         ChangedController(T::AccountId, T::AccountId, T::AccountId),
         /// Codo \[ DispatchResult \]
@@ -118,29 +102,23 @@ pub mod pallet {
 
     #[pallet::error]
     pub enum Error<T> {
-        ObsoletedMagicAccount,
-        NewControllerEqualToOldController,
-        NoAvailableId,
-        StableAccountNotFound,
-        MagicAccountExists,
+        ControllerAccountUsed,
         ControllerEqualToMagic,
-        ControllerIsMagic,
-        MagicIsController,
-        ControllerAccountExists,
-        NeedActivateController,
-        InvalidController,
-        NewControllerNotFound,
+        InsufficientBalance,
+        MagicAccountUsed,
+        ObsoletedMagicAccount,
+        StableAccountNotFound,
     }
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {
-        #[pallet::weight(1_000_000_000)]
         #[transactional]
+        #[pallet::weight(T::WeightInfo::create_stable_account())]
         pub fn create_stable_account(
             origin: OriginFor<T>,
             magic_account: T::AccountId,
-            #[pallet::compact] stash_deposit: Balance,
-        ) -> DispatchResultWithPostInfo {
+            #[pallet::compact] deposit: BalanceOf<T>,
+        ) -> DispatchResult {
             let controller_account = ensure_signed(origin)?;
             ensure!(
                 controller_account != magic_account,
@@ -148,62 +126,78 @@ pub mod pallet {
             );
 
             ensure!(
-                <StableAccountByMagic<T>>::get(&magic_account).is_none(),
-                Error::<T>::MagicAccountExists
+                <ControllerAccountOf<T>>::get(&magic_account).is_none(),
+                Error::<T>::MagicAccountUsed
             );
             ensure!(
-                <StableAccountByMagic<T>>::get(&controller_account).is_none(),
-                Error::<T>::ControllerIsMagic
+                <ControllerAccountOf<T>>::get(&controller_account).is_none(),
+                Error::<T>::ControllerAccountUsed
             );
 
             ensure!(
-                <StableAccounts<T>>::get(&controller_account).is_none(),
-                Error::<T>::ControllerAccountExists
+                <StableAccountOf<T>>::get(&controller_account).is_none(),
+                Error::<T>::ControllerAccountUsed
             );
             ensure!(
-                <StableAccounts<T>>::get(&magic_account).is_none(),
-                Error::<T>::MagicIsController
+                <StableAccountOf<T>>::get(&magic_account).is_none(),
+                Error::<T>::MagicAccountUsed
             );
 
-            let sa: StableAccountOf<T> = StableAccount {
-                created_time: now::<T>(),
-                stash_account: Self::create_stash_account(Self::inc_id()?),
+            let timestamp = T::Time::now();
+            let height = <frame_system::Pallet<T>>::block_number();
+
+            let mut raw = T::AccountId::encode(&magic_account);
+            let mut ord = T::BlockNumber::encode(&height);
+            raw.append(&mut ord);
+
+            let pallet = T::PalletId::get();
+            let stash_account = pallet.into_sub_account(raw);
+
+            let sa = StableAccount {
+                created_time: timestamp,
+                stash_account,
                 controller_account,
                 magic_account,
-                new_controller_account: None,
             };
+
+            let fee = T::CreationFee::get();
+
+            ensure!(
+                <T as Config>::Currency::free_balance(&sa.controller_account) > fee + deposit,
+                Error::<T>::InsufficientBalance
+            );
 
             <T as Config>::Currency::transfer(
                 &sa.controller_account,
                 &sa.magic_account,
-                s!(FEE),
+                fee,
                 KeepAlive,
             )?;
             <T as Config>::Currency::transfer(
                 &sa.controller_account,
                 &sa.stash_account,
-                s!(stash_deposit),
+                deposit,
                 KeepAlive,
             )?;
 
-            <StableAccounts<T>>::insert(&sa.controller_account, &sa);
-            <StableAccountByMagic<T>>::insert(&sa.magic_account, &sa.controller_account);
+            <StableAccountOf<T>>::insert(&sa.controller_account, &sa);
+            <ControllerAccountOf<T>>::insert(&sa.magic_account, &sa.controller_account);
 
             Self::deposit_event(Event::CreatedStableAccount(
-                sa.stash_account.clone(),
-                sa.controller_account.clone(),
-                sa.magic_account.clone(),
+                sa.stash_account,
+                sa.controller_account,
+                sa.magic_account,
             ));
 
-            Ok(().into())
+            Ok(())
         }
 
-        #[pallet::weight(1_000_000_000)]
         #[transactional]
+        #[pallet::weight(T::WeightInfo::change_controller())]
         pub fn change_controller(
             origin: OriginFor<T>,
             new_controller: T::AccountId,
-        ) -> DispatchResultWithPostInfo {
+        ) -> DispatchResult {
             let magic_account = ensure_signed(origin)?;
 
             ensure!(
@@ -212,84 +206,39 @@ pub mod pallet {
             );
 
             ensure!(
-                <StableAccountByMagic<T>>::get(&new_controller).is_none(),
-                Error::<T>::ControllerIsMagic
+                <ControllerAccountOf<T>>::get(&new_controller).is_none(),
+                Error::<T>::ControllerAccountUsed
             );
             ensure!(
-                <StableAccounts<T>>::get(&new_controller).is_none(),
-                Error::<T>::ControllerAccountExists
+                <StableAccountOf<T>>::get(&new_controller).is_none(),
+                Error::<T>::ControllerAccountUsed
             );
 
-            let old_controller = <StableAccountByMagic<T>>::get(magic_account)
+            let old_controller = <ControllerAccountOf<T>>::get(magic_account)
                 .ok_or(Error::<T>::ObsoletedMagicAccount)?;
-            ensure!(
-                old_controller != new_controller,
-                Error::<T>::NewControllerEqualToOldController
-            );
 
-            let mut sa = <StableAccounts<T>>::get(old_controller)
+            let mut sa = <StableAccountOf<T>>::get(&old_controller)
                 .ok_or(Error::<T>::StableAccountNotFound)?;
-            sa.new_controller_account = Some(new_controller);
-
-            <StableAccounts<T>>::insert(&sa.controller_account, &sa);
-
-            Self::deposit_event(Event::PreparedControllerChanging(
-                sa.stash_account.clone(),
-                sa.controller_account.clone(),
-                sa.magic_account.clone(),
-                sa.new_controller_account.clone(),
-            ));
-
-            Ok(().into())
-        }
-
-        #[pallet::weight(1_000_000_000)]
-        #[transactional]
-        pub fn activate_controller(
-            origin: OriginFor<T>,
-            old_controller: T::AccountId,
-        ) -> DispatchResultWithPostInfo {
-            let new_controller = ensure_signed(origin)?;
-            ensure!(
-                old_controller != new_controller,
-                Error::<T>::NewControllerEqualToOldController
-            );
-
-            ensure!(
-                <StableAccountByMagic<T>>::get(&new_controller).is_none(),
-                Error::<T>::ControllerIsMagic
-            );
-            ensure!(
-                <StableAccounts<T>>::get(&new_controller).is_none(),
-                Error::<T>::ControllerAccountExists
-            );
-
-            let mut sa = <StableAccounts<T>>::get(&old_controller)
-                .ok_or(Error::<T>::StableAccountNotFound)?;
-            ensure!(
-                sa.new_controller_account
-                    .clone()
-                    .ok_or(Error::<T>::NewControllerNotFound)?
-                    == new_controller,
-                Error::<T>::InvalidController
-            );
 
             let free = <T as Config>::Currency::free_balance(&old_controller);
             <T as Config>::Currency::transfer(&old_controller, &new_controller, free, AllowDeath)?;
 
-            sa.new_controller_account = None;
-            sa.controller_account = new_controller;
+            sa.controller_account = new_controller.clone();
 
-            <StableAccounts<T>>::remove(&old_controller);
-            <StableAccounts<T>>::insert(&sa.controller_account, &sa);
-            <StableAccountByMagic<T>>::insert(&sa.magic_account, &sa.controller_account);
+            <StableAccountOf<T>>::remove(&old_controller);
+            <StableAccountOf<T>>::insert(&sa.controller_account, &sa);
+
+            <ControllerAccountOf<T>>::mutate(&sa.magic_account, |maybe_ca| {
+                *maybe_ca = Some(new_controller)
+            });
 
             Self::deposit_event(Event::ChangedController(
-                sa.stash_account.clone(),
-                sa.controller_account.clone(),
-                sa.magic_account.clone(),
+                sa.stash_account,
+                sa.controller_account,
+                sa.magic_account,
             ));
-            Ok(().into())
+
+            Ok(())
         }
 
         #[pallet::weight({
@@ -306,12 +255,8 @@ pub mod pallet {
             call: Box<<T as Config>::Call>,
         ) -> DispatchResultWithPostInfo {
             let controller_account = ensure_signed(origin)?;
-            let sa = <StableAccounts<T>>::get(controller_account)
+            let sa = <StableAccountOf<T>>::get(controller_account)
                 .ok_or(Error::<T>::StableAccountNotFound)?;
-            ensure!(
-                sa.new_controller_account.is_none(),
-                Error::<T>::NeedActivateController
-            );
 
             let mut origin: T::Origin = frame_system::RawOrigin::Signed(sa.stash_account).into();
             origin.add_filter(move |c: &<T as frame_system::Config>::Call| {
@@ -319,7 +264,6 @@ pub mod pallet {
                 match c.is_sub_type() {
                     Some(Call::create_stable_account { .. })
                     | Some(Call::change_controller { .. })
-                    | Some(Call::activate_controller { .. })
                     | Some(Call::codo { .. }) => false,
                     _ => true,
                 }
@@ -348,27 +292,5 @@ pub mod pallet {
     #[pallet::genesis_build]
     impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
         fn build(&self) {}
-    }
-}
-
-/// now is duration since unix epoch in millisecond
-pub fn now<T: Config>() -> T::Moment {
-    pallet_timestamp::Pallet::<T>::now()
-}
-
-impl<T: Config> Pallet<T> {
-    fn create_stash_account(id: GlobalId) -> T::AccountId {
-        let stab_acc = PalletId(*b"prm/stab");
-        stab_acc.into_sub_account(id)
-    }
-
-    fn inc_id() -> Result<GlobalId, DispatchError> {
-        <NextId<T>>::try_mutate(|id| -> Result<GlobalId, DispatchError> {
-            let current_id = *id;
-            *id = id
-                .checked_add(GlobalId::one())
-                .ok_or(Error::<T>::NoAvailableId)?;
-            Ok(current_id)
-        })
     }
 }
