@@ -14,7 +14,7 @@ benchmarks! {
     }
 
     create {
-        let n in 0 .. 255;
+        let n in 0 .. 1000;
 
         let caller: T::AccountId = whitelisted_caller();
 
@@ -33,7 +33,7 @@ benchmarks! {
     }
 
     force_create {
-        let n in 0 .. 255;
+        let n in 0 .. 1000;
 
         let name = vec![0u8; n as usize];
     }: _(RawOrigin::Root, name.clone())

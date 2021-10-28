@@ -1,335 +1,172 @@
-#![cfg(test)]
-
-use super::{Event as AdEvent, *};
-use crate::mock::{Event as MEvent, *};
-use frame_support::{assert_noop, assert_ok};
-use parami_nft::{CollectionType, TokenType};
-use sp_core::Pair;
-use utils::test_helper::*;
-
-fn init_test_nft(owner: Origin) {
-    assert_ok!(Nft::create_class(
-        owner.clone(),
-        vec![1],
-        TokenType::BoundToAddress,
-        CollectionType::Collectable,
-    ));
-    assert_ok!(Nft::mint(
-        owner.clone(),
-        CLASS_ID,
-        vec![1],
-        vec![1],
-        vec![1],
-        vec![1],
-        1
-    ));
-}
+use crate::{mock::*, Config, Error, Metadata};
+use frame_support::{assert_noop, assert_ok, traits::StoredMap};
+use sp_core::sr25519;
 
 #[test]
-fn create_advertiser_should_work() {
-    ExtBuilder::default().build().execute_with(|| {
-        let origin = Origin::signed(ALICE);
+fn should_create() {
+    new_test_ext().execute_with(|| {
+        let alice = sr25519::Public([1; 32]);
+        let did = DID::from_slice(&[0xff; 20]);
 
-        init_test_nft(origin.clone());
+        assert_eq!(Balances::free_balance(alice), 100);
 
-        assert_ok!(Did::register(
-            origin.clone(),
-            signer::<Runtime>(ALICE),
-            None
+        let tags = vec![
+            vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8],
+            vec![5u8, 4u8, 3u8, 2u8, 1u8, 0u8],
+        ];
+
+        let mut hashes = vec![];
+        for tag in &tags {
+            let hash = Tag::key(tag);
+            hashes.push(hash);
+        }
+
+        let meta = [0u8; 64].into();
+
+        assert_ok!(Ad::create(
+            Origin::signed(alice),
+            50,
+            tags.clone(),
+            meta,
+            1,
+            1
         ));
 
-        let advertiser_id = NextId::<Runtime>::get();
-        assert_ok!(Ad::create_advertiser(origin.clone(), 0, 100));
-        assert_noop!(
-            Ad::create_advertiser(origin.clone(), 0, 0),
-            Error::<Runtime>::AdvertiserExists
-        );
-        let advertiser = Advertisers::<Runtime>::get(d!(ALICE)).unwrap();
+        let maybe_ad = <Metadata<Test>>::iter_values().next();
+        assert_ne!(maybe_ad, None);
 
-        let deposit = AdvertiserDeposit::<Runtime>::get();
-        assert!(deposit > 0);
-        assert_eq!(
-            free_balance::<Runtime>(0, advertiser.deposit_account),
-            deposit
-        );
+        let ad = maybe_ad.unwrap();
+        assert_eq!(ad.creator, did);
+        assert_eq!(ad.budget, 50);
+        assert_eq!(ad.remain, 50);
+        assert_eq!(ad.metadata, meta);
+        assert_eq!(ad.reward_rate, 1);
+        assert_eq!(ad.created, 0);
+        assert_eq!(ad.deadline, 1);
 
-        assert_last_event::<Runtime>(MEvent::Ad(AdEvent::CreatedAdvertiser(
-            ALICE,
-            d!(ALICE),
-            advertiser_id,
-        )));
+        assert_eq!(Balances::free_balance(alice), 50);
+
+        let ad = <Metadata<Test>>::iter_keys().next().unwrap();
+
+        assert_eq!(<Test as Config>::TagsStore::get(&ad), hashes);
     });
 }
 
 #[test]
-fn create_advertiser_should_fail() {
-    ExtBuilder::default().build().execute_with(|| {
-        let origin = Origin::signed(ALICE);
-
-        init_test_nft(origin.clone());
+fn should_fail_when_insufficient() {
+    new_test_ext().execute_with(|| {
+        let alice = sr25519::Public([1; 32]);
 
         assert_noop!(
-            Ad::create_advertiser(origin.clone(), 0, 100),
-            Error::<Runtime>::DIDNotExists
+            Ad::create(Origin::signed(alice), 200, vec![], [0u8; 64].into(), 1, 1),
+            pallet_balances::Error::<Test>::InsufficientBalance
         );
 
-        NextId::<Runtime>::put(GlobalId::MAX);
-        assert_ok!(Did::register(
-            origin.clone(),
-            signer::<Runtime>(ALICE),
-            None
-        ));
-        assert_noop!(
-            Ad::create_advertiser(origin.clone(), 0, 100),
-            Error::<Runtime>::NoAvailableId
-        );
+        assert_eq!(Balances::free_balance(alice), 100);
     });
 }
 
 #[test]
-fn create_ad_should_work() {
-    ExtBuilder::default().build().execute_with(|| {
-        let origin = Origin::signed(ALICE);
+fn should_fail_when_tag_not_exists() {
+    new_test_ext().execute_with(|| {
+        let alice = sr25519::Public([1; 32]);
 
-        init_test_nft(origin.clone());
+        let tags = vec![
+            vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8],
+            vec![5u8, 4u8, 3u8, 2u8, 1u8, 0u8],
+            vec![0u8; 6],
+        ];
 
-        assert_ok!(Did::register(
-            origin.clone(),
-            signer::<Runtime>(ALICE),
-            None
-        ));
+        assert_noop!(
+            Ad::create(Origin::signed(alice), 200, tags, [0u8; 64].into(), 1, 1),
+            Error::<Test>::TagNotExists
+        );
 
-        let advertiser_id = NextId::<Runtime>::get();
-        assert_ok!(Ad::create_advertiser(origin.clone(), 0, 100));
-
-        let ad_id = NextId::<Runtime>::get();
-        assert_ok!(Ad::create_ad(
-            origin.clone(),
-            0,
-            ALICE,
-            vec![(0, 1), (1, 2), (2, 3)],
-            PerU16::from_percent(50),
-            b"ads metadata".to_vec()
-        ));
-
-        // let advertiser = Advertisers::<Runtime>::get(d!(ALICE)).unwrap();
-
-        let deposit = AdDeposit::<Runtime>::get();
-        assert!(deposit > 0);
-
-        let _ = Advertisements::<Runtime>::get(advertiser_id, ad_id).unwrap();
-        assert_last_event::<Runtime>(MEvent::Ad(AdEvent::CreatedAd(
-            d!(ALICE),
-            advertiser_id,
-            ad_id,
-        )));
+        assert_eq!(Balances::free_balance(alice), 100);
     });
 }
 
 #[test]
-fn create_ad_should_fail() {
-    ExtBuilder::default().build().execute_with(|| {
-        let origin = Origin::signed(ALICE);
+fn should_update_reward_rate() {
+    new_test_ext().execute_with(|| {
+        let alice = sr25519::Public([1; 32]);
 
-        init_test_nft(origin.clone());
-
-        assert_noop!(
-            Ad::create_ad(
-                origin.clone(),
-                0,
-                ALICE,
-                vec![(0, 1), (1, 2), (2, 3), (4, 4)],
-                PerU16::from_percent(50),
-                b"ads metadata".to_vec()
-            ),
-            Error::<Runtime>::InvalidTagCoefficientCount
-        );
-        assert_noop!(
-            Ad::create_ad(
-                origin.clone(),
-                0,
-                ALICE,
-                vec![],
-                PerU16::from_percent(50),
-                b"ads metadata".to_vec()
-            ),
-            Error::<Runtime>::InvalidTagCoefficientCount
-        );
-        assert_noop!(
-            Ad::create_ad(
-                origin.clone(),
-                0,
-                ALICE,
-                vec![(0, 1), (1, 2), (2, 3)],
-                PerU16::from_percent(50),
-                b"ads metadata".to_vec()
-            ),
-            Error::<Runtime>::DIDNotExists
-        );
-        assert_noop!(
-            Ad::create_ad(
-                origin.clone(),
-                0,
-                ALICE,
-                vec![(0, 1), (200, 2), (2, 3)],
-                PerU16::from_percent(50),
-                b"ads metadata".to_vec()
-            ),
-            Error::<Runtime>::InvalidTagType
-        );
-        assert_noop!(
-            Ad::create_ad(
-                origin.clone(),
-                0,
-                ALICE,
-                vec![(0, 1), (1, 2), (1, 3)],
-                PerU16::from_percent(50),
-                b"ads metadata".to_vec()
-            ),
-            Error::<Runtime>::DuplicatedTagType
-        );
-
-        assert_ok!(Did::register(
-            origin.clone(),
-            signer::<Runtime>(ALICE),
-            None
+        assert_ok!(Ad::create(
+            Origin::signed(alice),
+            50,
+            vec![],
+            [0u8; 64].into(),
+            1,
+            1
         ));
+
+        let ad = <Metadata<Test>>::iter_keys().next().unwrap();
+
+        assert_ok!(Ad::update_reward_rate(Origin::signed(alice), ad, 2));
+
+        assert_eq!(<Metadata<Test>>::get(&ad).unwrap().reward_rate, 2);
+    });
+}
+
+#[test]
+fn should_fail_when_not_exists_or_not_owned() {
+    new_test_ext().execute_with(|| {
+        let alice = sr25519::Public([1; 32]);
+
         assert_noop!(
-            Ad::create_ad(
-                origin.clone(),
-                0,
-                ALICE,
-                vec![(0, 1), (1, 2), (2, 3)],
-                PerU16::from_percent(50),
-                b"ads metadata".to_vec()
-            ),
-            Error::<Runtime>::AdvertiserNotExists
+            Ad::update_reward_rate(Origin::signed(alice), Default::default(), 2),
+            Error::<Test>::NotExists
+        );
+
+        assert_ok!(Ad::create(
+            Origin::signed(alice),
+            50,
+            vec![],
+            [0u8; 64].into(),
+            1,
+            1
+        ));
+
+        let ad = <Metadata<Test>>::iter_keys().next().unwrap();
+
+        let bob = sr25519::Public([2; 32]);
+
+        assert_noop!(
+            Ad::update_reward_rate(Origin::signed(bob), ad, 2),
+            Error::<Test>::NotOwned
         );
     });
 }
 
 #[test]
-fn ad_payout_should_work() {
-    ExtBuilder::default().build().execute_with(|| {
-        let origin = Origin::signed(ALICE);
+fn should_update_tags() {
+    new_test_ext().execute_with(|| {
+        let alice = sr25519::Public([1; 32]);
 
-        init_test_nft(origin.clone());
+        let tags = vec![
+            vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8],
+            vec![5u8, 4u8, 3u8, 2u8, 1u8, 0u8],
+        ];
 
-        // advertiser Alice
-        assert_ok!(Did::register(
-            origin.clone(),
-            signer::<Runtime>(ALICE),
-            None
-        ));
-        // user Charlie
-        assert_ok!(Did::register(
-            Origin::signed(CHARLIE),
-            signer::<Runtime>(CHARLIE),
-            None
-        ));
-        // media Bob
-        assert_ok!(Did::register(
-            Origin::signed(BOB),
-            signer::<Runtime>(BOB),
-            None
-        ));
+        let mut hashes = vec![];
+        for tag in &tags {
+            let hash = Tag::key(tag);
+            hashes.push(hash);
+        }
 
-        let advertiser_id = NextId::<Runtime>::get();
-        assert_ok!(Ad::create_advertiser(origin.clone(), 0, 10000 * UNIT));
-
-        let (signer_pair, _) = sp_core::sr25519::Pair::generate();
-        let signer: AccountId = signer_pair.public().0.clone().into();
-
-        let ad_id = NextId::<Runtime>::get();
-        assert_ok!(Ad::create_ad(
-            origin.clone(),
-            0,
-            signer.clone(),
-            vec![(0, 1), (1, 2), (2, 3)],
-            PerU16::from_percent(50),
-            b"ads metadata".to_vec()
+        assert_ok!(Ad::create(
+            Origin::signed(alice),
+            50,
+            vec![vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8],],
+            [0u8; 64].into(),
+            1,
+            1
         ));
 
-        assert_ok!(Ad::ad_payout(
-            origin.clone(),
-            0,
-            ad_id,
-            d!(CHARLIE),
-            d!(BOB),
-            vec![1, 2, 3]
-        ));
-        assert_last_event::<Runtime>(MEvent::Ad(AdEvent::AdReward(
-            advertiser_id,
-            ad_id,
-            30 * UNIT,
-        )));
-    });
-}
+        let ad = <Metadata<Test>>::iter_keys().next().unwrap();
 
-#[test]
-fn payout_should_work() {
-    ExtBuilder::default().build().execute_with(|| {
-        let origin = Origin::signed(ALICE);
+        assert_ok!(Ad::update_tags(Origin::signed(alice), ad, tags));
 
-        init_test_nft(origin.clone());
-
-        // advertiser Alice
-        assert_ok!(Did::register(
-            origin.clone(),
-            signer::<Runtime>(ALICE),
-            None
-        ));
-        // user Charlie
-        assert_ok!(Did::register(
-            Origin::signed(CHARLIE),
-            signer::<Runtime>(CHARLIE),
-            None
-        ));
-        // media Bob
-        assert_ok!(Did::register(
-            Origin::signed(BOB),
-            signer::<Runtime>(BOB),
-            None
-        ));
-
-        let advertiser_id = NextId::<Runtime>::get();
-        assert_ok!(Ad::create_advertiser(origin.clone(), 0, 10000 * UNIT));
-
-        let signer_pair = sp_core::sr25519::Pair::from_string("//AliceSigner", None).unwrap();
-        let signer: AccountId = signer_pair.public().0.clone().into();
-
-        let ad_id = NextId::<Runtime>::get();
-        assert_ok!(Ad::create_ad(
-            origin.clone(),
-            0,
-            signer.clone(),
-            vec![(0, 1), (1, 2), (2, 3)],
-            PerU16::from_percent(50),
-            b"ads metadata".to_vec()
-        ));
-
-        pallet_timestamp::Now::<Runtime>::put(ADVERTISER_PAYMENT_WINDOW + 1);
-
-        let (_, data_sign) = sign::<Runtime>(signer_pair, CHARLIE, BOB, ALICE, ad_id, 0);
-        assert_ok!(Ad::payout(
-            Origin::signed(DAVE),
-            0,
-            data_sign,
-            d!(ALICE),
-            ad_id,
-            d!(CHARLIE),
-            d!(BOB),
-            0
-        ));
-        assert_last_event::<Runtime>(MEvent::Ad(AdEvent::AdReward(
-            advertiser_id,
-            ad_id,
-            30 * UNIT,
-        )));
-
-        assert_eq!(
-            free_balance::<Runtime>(0, DAVE),
-            ExtraReward::<Runtime>::get()
-        );
+        assert_eq!(<Test as Config>::TagsStore::get(&ad), hashes);
     });
 }

@@ -83,7 +83,8 @@ pub mod pallet {
     pub struct Pallet<T>(PhantomData<T>);
 
     #[pallet::storage]
-    pub type Metadata<T: Config> =
+    #[pallet::getter(fn metadata)]
+    pub(super) type Metadata<T: Config> =
         StorageMap<_, <T as pallet::Config>::Hashing, Vec<u8>, MetaOf<T>>;
 
     /// Tags of an advertisement
@@ -198,19 +199,23 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
+    pub fn key<K: AsRef<Vec<u8>>>(tag: K) -> Vec<u8> {
+        <Metadata<T>>::hashed_key_for(tag.as_ref())
+    }
+
     fn inner_create(creator: T::DecentralizedId, tag: Vec<u8>) -> Vec<u8> {
         let created = T::Time::now();
 
         <Metadata<T>>::insert(&tag, types::Metadata { creator, created });
 
-        <Metadata<T>>::hashed_key_for(&tag)
+        Self::key(&tag)
     }
 
     /// update score of a tag for a DID
     pub fn influence(did: T::DecentralizedId, tag: Vec<u8>, delta: i64) -> DispatchResult {
         ensure!(<Metadata<T>>::contains_key(&tag), Error::<T>::NotExists);
 
-        let hash = <Metadata<T>>::hashed_key_for(&tag);
+        let hash = Self::key(&tag);
 
         <PersonasOf<T>>::mutate(&did, hash, |maybe_score| {
             if let Some(score) = maybe_score {
@@ -227,7 +232,7 @@ impl<T: Config> Pallet<T> {
     pub fn impact(did: T::DecentralizedId, tag: Vec<u8>, delta: i64) -> DispatchResult {
         ensure!(<Metadata<T>>::contains_key(&tag), Error::<T>::NotExists);
 
-        let hash = <Metadata<T>>::hashed_key_for(&tag);
+        let hash = Self::key(&tag);
 
         <InfluencesOf<T>>::mutate(&did, hash, |maybe_score| {
             if let Some(score) = maybe_score {
@@ -241,30 +246,21 @@ impl<T: Config> Pallet<T> {
     }
 }
 
-impl<T: Config> StoredMap<Vec<u8>, Option<MetaOf<T>>> for Pallet<T> {
-    fn get(k: &Vec<u8>) -> Option<MetaOf<T>> {
-        <Metadata<T>>::get(k)
+impl<T: Config> StoredMap<Vec<u8>, Vec<u8>> for Pallet<T> {
+    fn get(k: &Vec<u8>) -> Vec<u8> {
+        if <Metadata<T>>::contains_key(k) {
+            Self::key(k)
+        } else {
+            Default::default()
+        }
     }
 
     fn try_mutate_exists<R, E: From<DispatchError>>(
-        k: &Vec<u8>,
-        f: impl FnOnce(&mut Option<Option<MetaOf<T>>>) -> Result<R, E>,
+        _k: &Vec<u8>,
+        f: impl FnOnce(&mut Option<Vec<u8>>) -> Result<R, E>,
     ) -> Result<R, E> {
-        let mut some = match <Metadata<T>>::get(k) {
-            Some(some) => Some(Some(some)),
-            None => None,
-        };
-
-        let r = f(&mut some)?;
-
-        <Metadata<T>>::mutate(k, |maybe| {
-            *maybe = match some {
-                Some(some) => some,
-                None => None,
-            }
-        });
-
-        Ok(r)
+        let mut some = None;
+        f(&mut some)
     }
 }
 

@@ -1,5 +1,6 @@
 [package]
 authors = ['Parami Devs <info@parami.io>']
+description = 'AD3 Advertisement Pallet'
 edition = '2018'
 homepage = 'https://parami.io'
 license = 'GPL-3.0-only WITH Classpath-exception-2.0'
@@ -11,73 +12,51 @@ version = '3.0.0'
 [package.metadata.docs.rs]
 targets = ['x86_64-unknown-linux-gnu']
 
-[dependencies.parami-primitives]
+[dependencies.parami-advertiser]
 default-features = false
-path = '../../primitives'
+path = '../advertiser'
+optional = true
 
 [dependencies.parami-did]
 default-features = false
 path = '../did'
+optional = true
 
-[dependencies.parami-nft]
+[dependencies.parami-tag]
 default-features = false
-path = '../nft'
+path = '../tag'
+optional = true
 
 [dependencies.codec]
 default-features = false
-features = ['derive', 'max-encoded-len']
+features = ['derive']
 package = 'parity-scale-codec'
 version = '2.2.0'
 
 [dependencies]
 serde = { version = '1.0', optional = true }
-num-traits = { version = '0.2', default-features = false }
 
 [dependencies.frame-benchmarking]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.11'
+branch = 'polkadot-v0.9.12'
 optional = true
 
 [dependencies.frame-support]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.11'
+branch = 'polkadot-v0.9.12'
 
 [dependencies.frame-system]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.11'
+branch = 'polkadot-v0.9.12'
 
-[dependencies.orml-nft]
+[dependencies.rand]
 default-features = false
-git = 'https://github.com/open-web3-stack/open-runtime-module-library.git'
-rev = 'b89b1f98fcf0f5c341fbef1d12bfd869a2f2a9fe'
-
-[dependencies.orml-traits]
-default-features = false
-git = 'https://github.com/open-web3-stack/open-runtime-module-library.git'
-rev = 'b89b1f98fcf0f5c341fbef1d12bfd869a2f2a9fe'
-
-[dependencies.pallet-assets]
-default-features = false
-git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.11'
-
-[dependencies.pallet-balances]
-default-features = false
-git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.11'
-
-[dependencies.pallet-staking]
-default-features = false
-git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.11'
-
-[dependencies.pallet-timestamp]
-default-features = false
-git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.11'
+features = ['small_rng']
+version = '0.7.3'
+optional = true
 
 [dependencies.scale-info]
 default-features = false
@@ -87,62 +66,52 @@ version = '1.0'
 [dependencies.sp-core]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.11'
-
-[dependencies.sp-io]
-default-features = false
-git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.11'
+branch = 'polkadot-v0.9.12'
 
 [dependencies.sp-runtime]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.11'
+branch = 'polkadot-v0.9.12'
 
 [dependencies.sp-std]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.11'
+branch = 'polkadot-v0.9.12'
 
-[dev-dependencies.frame-election-provider-support]
+[dev-dependencies.pallet-balances]
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.11'
+branch = 'polkadot-v0.9.12'
 
-[dev-dependencies.pallet-session]
+[dev-dependencies.pallet-timestamp]
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.11'
+branch = 'polkadot-v0.9.12'
 
-[dev-dependencies.pallet-staking-reward-curve]
+[dev-dependencies.sp-io]
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.11'
-
-[dev-dependencies.pallet-utility]
-git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.11'
+branch = 'polkadot-v0.9.12'
 
 [features]
 default = ['std']
 
-runtime-benchmarks = ['frame-benchmarking']
+runtime-benchmarks = [
+    'frame-benchmarking',
+    'parami-advertiser',
+    'parami-did',
+    'parami-tag',
+    'rand',
+]
 
 std = [
     'codec/std',
     'frame-benchmarking/std',
     'frame-support/std',
     'frame-system/std',
-    'orml-nft/std',
-    'orml-traits/std',
-    'pallet-assets/std',
-    'pallet-balances/std',
-    'pallet-staking/std',
-    'pallet-timestamp/std',
+    'parami-advertiser/std',
     'parami-did/std',
-    'parami-nft/std',
-    'parami-primitives/std',
+    'parami-tag/std',
     'scale-info/std',
     'serde',
     'sp-core/std',
-    'sp-io/std',
     'sp-runtime/std',
     'sp-std/std',
 ]

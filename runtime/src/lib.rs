@@ -1030,10 +1030,20 @@ impl pallet_vesting::Config for Runtime {
     const MAX_VESTING_SCHEDULES: u32 = 28;
 }
 
+parameter_types! {
+    pub const AdPalletId: PalletId = PalletId(*b"prm/ad  ");
+}
+
 impl parami_ad::Config for Runtime {
     type Event = Event;
     type Currency = Balances;
-    type ConfigOrigin = EnsureRootOrHalfCouncil;
+    type DecentralizedId = <Self as parami_did::Config>::DecentralizedId;
+    type PalletId = AdPalletId;
+    type TagsStore = parami_tag::Pallet<Self>;
+    type Time = Timestamp;
+    type CallOrigin = parami_advertiser::EnsureAdvertiser<Self>;
+    type ForceOrigin = EnsureRootOrHalfCouncil;
+    type WeightInfo = ();
 }
 
 parameter_types! {
@@ -1247,7 +1257,7 @@ construct_runtime!(
         OrmlAuction: orml_auction::{Pallet, Storage, Event<T>},
         OrmlNft: orml_nft::{Pallet, Storage} = 100,
 
-        Ad: parami_ad::{Pallet, Call, Config<T>, Storage, Event<T>},
+        Ad: parami_ad::{Pallet, Call, Storage, Event<T>},
         Advertiser: parami_advertiser::{Pallet, Call, Storage, Event<T>},
         Airdrop: parami_airdrop::{Pallet, Call, Config<T>, Storage, Event<T>},
         Auction: parami_auction::{Pallet, Call, Storage, Event<T>},
@@ -1591,6 +1601,7 @@ impl_runtime_apis! {
             list_benchmark!(list, extra, pallet_utility, Utility);
             list_benchmark!(list, extra, pallet_vesting, Vesting);
 
+            list_benchmark!(list, extra, parami_ad, Ad);
             list_benchmark!(list, extra, parami_advertiser, Advertiser);
             list_benchmark!(list, extra, parami_did, Did);
             list_benchmark!(list, extra, parami_magic, Magic);
@@ -1652,6 +1663,7 @@ impl_runtime_apis! {
             add_benchmark!(params, batches, pallet_utility, Utility);
             add_benchmark!(params, batches, pallet_vesting, Vesting);
 
+            add_benchmark!(params, batches, parami_ad, Ad);
             add_benchmark!(params, batches, parami_advertiser, Advertiser);
             add_benchmark!(params, batches, parami_did, Did);
             add_benchmark!(params, batches, parami_magic, Magic);
