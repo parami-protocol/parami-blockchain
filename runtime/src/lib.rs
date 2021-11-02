@@ -280,8 +280,8 @@ parameter_types! {
     pub const AssetDeposit: Balance = 100 * DOLLARS;
     pub const ApprovalDeposit: Balance = 1 * DOLLARS;
     pub const StringLimit: u32 = 50;
-    pub const MetadataDepositBase: Balance = 10 * DOLLARS;
-    pub const MetadataDepositPerByte: Balance = 1 * DOLLARS;
+    pub const MetadataDepositBase: Balance = 0;
+    pub const MetadataDepositPerByte: Balance = 0;
 }
 
 impl pallet_assets::Config for Runtime {
@@ -1188,12 +1188,16 @@ impl parami_nft::Config for Runtime {
     type WeightInfo = parami_nft::weights::SubstrateWeight<Runtime>;
 }
 
+parameter_types! {
+    pub const SwapPalletId: PalletId = PalletId(*b"prm/swap");
+}
+
 impl parami_swap::Config for Runtime {
     type Event = Event;
+    type AssetId = AssetId;
+    type Assets = Assets;
     type Currency = Balances;
-    type NativeBalance = Balance;
-    // avoid name confliction with AssetBalance struct
-    type SwapAssetBalance = <Self as pallet_assets::Config>::Balance;
+    type PalletId = SwapPalletId;
 }
 
 parameter_types! {
@@ -1221,7 +1225,7 @@ construct_runtime!(
     {
         System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 
-        Assets: pallet_assets::{Pallet, Call, Storage,Event<T>},
+        Assets: pallet_assets::{Pallet, Call, Storage, Event<T>},
         AuthorityDiscovery: pallet_authority_discovery::{Pallet, Config},
         Authorship: pallet_authorship::{Pallet, Call, Storage, Inherent},
         Babe: pallet_babe::{Pallet, Call, Storage, Config, ValidateUnsigned},

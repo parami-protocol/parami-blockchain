@@ -1,46 +1,306 @@
-use crate::mock::*;
-use frame_support::{assert_ok, traits::Currency};
+use crate::{mock::*, Config, Error, Metadata};
+use frame_support::{assert_noop, assert_ok, traits::tokens::fungibles::Mutate as FungMutate};
+use sp_core::sr25519;
 
 #[test]
-fn create_swap() {
+fn should_create() {
     new_test_ext().execute_with(|| {
-        let id = 1;
-        // id = 1
-        // min_balance = 1
-        assert_ok!(Assets::create(Origin::signed(A), id, A, 1));
-        // decimals = 0
-        assert_ok!(Assets::set_metadata(
-            Origin::signed(A),
-            id,
-            b"A Token".to_vec(),
-            b"AAA".to_vec(),
-            0
-        ));
+        let token = 1;
 
-        assert_ok!(Assets::mint(Origin::signed(A), id, A, 10_00000000));
-        assert_ok!(Assets::mint(Origin::signed(A), id, B, 10_00000));
+        let alice = sr25519::Public([1; 32]);
 
-        assert_ok!(Swap::create(Origin::signed(A), id));
+        assert_ok!(Swap::create(Origin::signed(alice), token));
 
-        // create twice
-        // assert!(Swap::create(Origin::signed(A), 1).is_err());
-        // 1 native for 100 asset
+        let maybe_meta = <Metadata<Test>>::get(token);
+        assert_ne!(maybe_meta, None);
+
+        let meta = maybe_meta.unwrap();
+
+        assert_eq!(meta.token_id, token);
+        assert_eq!(meta.lp_token_id, <Test as Config>::AssetId::max_value());
+    });
+}
+
+#[test]
+fn should_fail_when_exists() {
+    new_test_ext().execute_with(|| {
+        let token = 1;
+
+        let alice = sr25519::Public([1; 32]);
+
+        assert_ok!(Swap::create(Origin::signed(alice), token));
+
+        assert_noop!(
+            Swap::create(Origin::signed(alice), token),
+            Error::<Test>::Exists
+        );
+    });
+}
+
+#[test]
+fn should_add_liquidity() {
+    new_test_ext().execute_with(|| {
+        let token = 1;
+
+        let alice = sr25519::Public([1; 32]);
+
+        assert_ok!(Swap::create(Origin::signed(alice), token));
+
+        let meta = <Metadata<Test>>::get(token).unwrap();
+
         assert_ok!(Swap::add_liquidity(
-            Origin::signed(A),
-            id,
-            10_000,
-            Some(1000_000)
+            Origin::signed(alice),
+            token,
+            200,
+            0,
+            20,
+            100,
         ));
 
-        println!("native bal => {:?}", Balances::total_balance(&A));
-        println!("asset bal => {:?}", Assets::balance(id, &A));
+        assert_eq!(Balances::free_balance(&alice), 10000 - 200);
+        assert_eq!(Assets::balance(token, &alice), 24);
+        assert_eq!(Assets::balance(meta.lp_token_id, &alice), 200);
 
-        assert_ok!(Swap::add_liquidity(Origin::signed(B), id, 1, None));
+        assert_eq!(Balances::free_balance(&meta.pot), 200);
+        assert_eq!(Assets::balance(token, &meta.pot), 20);
 
-        println!("native bal => {:?}", Balances::total_balance(&B));
-        println!("asset bal => {:?}", Assets::balance(id, &B));
+        assert_noop!(
+            Swap::add_liquidity(Origin::signed(alice), token, 100, 101, 10, 100,),
+            Error::<Test>::TooLowLiquidity
+        );
 
-        assert_ok!(Swap::swap_native(Origin::signed(A), id, 20));
-        println!("asset bal => {:?}", Assets::balance(id, &A));
+        assert_ok!(Swap::add_liquidity(
+            Origin::signed(alice),
+            token,
+            100,
+            100,
+            10,
+            100,
+        ));
+
+        assert_eq!(Balances::free_balance(&alice), 10000 - 300);
+        assert_eq!(Assets::balance(token, &alice), 14);
+        assert_eq!(Assets::balance(meta.lp_token_id, &alice), 300);
+
+        assert_eq!(Balances::free_balance(&meta.pot), 300);
+        assert_eq!(Assets::balance(token, &meta.pot), 30);
+    });
+}
+
+#[test]
+fn should_remove_liquidity() {
+    new_test_ext().execute_with(|| {
+        let token = 1;
+
+        let alice = sr25519::Public([1; 32]);
+
+        assert_ok!(Swap::create(Origin::signed(alice), token));
+
+        let meta = <Metadata<Test>>::get(token).unwrap();
+
+        assert_noop!(
+            Swap::remove_liquidity(Origin::signed(alice), token, 200, 200, 20, 100,),
+            Error::<Test>::NoLiquidity
+        );
+
+        assert_ok!(Swap::add_liquidity(
+            Origin::signed(alice),
+            token,
+            200,
+            0,
+            20,
+            100,
+        ));
+
+        assert_noop!(
+            Swap::remove_liquidity(Origin::signed(alice), token, 0, 0, 0, 100,),
+            Error::<Test>::ZeroLiquidity
+        );
+
+        assert_noop!(
+            Swap::remove_liquidity(Origin::signed(alice), token, 200, 2000, 0, 100,),
+            Error::<Test>::TooLowCurrency
+        );
+
+        assert_noop!(
+            Swap::remove_liquidity(Origin::signed(alice), token, 200, 0, 2000, 100,),
+            Error::<Test>::TooLowTokens
+        );
+
+        assert_ok!(Swap::remove_liquidity(
+            Origin::signed(alice),
+            token,
+            200,
+            200,
+            20,
+            100,
+        ));
+
+        assert_eq!(Balances::free_balance(&alice), 10000);
+        assert_eq!(Assets::balance(token, &alice), 44);
+        assert_eq!(Assets::balance(meta.lp_token_id, &alice), 0);
+
+        assert_eq!(Balances::free_balance(&meta.pot), 0);
+        assert_eq!(Assets::balance(token, &meta.pot), 0);
+    });
+}
+
+#[test]
+fn should_buy_tokens() {
+    new_test_ext().execute_with(|| {
+        let token = 1;
+
+        let alice = sr25519::Public([1; 32]);
+
+        assert_ok!(Swap::create(Origin::signed(alice), token));
+
+        let meta = <Metadata<Test>>::get(token).unwrap();
+
+        assert_ok!(Swap::add_liquidity(
+            Origin::signed(alice),
+            token,
+            420,
+            0,
+            42,
+            100,
+        ));
+
+        assert_noop!(
+            Swap::buy_tokens(Origin::signed(alice), token, 17, 200, 100),
+            Error::<Test>::TooExpensiveCurrency
+        );
+
+        assert_ok!(Swap::buy_tokens(Origin::signed(alice), token, 17, 300, 100,));
+
+        assert_eq!(Balances::free_balance(&alice), 10000 - 420 - 287);
+        assert_eq!(Assets::balance(token, &alice), 2 + 17);
+        assert_eq!(Assets::balance(meta.lp_token_id, &alice), 420);
+
+        assert_eq!(Balances::free_balance(&meta.pot), 420 + 287);
+        assert_eq!(Assets::balance(token, &meta.pot), 42 - 17);
+    });
+}
+
+#[test]
+fn should_sell_tokens() {
+    new_test_ext().execute_with(|| {
+        let token = 1;
+
+        let alice = sr25519::Public([1; 32]);
+
+        assert_ok!(Swap::create(Origin::signed(alice), token));
+
+        let meta = <Metadata<Test>>::get(token).unwrap();
+
+        assert_ok!(Swap::add_liquidity(
+            Origin::signed(alice),
+            token,
+            420,
+            0,
+            42,
+            100,
+        ));
+
+        assert_ok!(Assets::mint_into(token, &alice, 42));
+
+        assert_noop!(
+            Swap::sell_tokens(Origin::signed(alice), token, 20, 1000, 100,),
+            Error::<Test>::TooLowCurrency,
+        );
+
+        assert_ok!(Swap::sell_tokens(Origin::signed(alice), token, 20, 1, 100,));
+
+        assert_eq!(Balances::free_balance(&alice), 10000 - 420 + 135);
+        assert_eq!(Assets::balance(token, &alice), 2 + 42 - 20);
+        assert_eq!(Assets::balance(meta.lp_token_id, &alice), 420);
+
+        assert_eq!(Balances::free_balance(&meta.pot), 420 - 135);
+        assert_eq!(Assets::balance(token, &meta.pot), 42 + 20);
+    });
+}
+
+#[test]
+fn should_sell_currency() {
+    new_test_ext().execute_with(|| {
+        let token = 1;
+
+        let alice = sr25519::Public([1; 32]);
+
+        assert_ok!(Swap::create(Origin::signed(alice), token));
+
+        let meta = <Metadata<Test>>::get(token).unwrap();
+
+        assert_ok!(Swap::add_liquidity(
+            Origin::signed(alice),
+            token,
+            420,
+            0,
+            42,
+            100,
+        ));
+
+        assert_noop!(
+            Swap::sell_currency(Origin::signed(alice), token, 300, 20, 100),
+            Error::<Test>::TooExpensiveTokens
+        );
+
+        assert_ok!(Swap::sell_currency(
+            Origin::signed(alice),
+            token,
+            300,
+            1,
+            100
+        ));
+
+        assert_eq!(Balances::free_balance(&alice), 10000 - 420 - 300);
+        assert_eq!(Assets::balance(token, &alice), 2 + 17);
+        assert_eq!(Assets::balance(meta.lp_token_id, &alice), 420);
+
+        assert_eq!(Balances::free_balance(&meta.pot), 420 + 300);
+        assert_eq!(Assets::balance(token, &meta.pot), 42 - 17);
+    });
+}
+
+#[test]
+fn should_buy_currency() {
+    new_test_ext().execute_with(|| {
+        let token = 1;
+
+        let alice = sr25519::Public([1; 32]);
+
+        assert_ok!(Swap::create(Origin::signed(alice), token));
+
+        let meta = <Metadata<Test>>::get(token).unwrap();
+
+        assert_ok!(Swap::add_liquidity(
+            Origin::signed(alice),
+            token,
+            420,
+            0,
+            42,
+            100,
+        ));
+
+        assert_ok!(Assets::mint_into(token, &alice, 42));
+
+        assert_noop!(
+            Swap::buy_currency(Origin::signed(alice), token, 135, 1, 100),
+            Error::<Test>::TooLowTokens,
+        );
+
+        assert_ok!(Swap::buy_currency(
+            Origin::signed(alice),
+            token,
+            135,
+            1000,
+            100
+        ));
+
+        assert_eq!(Balances::free_balance(&alice), 10000 - 420 + 135);
+        assert_eq!(Assets::balance(token, &alice), 2 + 42 - 20);
+        assert_eq!(Assets::balance(meta.lp_token_id, &alice), 420);
+
+        assert_eq!(Balances::free_balance(&meta.pot), 420 - 135);
+        assert_eq!(Assets::balance(token, &meta.pot), 42 + 20);
     });
 }

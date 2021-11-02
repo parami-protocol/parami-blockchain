@@ -11,31 +11,36 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-use codec::{Decode, Encode, HasCompact};
+mod types;
+
 use frame_support::{
     dispatch::DispatchResult,
+    ensure,
     traits::{
-        tokens::fungibles::{Inspect, Mutate, Transfer},
-        Currency, ExistenceRequirement,
+        tokens::fungibles::{
+            metadata::Mutate as FungMetaMutate, Create as FungCreate, Inspect as FungInspect,
+            InspectMetadata as FungMeta, Mutate as FungMutate, Transfer as FungTransfer,
+        },
+        Currency,
+        ExistenceRequirement::{AllowDeath, KeepAlive},
+        Get,
     },
-    PalletId, RuntimeDebug,
+    PalletId,
 };
-use scale_info::TypeInfo;
 use sp_runtime::traits::{
-    AccountIdConversion, AtLeast32BitUnsigned, IntegerSquareRoot, Saturating, StaticLookup, Zero,
+    AccountIdConversion, AtLeast32BitUnsigned, Bounded, CheckedSub, One, Zero,
 };
+use sp_std::prelude::*;
 
-const PALLET_ID: PalletId = PalletId(*b"paraswap");
-const MINIMUM_LIQUIDITY: u128 = 1_000;
-const OFFSET: u32 = 2_147_483_648_u32;
+type AccountOf<T> = <T as frame_system::Config>::AccountId;
+type BalanceOf<T> = <<T as pallet::Config>::Currency as Currency<AccountOf<T>>>::Balance;
+type SwapOf<T> = types::Swap<AccountOf<T>, <T as pallet::Config>::AssetId>;
 
-#[derive(Clone, Decode, Default, Encode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct SwapPair<AccountId> {
-    account: AccountId,
-    // reserveA
-    native_reserve: u128,
-    // reserveB
-    asset_reserve: u128,
+pub struct MaxValue {}
+impl<T: Bounded> Get<T> for MaxValue {
+    fn get() -> T {
+        T::max_value()
+    }
 }
 
 #[frame_support::pallet]
@@ -45,31 +50,21 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
 
     #[pallet::config]
-    pub trait Config:
-        frame_system::Config + pallet_assets::Config + pallet_balances::Config
-    {
-        /// The overarching event type.
+    pub trait Config: frame_system::Config {
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
-        /// The currency trait.
+        type AssetId: Parameter + Member + AtLeast32BitUnsigned + Default + Copy + Bounded;
+
+        type Assets: FungCreate<Self::AccountId, AssetId = Self::AssetId>
+            + FungMeta<Self::AccountId, AssetId = Self::AssetId>
+            + FungMetaMutate<Self::AccountId, AssetId = Self::AssetId>
+            + FungMutate<Self::AccountId, AssetId = Self::AssetId, Balance = BalanceOf<Self>>
+            + FungTransfer<Self::AccountId, AssetId = Self::AssetId, Balance = BalanceOf<Self>>;
+
         type Currency: Currency<Self::AccountId>;
 
-        // Go to hell, your types sucks
-        type NativeBalance: IsType<<Self as pallet_balances::Config>::Balance>
-            + Parameter
-            + Member
-            + Copy
-            + AtLeast32BitUnsigned
-            + HasCompact
-            + IsType<u128>
-            + IsType<<<Self as Config>::Currency as Currency<<Self as frame_system::Config>::AccountId>>::Balance>;
-        type SwapAssetBalance: IsType<<Self as pallet_assets::Config>::Balance>
-            + Parameter
-            + Member
-            + Copy
-            + AtLeast32BitUnsigned
-            + HasCompact
-            + IsType<u128>;
+        #[pallet::constant]
+        type PalletId: Get<PalletId>;
     }
 
     #[pallet::pallet]
@@ -77,28 +72,12 @@ pub mod pallet {
     pub struct Pallet<T>(PhantomData<T>);
 
     #[pallet::storage]
-    pub type Swap<T: Config> =
-        StorageMap<_, Blake2_128Concat, T::AssetId, SwapPair<T::AccountId>, OptionQuery>;
+    #[pallet::getter(fn meta)]
+    pub(super) type Metadata<T: Config> = StorageMap<_, Blake2_128, T::AssetId, SwapOf<T>>;
 
-    // (asset-id, account-id) => amount of LP-token
-    // serve as the fake lp-token balance
     #[pallet::storage]
-    pub type LiquidityProvider<T: Config> = StorageDoubleMap<
-        _,
-        Blake2_128Concat,
-        T::AssetId,
-        Blake2_128Concat,
-        T::AccountId,
-        u128,
-        ValueQuery,
-    >;
-
-    /*
-    #[pallet::storage]
-    #[pallet::getter(fn total_liquidity_of)]
-    pub type TotalLiquidity<T: Config> =
-        StorageMap<_, Blake2_128Concat, T::AssetId, T::Balance, ValueQuery>;
-     */
+    #[pallet::getter(fn next_class_id)]
+    pub type NextLpId<T: Config> = StorageValue<_, T::AssetId, ValueQuery, MaxValue>;
 
     #[pallet::event]
     #[pallet::generate_deposit(pub fn deposit_event)]
@@ -106,13 +85,13 @@ pub mod pallet {
         /// New swap pair created
         Created(T::AssetId),
         /// Add liquidity
-        LiquidityAdded(T::AccountId, T::AssetId),
+        LiquidityAdded(T::AssetId, T::AccountId, BalanceOf<T>, BalanceOf<T>),
         /// Remove liquidity
-        LiquidityRemoved(T::AccountId, T::AssetId),
+        LiquidityRemoved(T::AssetId, T::AccountId, BalanceOf<T>, BalanceOf<T>),
         /// Buy tokens
-        SwapBuy(T::AccountId, T::AssetId, T::SwapAssetBalance),
+        SwapBuy(T::AssetId, T::AccountId, BalanceOf<T>),
         /// Sell tokens
-        SwapSell(T::AccountId, T::AssetId, T::NativeBalance),
+        SwapSell(T::AssetId, T::AccountId, BalanceOf<T>),
     }
 
     #[pallet::hooks]
@@ -120,613 +99,324 @@ pub mod pallet {
 
     #[pallet::error]
     pub enum Error<T> {
+        Deadline,
         Exists,
-        AssetNotFound,
-        SwapNotFound,
-        NativeAmountRequired,
-        AssetAmountRequired,
-        Overflow,
-        /// remaining token/native token balance is too low
-        InsufficientLiquidity,
-        InsufficientNativeToken,
-        InsufficientAssetToken,
-        InsufficientNativeBalance,
-        InsufficientAssetBalance,
-        NativeAmountIsZero,
-        AssetAmountIsZero,
-        MintedLiquidityIsZero,
-        LiquidityAmountIsZero,
-
-        InsufficientPoolAssetAmount,
-        InsufficientPoolNativeAmount,
-        /// Minimum liquidity for add liquidity first time.
-        MinimumLiquidity,
-        /// INSUFFICIENT_INPUT_AMOUNT
-        InsufficientInputAmount,
-        InsufficientOutputAmount,
-        /// INSUFFICIENT_LIQUIDITY_BURNED
-        InsufficientLiquidityBurned,
+        NoAvailableTokenId,
+        NoLiquidity,
+        NotExists,
+        TooLowCurrency,
+        TooLowLiquidity,
+        TooLowTokens,
+        TooManyTokens,
+        TooExpensiveTokens,
+        TooExpensiveCurrency,
+        ZeroCurrency,
+        ZeroLiquidity,
+        ZeroTokens,
     }
 
     #[pallet::call]
-    impl<T: Config> Pallet<T>
-    where
-        <<T as Config>::Currency as frame_support::traits::Currency<
-            <T as frame_system::Config>::AccountId,
-        >>::Balance: From<u128> + Into<u128>,
-        <T as pallet_assets::Config>::Balance: From<u128> + Into<u128>,
-        <T as pallet_assets::Config>::AssetId: AtLeast32BitUnsigned,
-    {
-        #[pallet::weight(0)]
+    impl<T: Config> Pallet<T> {
+        #[pallet::weight(1_000_000_000)]
         pub fn create(
             origin: OriginFor<T>,
-            #[pallet::compact] asset_id: T::AssetId,
+            #[pallet::compact] token_id: T::AssetId,
         ) -> DispatchResult {
-            let who = ensure_signed(origin.clone())?;
+            let _who = ensure_signed(origin)?;
 
-            let sender = who;
+            ensure!(!Metadata::<T>::contains_key(&token_id), Error::<T>::Exists);
 
-            // constrait on asset_id
-            ensure!(
-                asset_id < T::AssetId::from(OFFSET),
-                Error::<T>::AssetNotFound
-            );
+            let minimum = T::Currency::minimum_balance();
 
-            let total_supply = <pallet_assets::Pallet<T>>::total_supply(asset_id);
-            log::info!("!! create total supply => {:?}", total_supply);
-            ensure!(total_supply > Zero::zero(), Error::<T>::AssetNotFound);
+            let mut name = T::Assets::name(&token_id);
+            name.extend_from_slice(b"/AD3 LP");
 
-            log::debug!(
-                "!! min balance => {:?}",
-                <pallet_assets::Pallet<T>>::minimum_balance(asset_id)
-            );
+            let mut symbol = T::Assets::symbol(&token_id);
+            symbol.extend_from_slice(b"/AD3");
 
-            ensure!(!<Swap<T>>::contains_key(asset_id), Error::<T>::Exists);
+            let lp_token_id =
+                <NextLpId<T>>::try_mutate(|id| -> Result<T::AssetId, DispatchError> {
+                    let current_id = *id;
+                    *id = id
+                        .checked_sub(&One::one())
+                        .ok_or(Error::<T>::NoAvailableTokenId)?;
+                    Ok(current_id)
+                })?;
 
-            // create pool account
-            let pool_account_id = Self::asset_account_id(asset_id);
-            <T as Config>::Currency::transfer(
-                &sender,
-                &pool_account_id,
-                <T as Config>::Currency::minimum_balance(),
-                ExistenceRequirement::KeepAlive,
-            )?;
+            // 1. create pot
 
-            <pallet_assets::Pallet<T> as Transfer<T::AccountId>>::transfer(
-                asset_id,
-                &sender,
-                &pool_account_id,
-                <pallet_assets::Pallet<T>>::minimum_balance(asset_id),
-                true,
-            )?;
+            let pot = Self::pot(token_id);
 
-            // create lp-token
-            let lp_asset_id = asset_id + T::AssetId::from(OFFSET);
-            <pallet_assets::Pallet<T>>::create(
-                origin.clone(),
-                lp_asset_id,
-                <T::Lookup as StaticLookup>::unlookup(pool_account_id.clone()),
-                MINIMUM_LIQUIDITY.into(),
-            )?;
+            // 2. create lp token
 
-            // TODO: get symbols from assets
-            // blocked by paritytech/substrate#9757
+            T::Assets::create(lp_token_id, pot.clone(), false, minimum)?;
+            T::Assets::set(lp_token_id, &pot, name, symbol, 18)?;
 
-            // let (_, asset_symbol, _) = <pallet_assets::Pallet<T>>::metadata(asset_id);
-            // let mut lp_name = asset_symbol.clone();
-            // lp_name.extend_from_slice(b"/AD3 LP");
-            // let mut lp_symbol = asset_symbol.clone();
-            // lp_symbol.extend_from_slice(b"-AD3");
+            // 3. insert metadata
 
-            log::info!("issure LP token {:?}", asset_id);
-
-            <pallet_assets::Pallet<T>>::set_metadata(
-                origin.clone(),
-                lp_asset_id,
-                "AD3 LP".into(),
-                "LP".into(),
-                0,
-            )?;
-            <pallet_assets::Pallet<T>>::transfer_ownership(
-                origin.clone(),
-                lp_asset_id,
-                <T::Lookup as StaticLookup>::unlookup(pool_account_id),
-            )?;
-
-            <Swap<T>>::insert(
-                asset_id,
-                SwapPair {
-                    account: Self::asset_account_id(asset_id),
-                    native_reserve: 0,
-                    asset_reserve: 0,
+            <Metadata<T>>::insert(
+                &token_id,
+                types::Swap {
+                    pot,
+                    token_id,
+                    lp_token_id,
                 },
             );
 
-            // TotalLiquidity::insert(asset_id, Zero::zero());
-            Self::deposit_event(Event::Created(asset_id));
+            Self::deposit_event(Event::Created(token_id));
 
-            Ok(().into())
+            Ok(())
         }
 
-        #[pallet::weight(0)]
+        #[pallet::weight(1_000_000_000)]
         pub fn add_liquidity(
             origin: OriginFor<T>,
-            #[pallet::compact] asset_id: T::AssetId,
-            #[pallet::compact] native_amount: T::NativeBalance,
-            maybe_asset_amount: Option<T::SwapAssetBalance>,
+            #[pallet::compact] token_id: T::AssetId,
+            #[pallet::compact] currency: BalanceOf<T>,
+            #[pallet::compact] min_liquidity: BalanceOf<T>,
+            #[pallet::compact] max_tokens: BalanceOf<T>,
+            deadline: T::BlockNumber,
         ) -> DispatchResult {
-            let origin = ensure_signed(origin)?;
+            let height = <frame_system::Pallet<T>>::block_number();
+            ensure!(deadline > height, Error::<T>::Deadline);
 
-            let sender = origin;
-            let mut pair = <Swap<T>>::get(asset_id).ok_or(Error::<T>::SwapNotFound)?;
+            let who = ensure_signed(origin)?;
 
-            log::info!("trade pair => {:?}", pair);
-            let lp_asset_id = asset_id + T::AssetId::from(OFFSET);
+            ensure!(currency > Zero::zero(), Error::<T>::ZeroCurrency);
+            ensure!(max_tokens > Zero::zero(), Error::<T>::ZeroTokens);
 
-            // sender's native balance check
-            ensure!(native_amount > Zero::zero(), Error::<T>::NativeAmountIsZero);
-            ensure!(
-                <pallet_balances::Pallet<T> as Currency<_>>::free_balance(&sender)
-                    > native_amount.into(),
-                Error::<T>::InsufficientNativeBalance
-            );
+            let meta = Metadata::<T>::get(&token_id).ok_or(Error::<T>::NotExists)?;
 
-            let (pool_account_id, pool_native_amount) = Self::native_pool(asset_id);
-            let (_, pool_asset_amount) = Self::asset_pool(asset_id);
+            let total_liquidity = T::Assets::total_issuance(meta.lp_token_id);
 
-            // unit conversion
-            let native_amount: u128 = native_amount.into();
-            let asset_amount: u128;
-            let minted_liquidity;
+            let (tokens, liquidity) = if total_liquidity > Zero::zero() {
+                ensure!(min_liquidity > Zero::zero(), Error::<T>::ZeroLiquidity);
 
-            log::info!(
-                "add liquidity native={:?} asset={:?}",
-                native_amount,
-                maybe_asset_amount
-            );
+                let swap_balance = T::Currency::free_balance(&meta.pot);
+                let token_reserve = T::Assets::balance(token_id, &meta.pot);
 
-            if pair.native_reserve == 0 && pair.asset_reserve == 0 {
-                // initial add liquidity
-                ensure!(
-                    maybe_asset_amount.is_some(),
-                    Error::<T>::AssetAmountRequired
-                );
-                asset_amount = maybe_asset_amount.unwrap().into();
-                // MINIMUM_LIQUIDITY = 1_000
-                ensure!(
-                    asset_amount > MINIMUM_LIQUIDITY,
-                    Error::<T>::MinimumLiquidity
-                );
-                ensure!(
-                    native_amount > MINIMUM_LIQUIDITY,
-                    Error::<T>::MinimumLiquidity
-                );
+                let tokens = currency * token_reserve / swap_balance;
+                let liquidity = currency * total_liquidity / swap_balance;
 
-                minted_liquidity =
-                    (asset_amount * native_amount).integer_sqrt() - MINIMUM_LIQUIDITY;
+                (tokens, liquidity)
             } else {
-                let pool_asset_amount: u128 = pool_asset_amount.into();
-                asset_amount = pool_asset_amount
-                    .checked_mul(native_amount)
-                    .and_then(|v| v.checked_div(pool_native_amount.into()))
-                    .ok_or(Error::<T>::Overflow)?;
+                // Fresh swap with no liquidity
+                (max_tokens, currency)
+            };
 
-                if let Some(provide_amount) = maybe_asset_amount {
-                    ensure!(
-                        provide_amount >= asset_amount.into(),
-                        Error::<T>::InsufficientAssetToken
-                    );
-                }
+            ensure!(max_tokens >= tokens, Error::<T>::TooManyTokens);
+            ensure!(liquidity >= min_liquidity, Error::<T>::TooLowLiquidity);
 
-                // total liquidity
-                let total_supply: u128 =
-                    <pallet_assets::Pallet<T>>::total_supply(lp_asset_id).into();
+            T::Currency::transfer(&who, &meta.pot, currency, KeepAlive)?;
+            T::Assets::transfer(token_id, &who, &meta.pot, tokens, true)?;
+            T::Assets::mint_into(meta.lp_token_id, &who, liquidity)?;
 
-                minted_liquidity = u128::min(
-                    native_amount * total_supply / pair.native_reserve,
-                    asset_amount * total_supply / pair.asset_reserve,
-                );
+            Self::deposit_event(Event::LiquidityAdded(token_id, who, currency, tokens));
 
-                log::info!(
-                    "calculated asset={:?} liquidity={:?}",
-                    asset_amount,
-                    minted_liquidity
-                );
-            }
-
-            ensure!(asset_amount > Zero::zero(), Error::<T>::AssetAmountIsZero);
-            ensure!(
-                minted_liquidity > Zero::zero(),
-                Error::<T>::MintedLiquidityIsZero
-            );
-
-            // Equation:
-            // pool_native_amount *asset_amount == pool_asset_amount * native_amount
-
-            // sender asset amount check
-            {
-                let sender_asset_balance: T::SwapAssetBalance = T::SwapAssetBalance::from(
-                    <pallet_assets::Pallet<T>>::balance(asset_id, &sender),
-                );
-                ensure!(
-                    sender_asset_balance > asset_amount.into(),
-                    Error::<T>::InsufficientAssetBalance
-                );
-            }
-
-            // TODO: liquidity token check?
-
-            // native token inject
-            <T as Config>::Currency::transfer(
-                &sender,
-                &pool_account_id,
-                native_amount.into(),
-                ExistenceRequirement::KeepAlive,
-            )?;
-            // asset token inject
-            <pallet_assets::Pallet<T> as Transfer<T::AccountId>>::transfer(
-                asset_id,
-                &sender,
-                &pool_account_id,
-                asset_amount.into(),
-                true,
-            )?;
-
-            // LP handling
-            <LiquidityProvider<T>>::try_mutate_exists(
-                asset_id,
-                sender.clone(),
-                |maybe_lp| -> DispatchResult {
-                    let mut lp = maybe_lp.take().unwrap_or_default();
-                    lp = lp
-                        .checked_add(minted_liquidity)
-                        .ok_or(Error::<T>::Overflow)?;
-                    *maybe_lp = Some(lp);
-                    Ok(())
-                },
-            )?;
-            // mint LP token, won't trigger event
-            <pallet_assets::Pallet<T>>::mint_into(lp_asset_id, &sender, minted_liquidity.into())?;
-
-            pair.native_reserve = Self::native_pool(asset_id).1.into();
-            pair.asset_reserve = Self::asset_pool(asset_id).1.into();
-            /*
-            pair.issued_liquidity = pair
-                .issued_liquidity
-                .checked_add(minted_liquidity)
-                .ok_or(Error::<T>::Overflow)?;
-                */
-            <Swap<T>>::insert(asset_id, pair);
-
-            Self::deposit_event(Event::LiquidityAdded(sender, asset_id));
-
-            Ok(().into())
+            Ok(())
         }
 
-        #[pallet::weight(0)]
+        #[pallet::weight(1_000_000_000)]
         pub fn remove_liquidity(
             origin: OriginFor<T>,
-            #[pallet::compact] asset_id: T::AssetId,
-            #[pallet::compact] liquidity: T::SwapAssetBalance,
+            #[pallet::compact] token_id: T::AssetId,
+            #[pallet::compact] liquidity: BalanceOf<T>,
+            #[pallet::compact] min_currency: BalanceOf<T>,
+            #[pallet::compact] min_tokens: BalanceOf<T>,
+            deadline: T::BlockNumber,
         ) -> DispatchResult {
-            let origin = ensure_signed(origin)?;
+            let height = <frame_system::Pallet<T>>::block_number();
+            ensure!(deadline > height, Error::<T>::Deadline);
 
-            let sender = origin;
-            let liquidity: u128 = liquidity.into();
-            let mut pair = <Swap<T>>::get(asset_id).ok_or(Error::<T>::SwapNotFound)?;
+            let who = ensure_signed(origin)?;
 
-            let lp_asset_id = asset_id + T::AssetId::from(OFFSET);
-            // total liquidity
-            let total_supply: u128 = <pallet_assets::Pallet<T>>::total_supply(lp_asset_id).into();
+            ensure!(liquidity > Zero::zero(), Error::<T>::ZeroLiquidity);
 
-            ensure!(liquidity <= total_supply, Error::<T>::InsufficientLiquidity);
-            // FIXME: the error might be inarguments, or pair info
-            ensure!(
-                liquidity > Zero::zero() && total_supply > 0,
-                Error::<T>::LiquidityAmountIsZero
-            );
+            let meta = Metadata::<T>::get(&token_id).ok_or(Error::<T>::NotExists)?;
 
-            let (pool_account_id, pool_native_amount) = Self::native_pool(asset_id);
-            let (_, pool_asset_amount) = Self::asset_pool(asset_id);
+            let total_liquidity = T::Assets::total_issuance(meta.lp_token_id);
 
-            ensure!(
-                pool_native_amount > Zero::zero(),
-                Error::<T>::InsufficientPoolNativeAmount
-            );
-            ensure!(
-                pool_asset_amount > Zero::zero(),
-                Error::<T>::InsufficientPoolAssetAmount
-            );
+            ensure!(total_liquidity > Zero::zero(), Error::<T>::NoLiquidity);
 
-            let pool_native_amount: u128 = pool_native_amount.into();
-            let pool_asset_amount: u128 = pool_asset_amount.into();
+            let swap_balance = T::Currency::free_balance(&meta.pot);
+            let token_reserve = T::Assets::balance(token_id, &meta.pot);
 
-            let native_amount = liquidity * pool_native_amount / total_supply;
-            let asset_amount = liquidity * pool_asset_amount / total_supply;
+            let currency = liquidity * swap_balance / total_liquidity;
+            let tokens = liquidity * token_reserve / total_liquidity;
 
-            log::info!(
-                "remove liquidity, native={:?}, asset={:?}",
-                native_amount,
-                asset_amount
-            );
+            ensure!(currency >= min_currency, Error::<T>::TooLowCurrency);
+            ensure!(tokens >= min_tokens, Error::<T>::TooLowTokens);
 
-            ensure!(
-                native_amount > Zero::zero() && asset_amount > Zero::zero(),
-                Error::<T>::InsufficientLiquidityBurned
-            );
+            T::Assets::slash(meta.lp_token_id, &who, liquidity)?;
 
-            // free balance check
-            ensure!(
-                pool_native_amount > native_amount,
-                Error::<T>::InsufficientPoolNativeAmount
-            );
-            ensure!(
-                pool_asset_amount > asset_amount,
-                Error::<T>::InsufficientPoolAssetAmount
-            );
-            ensure!(
-                <LiquidityProvider<T>>::get(asset_id, sender.clone()) >= liquidity,
-                Error::<T>::InsufficientLiquidity
-            );
+            T::Assets::transfer(token_id, &meta.pot, &who, tokens, false)?;
+            T::Currency::transfer(&meta.pot, &who, currency, AllowDeath)?;
 
-            // remove liquidity
-            <T as Config>::Currency::transfer(
-                &pool_account_id,
-                &sender,
-                native_amount.into(),
-                ExistenceRequirement::AllowDeath,
-            )?;
-            <pallet_assets::Pallet<T> as Transfer<T::AccountId>>::transfer(
-                asset_id,
-                &pool_account_id,
-                &sender,
-                asset_amount.into(),
-                true,
-            )?;
+            Self::deposit_event(Event::LiquidityRemoved(token_id, who, currency, tokens));
 
-            // LP handling
-            <LiquidityProvider<T>>::try_mutate_exists(
-                asset_id,
-                sender.clone(),
-                |maybe_lp| -> DispatchResult {
-                    let mut lp = maybe_lp.take().unwrap_or_default();
-                    lp = lp
-                        .checked_sub(liquidity.into())
-                        .ok_or(Error::<T>::Overflow)?;
-                    *maybe_lp = Some(lp);
-                    Ok(())
-                },
-            )?;
-            // burn LP token
-            <pallet_assets::Pallet<T>>::burn_from(lp_asset_id, &sender, liquidity.into())?;
-
-            // _update
-            pair.native_reserve = Self::native_pool(asset_id).1.into();
-            pair.asset_reserve = Self::asset_pool(asset_id).1.into();
-            // total supply
-            /*
-            pair.issued_liquidity = pair
-                .issued_liquidity
-                .checked_sub(liquidity.into())
-                .ok_or(Error::<T>::Overflow)?;
-            */
-            <Swap<T>>::insert(asset_id, pair);
-
-            Self::deposit_event(Event::LiquidityRemoved(sender, asset_id));
-
-            Ok(().into())
+            Ok(())
         }
 
-        #[pallet::weight(0)]
-        pub fn swap_native(
+        #[pallet::weight(1_000_000_000)]
+        pub fn buy_tokens(
             origin: OriginFor<T>,
-            #[pallet::compact] asset_id: T::AssetId,
-            #[pallet::compact] native_amount_in: T::NativeBalance,
+            #[pallet::compact] token_id: T::AssetId,
+            #[pallet::compact] tokens: BalanceOf<T>,
+            #[pallet::compact] max_currency: BalanceOf<T>,
+            deadline: T::BlockNumber,
         ) -> DispatchResult {
-            let origin = ensure_signed(origin)?;
-            let sender = origin;
+            let height = <frame_system::Pallet<T>>::block_number();
+            ensure!(deadline > height, Error::<T>::Deadline);
 
-            let mut pair = <Swap<T>>::get(asset_id).ok_or(Error::<T>::SwapNotFound)?;
+            let who = ensure_signed(origin)?;
 
-            let pool_account_id = Self::asset_account_id(asset_id);
+            ensure!(tokens > Zero::zero(), Error::<T>::ZeroTokens);
+            ensure!(max_currency > Zero::zero(), Error::<T>::ZeroCurrency);
 
-            // UniswapV2Library.getAmountOut
-            // given an input amount of an asset and pair reserves, returns the maximum output amount of the other asset
+            let meta = Metadata::<T>::get(&token_id).ok_or(Error::<T>::NotExists)?;
+
+            let swap_balance = T::Currency::free_balance(&meta.pot);
+            let token_reserve = T::Assets::balance(token_id, &meta.pot);
+
+            let currency_sold = Self::price_buy(tokens, swap_balance, token_reserve);
+
             ensure!(
-                native_amount_in > Zero::zero(),
-                Error::<T>::InsufficientInputAmount
-            );
-            ensure!(
-                pair.native_reserve > 0 && pair.asset_reserve > 0,
-                Error::<T>::InsufficientLiquidity
-            );
-            let asset_amount_out;
-            {
-                let native_amount_in: u128 = native_amount_in.into();
-                let native_amount_in_with_fee: u128 = native_amount_in
-                    .checked_mul(997)
-                    .ok_or(Error::<T>::Overflow)?;
-                let numerator = native_amount_in_with_fee
-                    .checked_mul(pair.asset_reserve)
-                    .ok_or(Error::<T>::Overflow)?;
-                let denominator = pair.native_reserve * 1000 + native_amount_in_with_fee;
-                asset_amount_out = numerator / denominator;
-            }
-
-            // check balance
-            ensure!(
-                <pallet_balances::Pallet<T> as Currency<_>>::free_balance(&sender)
-                    > native_amount_in.into(),
-                Error::<T>::InsufficientNativeBalance
+                currency_sold <= max_currency,
+                Error::<T>::TooExpensiveCurrency
             );
 
-            // UniswapV2Pair.swap
-            ensure!(asset_amount_out > 0, Error::<T>::InsufficientOutputAmount);
-            // FIXME: check asset_amount_out > minimum_balance
-            ensure!(
-                asset_amount_out < pair.asset_reserve,
-                Error::<T>::InsufficientLiquidity
-            );
+            T::Currency::transfer(&who, &meta.pot, currency_sold, KeepAlive)?;
+            T::Assets::transfer(token_id, &meta.pot, &who, tokens, false)?;
 
-            // do transfer
-            <T as Config>::Currency::transfer(
-                &sender,
-                &pool_account_id,
-                native_amount_in.into(),
-                ExistenceRequirement::KeepAlive,
-            )?;
-            <pallet_assets::Pallet<T> as Transfer<T::AccountId>>::transfer(
-                asset_id,
-                &pool_account_id,
-                &sender,
-                asset_amount_out.into(),
-                true,
-            )?;
+            Self::deposit_event(Event::SwapBuy(token_id, who, tokens));
 
-            pair.native_reserve = Self::native_pool(asset_id).1.into();
-            pair.asset_reserve = Self::asset_pool(asset_id).1.into();
-            <Swap<T>>::insert(asset_id, pair);
-
-            log::debug!(
-                "swap native={:?} for asset={:?}",
-                native_amount_in,
-                asset_amount_out
-            );
-
-            Self::deposit_event(Event::SwapBuy(sender, asset_id, asset_amount_out.into()));
-            Ok(().into())
+            Ok(())
         }
 
-        #[pallet::weight(0)]
-        pub fn swap_asset(
+        #[pallet::weight(1_000_000_000)]
+        pub fn sell_tokens(
             origin: OriginFor<T>,
-            #[pallet::compact] asset_id: T::AssetId,
-            #[pallet::compact] asset_amount_in: T::SwapAssetBalance,
+            #[pallet::compact] token_id: T::AssetId,
+            #[pallet::compact] tokens: BalanceOf<T>,
+            #[pallet::compact] min_currency: BalanceOf<T>,
+            deadline: T::BlockNumber,
         ) -> DispatchResult {
-            let origin = ensure_signed(origin)?;
-            let sender = origin;
+            let height = <frame_system::Pallet<T>>::block_number();
+            ensure!(deadline > height, Error::<T>::Deadline);
 
-            let mut pair = <Swap<T>>::get(asset_id).ok_or(Error::<T>::SwapNotFound)?;
+            let who = ensure_signed(origin)?;
 
-            let pool_account_id = Self::asset_account_id(asset_id);
+            ensure!(tokens > Zero::zero(), Error::<T>::ZeroTokens);
+            ensure!(min_currency > Zero::zero(), Error::<T>::ZeroCurrency);
 
-            // UniswapV2Library.getAmountOut
-            // given an input amount of an asset and pair reserves, returns the maximum output amount of the other asset
-            ensure!(
-                asset_amount_in > Zero::zero(),
-                Error::<T>::InsufficientInputAmount
-            );
-            ensure!(
-                pair.native_reserve > 0 && pair.asset_reserve > 0,
-                Error::<T>::InsufficientLiquidity
-            );
-            let native_amount_out;
-            {
-                let asset_amount_in: u128 = asset_amount_in.into();
-                let asset_amount_in_with_fee: u128 = asset_amount_in
-                    .checked_mul(997)
-                    .ok_or(Error::<T>::Overflow)?;
-                let numerator = asset_amount_in_with_fee
-                    .checked_mul(pair.native_reserve)
-                    .ok_or(Error::<T>::Overflow)?;
-                let denominator = pair.asset_reserve * 1000 + asset_amount_in_with_fee;
-                native_amount_out = numerator / denominator;
-            }
+            let meta = Metadata::<T>::get(&token_id).ok_or(Error::<T>::NotExists)?;
 
-            // check balance
-            {
-                let sender_asset_balance: T::SwapAssetBalance = T::SwapAssetBalance::from(
-                    <pallet_assets::Pallet<T>>::balance(asset_id, &sender),
-                );
-                ensure!(
-                    sender_asset_balance > asset_amount_in.into(),
-                    Error::<T>::InsufficientAssetBalance
-                );
-            }
+            let swap_balance = T::Currency::free_balance(&meta.pot);
+            let token_reserve = T::Assets::balance(token_id, &meta.pot);
 
-            // UniswapV2Pair.swap
-            ensure!(native_amount_out > 0, Error::<T>::InsufficientOutputAmount);
-            ensure!(
-                native_amount_out < pair.native_reserve,
-                Error::<T>::InsufficientLiquidity
-            );
+            let currency_bought = Self::price_sell(tokens, token_reserve, swap_balance);
 
-            // do transfer
-            <pallet_assets::Pallet<T> as Transfer<T::AccountId>>::transfer(
-                asset_id,
-                &sender,
-                &pool_account_id,
-                asset_amount_in.into(),
-                true,
-            )?;
-            <T as Config>::Currency::transfer(
-                &pool_account_id,
-                &sender,
-                native_amount_out.into(),
-                ExistenceRequirement::KeepAlive,
-            )?;
+            ensure!(currency_bought >= min_currency, Error::<T>::TooLowCurrency);
 
-            pair.native_reserve = Self::native_pool(asset_id).1.into();
-            pair.asset_reserve = Self::asset_pool(asset_id).1.into();
-            <Swap<T>>::insert(asset_id, pair);
+            T::Assets::transfer(token_id, &who, &meta.pot, tokens, true)?;
+            T::Currency::transfer(&meta.pot, &who, currency_bought, AllowDeath)?;
 
-            log::debug!(
-                "swap asset={:?} for native={:?}",
-                asset_amount_in,
-                native_amount_out,
-            );
+            Self::deposit_event(Event::SwapSell(token_id, who, tokens));
 
-            Self::deposit_event(Event::SwapSell(sender, asset_id, native_amount_out.into()));
-            Ok(().into())
+            Ok(())
+        }
+
+        #[pallet::weight(1_000_000_000)]
+        pub fn sell_currency(
+            origin: OriginFor<T>,
+            #[pallet::compact] token_id: T::AssetId,
+            #[pallet::compact] currency: BalanceOf<T>,
+            #[pallet::compact] min_tokens: BalanceOf<T>,
+            deadline: T::BlockNumber,
+        ) -> DispatchResult {
+            let height = <frame_system::Pallet<T>>::block_number();
+            ensure!(deadline > height, Error::<T>::Deadline);
+
+            let who = ensure_signed(origin)?;
+
+            ensure!(currency > Zero::zero(), Error::<T>::ZeroCurrency);
+            ensure!(min_tokens > Zero::zero(), Error::<T>::ZeroTokens);
+
+            let meta = Metadata::<T>::get(&token_id).ok_or(Error::<T>::NotExists)?;
+
+            let swap_balance = T::Currency::free_balance(&meta.pot);
+            let token_reserve = T::Assets::balance(token_id, &meta.pot);
+
+            let tokens_bought = Self::price_sell(currency, swap_balance, token_reserve);
+
+            ensure!(tokens_bought >= min_tokens, Error::<T>::TooExpensiveTokens);
+
+            T::Currency::transfer(&who, &meta.pot, currency, KeepAlive)?;
+            T::Assets::transfer(token_id, &meta.pot, &who, tokens_bought, false)?;
+
+            Self::deposit_event(Event::SwapBuy(token_id, who, tokens_bought));
+
+            Ok(())
+        }
+
+        #[pallet::weight(1_000_000_000)]
+        pub fn buy_currency(
+            origin: OriginFor<T>,
+            #[pallet::compact] token_id: T::AssetId,
+            #[pallet::compact] currency: BalanceOf<T>,
+            #[pallet::compact] max_tokens: BalanceOf<T>,
+            deadline: T::BlockNumber,
+        ) -> DispatchResult {
+            let height = <frame_system::Pallet<T>>::block_number();
+            ensure!(deadline > height, Error::<T>::Deadline);
+
+            let who = ensure_signed(origin)?;
+
+            ensure!(max_tokens > Zero::zero(), Error::<T>::ZeroTokens);
+            ensure!(currency > Zero::zero(), Error::<T>::ZeroCurrency);
+
+            let meta = Metadata::<T>::get(&token_id).ok_or(Error::<T>::NotExists)?;
+
+            let swap_balance = T::Currency::free_balance(&meta.pot);
+            let token_reserve = T::Assets::balance(token_id, &meta.pot);
+
+            let tokens_sold = Self::price_buy(currency, token_reserve, swap_balance);
+
+            ensure!(max_tokens >= tokens_sold, Error::<T>::TooLowTokens);
+
+            T::Assets::transfer(token_id, &who, &meta.pot, tokens_sold, true)?;
+            T::Currency::transfer(&meta.pot, &who, currency, AllowDeath)?;
+
+            Self::deposit_event(Event::SwapSell(token_id, who, tokens_sold));
+
+            Ok(())
         }
     }
 }
 
 impl<T: Config> Pallet<T> {
-    /// The account ID of the swap pool.
-    ///
-    /// This actually does computation. If you need to keep using it, then make sure you cache the
-    /// value and only call this once.
-    pub fn account_id() -> T::AccountId {
-        PALLET_ID.into_account()
+    pub fn pot(token_id: T::AssetId) -> T::AccountId {
+        T::PalletId::get().into_sub_account(token_id)
     }
 
-    /// Return the pool account and amount of money in the pool.
-    // The existential deposit is not part of the pool so airdrop account never gets deleted.
-    fn _pool() -> (T::AccountId, T::NativeBalance) {
-        let account_id = Self::account_id();
-        let balance = <T as Config>::Currency::free_balance(&account_id)
-            .saturating_sub(<T as Config>::Currency::minimum_balance());
-
-        (account_id, balance.into())
+    fn price_buy(
+        output_amount: BalanceOf<T>,
+        input_reserve: BalanceOf<T>,
+        output_reserve: BalanceOf<T>,
+    ) -> BalanceOf<T> {
+        let numerator = input_reserve * output_amount * 1000u32.into();
+        let denominator = (output_reserve - output_amount) * 997u32.into();
+        numerator / denominator + 1u32.into()
     }
 
-    pub fn asset_account_id(asset_id: T::AssetId) -> T::AccountId {
-        PALLET_ID.into_sub_account(asset_id)
+    fn price_sell(
+        input_amount: BalanceOf<T>,
+        input_reserve: BalanceOf<T>,
+        output_reserve: BalanceOf<T>,
+    ) -> BalanceOf<T> {
+        let input_amount_with_fee = input_amount * 997u32.into();
+        let numerator = input_amount_with_fee * output_reserve;
+        let denominator = (input_reserve * 1000u32.into()) + input_amount_with_fee;
+        numerator / denominator
     }
-
-    fn asset_pool(asset_id: T::AssetId) -> (T::AccountId, T::SwapAssetBalance) {
-        let account_id = Self::asset_account_id(asset_id);
-
-        let asset_balance = <pallet_assets::Pallet<T>>::balance(asset_id, &account_id)
-            - <pallet_assets::Pallet<T>>::minimum_balance(asset_id);
-        (account_id, T::SwapAssetBalance::from(asset_balance))
-    }
-
-    fn native_pool(asset_id: T::AssetId) -> (T::AccountId, T::NativeBalance) {
-        let account_id = Self::asset_account_id(asset_id);
-
-        let balance = <T as Config>::Currency::free_balance(&account_id)
-            .saturating_sub(<T as Config>::Currency::minimum_balance());
-        (account_id, balance.into())
-    }
-}
-
-impl<T: Config> Pallet<T>
-where
-    <<T as Config>::Currency as frame_support::traits::Currency<
-        <T as frame_system::Config>::AccountId,
-    >>::Balance: From<u128> + Into<u128>,
-    <T as pallet_assets::Config>::Balance: From<u128>,
-{
 }
