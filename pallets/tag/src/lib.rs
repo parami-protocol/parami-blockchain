@@ -14,12 +14,12 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-pub mod types;
+mod types;
 
 use frame_support::{
     dispatch::DispatchResult,
     ensure,
-    traits::{Currency, ExistenceRequirement, StoredMap, Time, WithdrawReasons},
+    traits::{Currency, ExistenceRequirement::KeepAlive, StoredMap, WithdrawReasons},
     StorageHasher,
 };
 use scale_info::TypeInfo;
@@ -31,11 +31,11 @@ use sp_std::prelude::*;
 
 use weights::WeightInfo;
 
-type BalanceOf<T> =
-    <<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+type AccountOf<T> = <T as frame_system::Config>::AccountId;
+type BalanceOf<T> = <<T as pallet::Config>::Currency as Currency<AccountOf<T>>>::Balance;
 type HashOf<T> = <<T as frame_system::Config>::Hashing as Hash>::Output;
-type MomentOf<T> = <<T as pallet::Config>::Time as Time>::Moment;
-type MetaOf<T> = types::Metadata<<T as pallet::Config>::DecentralizedId, MomentOf<T>>;
+type HeightOf<T> = <T as frame_system::Config>::BlockNumber;
+type MetaOf<T> = types::Metadata<<T as pallet::Config>::DecentralizedId, HeightOf<T>>;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -66,8 +66,6 @@ pub mod pallet {
         #[pallet::constant]
         type SubmissionFee: Get<BalanceOf<Self>>;
 
-        type Time: Time;
-
         type CallOrigin: EnsureOrigin<
             Self::Origin,
             Success = (Self::DecentralizedId, Self::AccountId),
@@ -83,7 +81,7 @@ pub mod pallet {
     pub struct Pallet<T>(PhantomData<T>);
 
     #[pallet::storage]
-    #[pallet::getter(fn metadata)]
+    #[pallet::getter(fn meta)]
     pub(super) type Metadata<T: Config> =
         StorageMap<_, <T as pallet::Config>::Hashing, Vec<u8>, MetaOf<T>>;
 
@@ -107,8 +105,12 @@ pub mod pallet {
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
+        /// Tag created \[hash, creator\]
         Created(Vec<u8>, T::DecentralizedId),
     }
+
+    #[pallet::hooks]
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
 
     #[pallet::error]
     pub enum Error<T> {
@@ -134,12 +136,7 @@ pub mod pallet {
 
             let imb = T::Currency::burn(fee);
 
-            let _ = T::Currency::settle(
-                &who,
-                imb,
-                WithdrawReasons::FEE,
-                ExistenceRequirement::KeepAlive,
-            );
+            let _ = T::Currency::settle(&who, imb, WithdrawReasons::FEE, KeepAlive);
 
             let hash = Self::inner_create(did, tag);
 
@@ -183,14 +180,12 @@ pub mod pallet {
     #[pallet::genesis_build]
     impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
         fn build(&self) {
-            let created = T::Time::now();
-
             for tag in &self.tags {
                 <Metadata<T>>::insert(
                     tag,
                     types::Metadata {
                         creator: T::DecentralizedId::default(),
-                        created,
+                        created: Default::default(),
                     },
                 );
             }
@@ -204,7 +199,7 @@ impl<T: Config> Pallet<T> {
     }
 
     fn inner_create(creator: T::DecentralizedId, tag: Vec<u8>) -> Vec<u8> {
-        let created = T::Time::now();
+        let created = <frame_system::Pallet<T>>::block_number();
 
         <Metadata<T>>::insert(&tag, types::Metadata { creator, created });
 

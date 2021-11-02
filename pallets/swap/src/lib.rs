@@ -34,7 +34,8 @@ use sp_std::prelude::*;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> = <<T as pallet::Config>::Currency as Currency<AccountOf<T>>>::Balance;
-type SwapOf<T> = types::Swap<AccountOf<T>, <T as pallet::Config>::AssetId>;
+type HeightOf<T> = <T as frame_system::Config>::BlockNumber;
+type SwapOf<T> = types::Swap<AccountOf<T>, HeightOf<T>, <T as pallet::Config>::AssetId>;
 
 pub struct MaxValue {}
 impl<T: Bounded> Get<T> for MaxValue {
@@ -73,7 +74,7 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::getter(fn meta)]
-    pub(super) type Metadata<T: Config> = StorageMap<_, Blake2_128, T::AssetId, SwapOf<T>>;
+    pub(super) type Metadata<T: Config> = StorageMap<_, Twox128, T::AssetId, SwapOf<T>>;
 
     #[pallet::storage]
     #[pallet::getter(fn next_class_id)]
@@ -82,15 +83,15 @@ pub mod pallet {
     #[pallet::event]
     #[pallet::generate_deposit(pub fn deposit_event)]
     pub enum Event<T: Config> {
-        /// New swap pair created
+        /// New swap pair created \[id\]
         Created(T::AssetId),
-        /// Add liquidity
+        /// Liquidity add \[id, account, currency, tokens\]
         LiquidityAdded(T::AssetId, T::AccountId, BalanceOf<T>, BalanceOf<T>),
-        /// Remove liquidity
+        /// Liquidity removed \[id, account, currency, tokens\]
         LiquidityRemoved(T::AssetId, T::AccountId, BalanceOf<T>, BalanceOf<T>),
-        /// Buy tokens
+        /// Tokens bought \[id, account, tokens\]
         SwapBuy(T::AssetId, T::AccountId, BalanceOf<T>),
-        /// Sell tokens
+        /// Tokens sold \[id, account, tokens\]
         SwapSell(T::AssetId, T::AccountId, BalanceOf<T>),
     }
 
@@ -145,7 +146,9 @@ pub mod pallet {
 
             // 1. create pot
 
-            let pot = Self::pot(token_id);
+            let created = <frame_system::Pallet<T>>::block_number();
+
+            let pot: T::AccountId = T::PalletId::get().into_sub_account(token_id);
 
             // 2. create lp token
 
@@ -160,6 +163,7 @@ pub mod pallet {
                     pot,
                     token_id,
                     lp_token_id,
+                    created,
                 },
             );
 
@@ -177,8 +181,10 @@ pub mod pallet {
             #[pallet::compact] max_tokens: BalanceOf<T>,
             deadline: T::BlockNumber,
         ) -> DispatchResult {
-            let height = <frame_system::Pallet<T>>::block_number();
-            ensure!(deadline > height, Error::<T>::Deadline);
+            if deadline > Zero::zero() {
+                let height = <frame_system::Pallet<T>>::block_number();
+                ensure!(deadline > height, Error::<T>::Deadline);
+            }
 
             let who = ensure_signed(origin)?;
 
@@ -209,6 +215,7 @@ pub mod pallet {
 
             T::Currency::transfer(&who, &meta.pot, currency, KeepAlive)?;
             T::Assets::transfer(token_id, &who, &meta.pot, tokens, true)?;
+
             T::Assets::mint_into(meta.lp_token_id, &who, liquidity)?;
 
             Self::deposit_event(Event::LiquidityAdded(token_id, who, currency, tokens));
@@ -225,8 +232,10 @@ pub mod pallet {
             #[pallet::compact] min_tokens: BalanceOf<T>,
             deadline: T::BlockNumber,
         ) -> DispatchResult {
-            let height = <frame_system::Pallet<T>>::block_number();
-            ensure!(deadline > height, Error::<T>::Deadline);
+            if deadline > Zero::zero() {
+                let height = <frame_system::Pallet<T>>::block_number();
+                ensure!(deadline > height, Error::<T>::Deadline);
+            }
 
             let who = ensure_signed(origin)?;
 
@@ -395,10 +404,6 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-    pub fn pot(token_id: T::AssetId) -> T::AccountId {
-        T::PalletId::get().into_sub_account(token_id)
-    }
-
     fn price_buy(
         output_amount: BalanceOf<T>,
         input_reserve: BalanceOf<T>,

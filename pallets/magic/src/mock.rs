@@ -95,7 +95,6 @@ impl parami_magic::Config for Test {
     type Call = Call;
     type CreationFee = CreationFee;
     type PalletId = MagicPalletId;
-    type Time = Timestamp;
     type WeightInfo = ();
 }
 

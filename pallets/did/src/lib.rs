@@ -19,13 +19,14 @@ mod types;
 use frame_support::{
     dispatch::DispatchResult,
     ensure,
-    traits::{EnsureOrigin, Time},
+    traits::{EnsureOrigin, Get},
+    PalletId,
 };
 use scale_info::TypeInfo;
 use sp_runtime::{
     traits::{
-        Hash, LookupError, MaybeDisplay, MaybeMallocSizeOf, MaybeSerializeDeserialize, Member,
-        SimpleBitOps, StaticLookup,
+        AccountIdConversion, Hash, LookupError, MaybeDisplay, MaybeMallocSizeOf,
+        MaybeSerializeDeserialize, Member, SimpleBitOps, StaticLookup,
     },
     MultiAddress,
 };
@@ -33,7 +34,9 @@ use sp_std::prelude::*;
 
 use weights::WeightInfo;
 
-type MomentOf<T> = <<T as pallet::Config>::Time as Time>::Moment;
+type AccountOf<T> = <T as frame_system::Config>::AccountId;
+type HeightOf<T> = <T as frame_system::Config>::BlockNumber;
+type MetaOf<T> = types::Metadata<AccountOf<T>, HeightOf<T>>;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -66,7 +69,8 @@ pub mod pallet {
 
         type Hashing: Hash + TypeInfo;
 
-        type Time: Time;
+        #[pallet::constant]
+        type PalletId: Get<PalletId>;
 
         type WeightInfo: WeightInfo;
     }
@@ -77,15 +81,13 @@ pub mod pallet {
 
     /// The metadata of a did.
     #[pallet::storage]
-    #[pallet::getter(fn metadata)]
-    pub(super) type Metadata<T: Config> =
-        StorageMap<_, Identity, T::DecentralizedId, types::Metadata<T::AccountId, MomentOf<T>>>;
+    #[pallet::getter(fn meta)]
+    pub(super) type Metadata<T: Config> = StorageMap<_, Identity, T::DecentralizedId, MetaOf<T>>;
 
     /// The did of an account id.
     #[pallet::storage]
     #[pallet::getter(fn did_of)]
-    pub(super) type DidOf<T: Config> =
-        StorageMap<_, Twox64Concat, T::AccountId, T::DecentralizedId>;
+    pub(super) type DidOf<T: Config> = StorageMap<_, Twox128, T::AccountId, T::DecentralizedId>;
 
     /// The inviter did of a did.
     #[pallet::storage]
@@ -96,11 +98,11 @@ pub mod pallet {
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
-        /// New DID assigned to AccountId, invited by DID. \[did, who, referrer\]
+        /// New DID assigned \[did, account, inviter\]
         Assigned(T::DecentralizedId, T::AccountId, Option<T::DecentralizedId>),
-        /// Existed DID revoked. \[did\]
+        /// DID was revoked \[did\]
         Revoked(T::DecentralizedId),
-        /// Existed DID transferred from one AccountId to another AccountId. \[did, from, to\]
+        /// DID transferred \[did, from, to\]
         Transferred(T::DecentralizedId, T::AccountId, T::AccountId),
     }
 
@@ -109,11 +111,8 @@ pub mod pallet {
 
     #[pallet::error]
     pub enum Error<T> {
-        /// DID already exists
         Exists,
-        /// DID does not exist
         NotExists,
-        /// Referrer DID does not exist
         ReferrerNotExists,
     }
 
@@ -136,23 +135,27 @@ pub mod pallet {
                 );
             }
 
-            let created = T::Time::now();
-            let height = <frame_system::Pallet<T>>::block_number();
+            // 1. generate DID
+
+            let created = <frame_system::Pallet<T>>::block_number();
 
             // TODO: use a HMAC-based algorithm.
             let mut raw = T::AccountId::encode(&who);
-            let mut ord = T::BlockNumber::encode(&height);
+            let mut ord = T::BlockNumber::encode(&created);
             raw.append(&mut ord);
 
             let did = <T as pallet::Config>::Hashing::hash(&raw);
             let did = Self::truncate(&did);
 
+            // 2. store metadata
+
             <Metadata<T>>::insert(
                 &did,
                 types::Metadata {
                     account: who.clone(),
-                    created,
+                    pot: T::PalletId::get().into_sub_account(&did),
                     revoked: false,
+                    created,
                 },
             );
             <DidOf<T>>::insert(&who, did);
@@ -178,6 +181,7 @@ pub mod pallet {
                 if let Some(meta) = maybe {
                     *meta = types::Metadata {
                         account: account.clone(),
+                        pot: meta.pot.clone(),
                         ..*meta
                     };
                 }
@@ -198,12 +202,14 @@ pub mod pallet {
 
             let did = <DidOf<T>>::get(&who).ok_or(Error::<T>::NotExists)?;
 
+            // TODO: ensure NFT buy-back
+
             <Metadata<T>>::mutate(&did, |maybe| {
                 if let Some(meta) = maybe {
                     *meta = types::Metadata {
                         account: meta.account.clone(),
-                        created: Default::default(),
                         revoked: true,
+                        ..Default::default()
                     };
                 }
             });
@@ -233,15 +239,14 @@ pub mod pallet {
     #[pallet::genesis_build]
     impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
         fn build(&self) {
-            let created = T::Time::now();
-
             for (id, did) in &self.ids {
                 <Metadata<T>>::insert(
                     did,
                     types::Metadata {
                         account: id.clone(),
-                        created,
+                        pot: T::PalletId::get().into_sub_account(&did),
                         revoked: false,
+                        created: Default::default(),
                     },
                 );
                 <DidOf<T>>::insert(&id, did);
@@ -251,6 +256,22 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
+    pub fn lookup_address(a: MultiAddress<T::AccountId, ()>) -> Option<T::AccountId> {
+        match a {
+            MultiAddress::Id(i) => Some(i),
+            MultiAddress::Address20(a) => Self::lookup_did(a.into()),
+            MultiAddress::Raw(r) => match r.len() {
+                20 => Self::lookup_did(Self::truncate(&r)),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    pub fn lookup_did(did: T::DecentralizedId) -> Option<T::AccountId> {
+        <Metadata<T>>::get(&did).map(|x| x.account)
+    }
+
     fn truncate<H1: Default + AsMut<[u8]>, H2: AsRef<[u8]>>(src: &H2) -> H1 {
         let src = src.as_ref();
         let mut dest = H1::default();
@@ -258,25 +279,6 @@ impl<T: Config> Pallet<T> {
         assert!(len <= src.len());
         dest.as_mut().copy_from_slice(&src[(src.len() - len)..]);
         dest
-    }
-
-    fn lookup_did(did: T::DecentralizedId) -> Option<T::AccountId> {
-        <Metadata<T>>::get(&did).map(|x| x.account)
-    }
-
-    fn lookup_address(a: MultiAddress<T::AccountId, ()>) -> Option<T::AccountId> {
-        match a {
-            MultiAddress::Id(i) => Some(i),
-            MultiAddress::Address20(a) => Self::lookup_did(a.into()),
-            MultiAddress::Raw(r) => {
-                if r.len() == 20 {
-                    Self::lookup_did(Self::truncate(&r))
-                } else {
-                    None
-                }
-            }
-            _ => None,
-        }
     }
 }
 

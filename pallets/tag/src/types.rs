@@ -6,8 +6,7 @@ use sp_runtime::RuntimeDebug;
 
 #[derive(Clone, Decode, Default, Encode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-pub struct Metadata<D, M> {
+pub struct Metadata<D, N> {
     pub creator: D,
-    #[codec(compact)]
-    pub created: M,
+    pub created: N,
 }

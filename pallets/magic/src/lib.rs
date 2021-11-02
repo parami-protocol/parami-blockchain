@@ -1,7 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub use pallet::*;
-pub use types::*;
 
 #[rustfmt::skip]
 pub mod weights;
@@ -18,11 +17,11 @@ mod benchmarking;
 mod types;
 
 use frame_support::{
-    dispatch::{DispatchResult, DispatchResultWithPostInfo},
+    dispatch::DispatchResult,
     traits::{
         Currency,
         ExistenceRequirement::{AllowDeath, KeepAlive},
-        Get, IsSubType, IsType, OriginTrait, Time,
+        IsSubType, IsType, OriginTrait,
     },
     transactional,
     weights::GetDispatchInfo,
@@ -33,8 +32,10 @@ use sp_std::boxed::Box;
 
 use weights::WeightInfo;
 
-pub type BalanceOf<T> =
-    <<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+type AccountOf<T> = <T as frame_system::Config>::AccountId;
+type BalanceOf<T> = <<T as pallet::Config>::Currency as Currency<AccountOf<T>>>::Balance;
+type HeightOf<T> = <T as frame_system::Config>::BlockNumber;
+type MetaOf<T> = types::StableAccount<AccountOf<T>, HeightOf<T>>;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -64,8 +65,6 @@ pub mod pallet {
         #[pallet::constant]
         type PalletId: Get<PalletId>;
 
-        type Time: Time;
-
         type WeightInfo: WeightInfo;
     }
 
@@ -75,22 +74,23 @@ pub mod pallet {
 
     /// map from controller account to `StableAccount`
     #[pallet::storage]
-    pub(super) type StableAccountOf<T: Config> =
-        StorageMap<_, Twox64Concat, T::AccountId, StableAccount<T::AccountId>>;
+    #[pallet::getter(fn stable_of)]
+    pub(super) type StableAccountOf<T: Config> = StorageMap<_, Twox128, T::AccountId, MetaOf<T>>;
 
     /// map from magic account to controller account
     #[pallet::storage]
+    #[pallet::getter(fn controller_of)]
     pub(super) type ControllerAccountOf<T: Config> =
-        StorageMap<_, Twox64Concat, T::AccountId, T::AccountId>;
+        StorageMap<_, Twox128, T::AccountId, T::AccountId>;
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
-        /// CreatedStableAccount \[stash, controller\]
+        /// Stable account created \[stash, controller\]
         CreatedStableAccount(T::AccountId, T::AccountId),
-        /// ChangedController \[stash, controller\]
+        /// Controller changed \[stash, controller\]
         ChangedController(T::AccountId, T::AccountId),
-        /// Codo \[ DispatchResult \]
+        /// Proxy executed correctly \[ result \]
         Codo(DispatchResult),
     }
 
@@ -140,18 +140,20 @@ pub mod pallet {
                 Error::<T>::MagicAccountUsed
             );
 
-            let created = T::Time::now();
+            let created = <frame_system::Pallet<T>>::block_number();
 
+            // TODO: use a HMAC-based algorithm.
             let mut raw = T::AccountId::encode(&magic_account);
-            let mut ord = codec::Encode::encode(&created);
+            let mut ord = T::BlockNumber::encode(&created);
             raw.append(&mut ord);
 
             let stash_account = T::PalletId::get().into_sub_account(raw);
 
-            let sa = StableAccount {
+            let sa = types::StableAccount {
                 stash_account,
                 controller_account,
                 magic_account,
+                created,
             };
 
             let fee = T::CreationFee::get();
@@ -237,10 +239,7 @@ pub mod pallet {
             )
         })]
         #[transactional]
-        pub fn codo(
-            origin: OriginFor<T>,
-            call: Box<<T as Config>::Call>,
-        ) -> DispatchResultWithPostInfo {
+        pub fn codo(origin: OriginFor<T>, call: Box<<T as Config>::Call>) -> DispatchResult {
             let controller_account = ensure_signed(origin)?;
             let sa = <StableAccountOf<T>>::get(&controller_account)
                 .ok_or(Error::<T>::StableAccountNotFound)?;
@@ -255,10 +254,12 @@ pub mod pallet {
                     _ => true,
                 }
             });
+
             let e = call.dispatch(origin);
+
             Self::deposit_event(Event::Codo(e.map(|_| ()).map_err(|e| e.error)));
 
-            Ok(().into())
+            Ok(())
         }
     }
 

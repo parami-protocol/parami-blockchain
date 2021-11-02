@@ -479,18 +479,18 @@ impl pallet_contracts::Config for Runtime {
 }
 
 parameter_types! {
-    pub const CooloffPeriod: BlockNumber = 28 * 24 * 60 * MINUTES;
-    pub const EnactmentPeriod: BlockNumber = 30 * 24 * 60 * MINUTES;
-    pub const FastTrackVotingPeriod: BlockNumber = 3 * 24 * 60 * MINUTES;
+    pub const CooloffPeriod: BlockNumber = 28 * DAYS;
+    pub const EnactmentPeriod: BlockNumber = 30 * DAYS;
+    pub const FastTrackVotingPeriod: BlockNumber = 3 * DAYS;
     pub const InstantAllowed: bool = true;
-    pub const LaunchPeriod: BlockNumber = 28 * 24 * 60 * MINUTES;
+    pub const LaunchPeriod: BlockNumber = 28 * DAYS;
     pub const MaxProposals: u32 = 100;
     pub const MaxVotes: u32 = 100;
     pub const MinimumDeposit: Balance = 100 * DOLLARS;
     // One cent: $10,000 / MB
     pub const PreimageByteDeposit: Balance = 1 * CENTS;
-    pub const VoteLockingPeriod: u32 = 42 * 24 * 60 * MINUTES;
-    pub const VotingPeriod: BlockNumber = 28 * 24 * 60 * MINUTES;
+    pub const VoteLockingPeriod: u32 = 42 * DAYS;
+    pub const VotingPeriod: BlockNumber = 28 * DAYS;
 }
 
 impl pallet_democracy::Config for Runtime {
@@ -1036,11 +1036,9 @@ parameter_types! {
 
 impl parami_ad::Config for Runtime {
     type Event = Event;
-    type Currency = Balances;
     type DecentralizedId = <Self as parami_did::Config>::DecentralizedId;
     type PalletId = AdPalletId;
     type TagsStore = parami_tag::Pallet<Self>;
-    type Time = Timestamp;
     type CallOrigin = parami_advertiser::EnsureAdvertiser<Self>;
     type ForceOrigin = EnsureRootOrHalfCouncil;
     type WeightInfo = ();
@@ -1057,8 +1055,6 @@ impl parami_advertiser::Config for Runtime {
     type MinimalDeposit = MinimalDeposit;
     type PalletId = AdvertiserPalletId;
     type Slash = Treasury;
-    type Time = Timestamp;
-    type CallOrigin = parami_did::EnsureDid<Self>;
     type ForceOrigin = EnsureRootOrHalfCouncil;
     type WeightInfo = parami_advertiser::weights::SubstrateWeight<Runtime>;
 }
@@ -1071,29 +1067,6 @@ impl parami_airdrop::Config for Runtime {
     type PalletId = AirdropPalletId;
     type Event = Event;
     type Currency = Balances;
-}
-
-parameter_types! {
-    pub const MinimumAuctionDuration: BlockNumber = 300; // 300 blocks
-    pub const AuctionTimeToClose: u32 = 100800; // Default 100800 Blocks
-    pub const AdsListDuration: u32 = 100800;
-}
-
-impl orml_auction::Config for Runtime {
-    type Event = Event;
-    type Balance = <Self as pallet_assets::Config>::Balance;
-    type AuctionId = u64;
-    type Handler = Auction;
-    type WeightInfo = ();
-}
-
-impl parami_auction::Config for Runtime {
-    type Event = Event;
-    type Currency = Balances;
-    type MinimumAuctionDuration = MinimumAuctionDuration;
-    type Handler = Auction;
-    type AuctionTimeToClose = AuctionTimeToClose;
-    type AdsListDuration = AdsListDuration;
 }
 
 parameter_types! {
@@ -1131,14 +1104,14 @@ impl parami_xassets::Config for Runtime {
 }
 
 parameter_types! {
-    pub const DidDeposit: Balance = 1 * DOLLARS;
+    pub const DidPalletId: PalletId = PalletId(*b"prm/did ");
 }
 
 impl parami_did::Config for Runtime {
     type Event = Event;
     type DecentralizedId = sp_core::H160;
     type Hashing = Keccak256;
-    type Time = Timestamp;
+    type PalletId = DidPalletId;
     type WeightInfo = parami_did::weights::SubstrateWeight<Runtime>;
 }
 
@@ -1158,33 +1131,32 @@ impl parami_magic::Config for Runtime {
     type Call = Call;
     type CreationFee = CreationFee;
     type PalletId = MagicPalletId;
-    type Time = Timestamp;
     type WeightInfo = parami_magic::weights::SubstrateWeight<Runtime>;
 }
 
 parameter_types! {
-    pub const CreateClassDeposit: Balance = 500 * CENTS;
-    pub const CreateAssetDeposit: Balance = 100 * CENTS;
-    pub const MaxClassMetadata: u32 = 100;
-    pub const MaxTokenMetadata: u32 = 100;
+    pub const MaxClassMetadata: u32 = 256;
+    pub const MaxTokenMetadata: u32 = 256;
 }
 
 impl orml_nft::Config for Runtime {
-    type ClassId = u32;
-    type TokenId = u64;
-    type ClassData = parami_nft::ClassData<Balance>;
-    type TokenData = parami_nft::AssetData<Balance>;
+    type ClassId = AssetId;
+    type TokenId = AssetId;
+    type ClassData = ();
+    type TokenData = ();
     type MaxClassMetadata = MaxClassMetadata;
     type MaxTokenMetadata = MaxTokenMetadata;
 }
 
+parameter_types! {
+    pub const InitialMintingDeposit: Balance = 1_000 * DOLLARS;
+    pub const InitialMintingValue: Balance = 1_000_000 * DOLLARS;
+}
+
 impl parami_nft::Config for Runtime {
     type Event = Event;
-    type CreateClassDeposit = CreateClassDeposit;
-    type CreateAssetDeposit = CreateAssetDeposit;
-    type Currency = Balances;
-    type PalletId = NftPalletId;
-    type AssetsHandler = Auction;
+    type InitialMintingValue = InitialMintingValue;
+    type InitialMintingDeposit = InitialMintingDeposit;
     type WeightInfo = parami_nft::weights::SubstrateWeight<Runtime>;
 }
 
@@ -1210,7 +1182,6 @@ impl parami_tag::Config for Runtime {
     type DecentralizedId = <Self as parami_did::Config>::DecentralizedId;
     type Hashing = Blake2_256;
     type SubmissionFee = SubmissionFee;
-    type Time = Timestamp;
     type CallOrigin = parami_advertiser::EnsureAdvertiser<Self>;
     type ForceOrigin = EnsureRootOrHalfCouncil;
     type WeightInfo = parami_tag::weights::SubstrateWeight<Runtime>;
@@ -1258,18 +1229,16 @@ construct_runtime!(
         Utility: pallet_utility::{Pallet, Call, Event},
         Vesting: pallet_vesting::{Pallet, Call, Storage, Event<T>, Config<T>},
 
-        OrmlAuction: orml_auction::{Pallet, Storage, Event<T>},
         OrmlNft: orml_nft::{Pallet, Storage} = 100,
 
         Ad: parami_ad::{Pallet, Call, Storage, Event<T>},
         Advertiser: parami_advertiser::{Pallet, Call, Storage, Event<T>},
-        Airdrop: parami_airdrop::{Pallet, Call, Config<T>, Storage, Event<T>},
-        Auction: parami_auction::{Pallet, Call, Storage, Event<T>},
+        Airdrop: parami_airdrop::{Pallet, Call, Storage, Config<T>, Event<T>},
         ChainBridge: parami_chainbridge::{Pallet, Call, Storage, Event<T>},
         XAssets: parami_xassets::{Pallet, Call, Event<T>},
         Did: parami_did::{Pallet, Call, Storage, Config<T>, Event<T>},
         Linker: parami_linker::{Pallet, Call, Storage, Event<T>},
-        Magic: parami_magic::{Pallet, Call, Storage, Config<T>,Event<T>},
+        Magic: parami_magic::{Pallet, Call, Storage, Config<T>, Event<T>},
         Nft: parami_nft::{Pallet, Call, Storage, Event<T>},
         Swap: parami_swap::{Pallet, Call, Storage, Event<T>},
         Tag: parami_tag::{Pallet, Call, Storage, Config<T>, Event<T>},

@@ -14,23 +14,20 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-mod types;
-
 use frame_support::{
     dispatch::DispatchResult,
     ensure,
-    traits::{Currency, EnsureOrigin, NamedReservableCurrency, OnUnbalanced, Time},
+    traits::{Currency, EnsureOrigin, NamedReservableCurrency, OnUnbalanced},
     PalletId,
 };
+use parami_did::{EnsureDid, Pallet as Did};
 
 use weights::WeightInfo;
 
-type BalanceOf<T> =
-    <<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+type AccountOf<T> = <T as frame_system::Config>::AccountId;
+type BalanceOf<T> = <<T as pallet::Config>::Currency as Currency<AccountOf<T>>>::Balance;
 
-type NegativeImbalanceOf<T> = <<T as Config>::Currency as Currency<
-    <T as frame_system::Config>::AccountId,
->>::NegativeImbalance;
+type NegativeImbOf<T> = <<T as Config>::Currency as Currency<AccountOf<T>>>::NegativeImbalance;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -50,14 +47,7 @@ pub mod pallet {
         #[pallet::constant]
         type PalletId: Get<PalletId>;
 
-        type Slash: OnUnbalanced<NegativeImbalanceOf<Self>>;
-
-        type Time: Time;
-
-        type CallOrigin: EnsureOrigin<
-            Self::Origin,
-            Success = (Self::DecentralizedId, Self::AccountId),
-        >;
+        type Slash: OnUnbalanced<NegativeImbOf<Self>>;
 
         type ForceOrigin: EnsureOrigin<Self::Origin>;
 
@@ -75,9 +65,14 @@ pub mod pallet {
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
+        /// Advertiser deposited \[id, value\]
         Deposited(T::DecentralizedId, BalanceOf<T>),
+        /// Advertiser was blocked \[id\]
         Blocked(T::DecentralizedId),
     }
+
+    #[pallet::hooks]
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
 
     #[pallet::error]
     pub enum Error<T> {
@@ -94,13 +89,13 @@ pub mod pallet {
             origin: OriginFor<T>,
             #[pallet::compact] value: BalanceOf<T>,
         ) -> DispatchResult {
-            let (did, who) = T::CallOrigin::ensure_origin(origin)?;
+            let (did, who) = EnsureDid::<T>::ensure_origin(origin)?;
 
             ensure!(!<Blocked<T>>::contains_key(&did), Error::<T>::Blocked);
 
             let minimal = T::MinimalDeposit::get();
 
-            let id = T::PalletId::get();
+            let id = <T as Config>::PalletId::get();
 
             let reserved = T::Currency::reserved_balance_named(&id.0, &who);
 
@@ -108,7 +103,7 @@ pub mod pallet {
 
             T::Currency::reserve_named(&id.0, &who, value)?;
 
-            Self::deposit_event(Event::Deposited(did, reserved + value));
+            Self::deposit_event(Event::Deposited(did, value));
 
             Ok(())
         }
@@ -117,10 +112,9 @@ pub mod pallet {
         pub fn block(origin: OriginFor<T>, advertiser: T::DecentralizedId) -> DispatchResult {
             T::ForceOrigin::ensure_origin(origin)?;
 
-            let meta =
-                parami_did::Pallet::<T>::metadata(advertiser).ok_or(Error::<T>::NotExists)?;
+            let meta = Did::<T>::meta(advertiser).ok_or(Error::<T>::NotExists)?;
 
-            let id = T::PalletId::get();
+            let id = <T as Config>::PalletId::get();
 
             let imb = T::Currency::slash_all_reserved_named(&id.0, &meta.account);
 
@@ -142,11 +136,11 @@ impl<T: pallet::Config> EnsureOrigin<T::Origin> for EnsureAdvertiser<T> {
     fn try_origin(o: T::Origin) -> Result<Self::Success, T::Origin> {
         use frame_support::traits::{Get, OriginTrait};
 
-        let (did, who) = parami_did::EnsureDid::<T>::ensure_origin(o).or(Err(T::Origin::none()))?;
+        let (did, who) = EnsureDid::<T>::ensure_origin(o).or(Err(T::Origin::none()))?;
 
         let minimal = T::MinimalDeposit::get();
 
-        let id = T::PalletId::get();
+        let id = <T as Config>::PalletId::get();
 
         let reserved = T::Currency::reserved_balance_named(&id.0, &who);
 

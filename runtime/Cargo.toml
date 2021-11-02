@@ -28,10 +28,6 @@ path = '../pallets/advertiser'
 default-features = false
 path = '../pallets/airdrop'
 
-[dependencies.parami-auction]
-default-features = false
-path = '../pallets/auction'
-
 [dependencies.parami-chainbridge]
 default-features = false
 path = '../pallets/chainbridge'
@@ -115,15 +111,10 @@ branch = 'polkadot-v0.9.12'
 version = '0.3.1'
 optional = true
 
-[dependencies.orml-auction]
-default-features = false
-git = 'https://github.com/open-web3-stack/open-runtime-module-library.git'
-branch = 'update-polkadot-v0.9.12'
-
 [dependencies.orml-nft]
 default-features = false
 git = 'https://github.com/open-web3-stack/open-runtime-module-library.git'
-branch = 'update-polkadot-v0.9.12'
+rev = 'ee37b76a7a8cf159e6c41851942758746318bb84'
 
 [dependencies.pallet-authority-discovery]
 default-features = false
@@ -436,7 +427,6 @@ runtime-benchmarks = [
     'parami-ad/runtime-benchmarks',
     'parami-advertiser/runtime-benchmarks',
     'parami-airdrop/runtime-benchmarks',
-    'parami-auction/runtime-benchmarks',
     'parami-chainbridge/runtime-benchmarks',
     'parami-xassets/runtime-benchmarks',
     'parami-did/runtime-benchmarks',
@@ -456,7 +446,6 @@ std = [
     'frame-support/std',
     'frame-system/std',
     'frame-system-rpc-runtime-api/std',
-    'orml-auction/std',
     'orml-nft/std',
     'pallet-assets/std',
     'pallet-authority-discovery/std',
@@ -495,7 +484,6 @@ std = [
     'parami-ad/std',
     'parami-advertiser/std',
     'parami-airdrop/std',
-    'parami-auction/std',
     'parami-chainbridge/std',
     'parami-xassets/std',
     'parami-did/std',

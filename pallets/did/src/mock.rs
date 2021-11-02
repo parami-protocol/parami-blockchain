@@ -1,5 +1,5 @@
 use crate as parami_did;
-use frame_support::{parameter_types, traits::GenesisBuild};
+use frame_support::{parameter_types, traits::GenesisBuild, PalletId};
 use frame_system as system;
 use sp_core::{sr25519, H256};
 use sp_runtime::{
@@ -19,7 +19,7 @@ frame_support::construct_runtime!(
         System: system::{Pallet, Call, Config, Storage, Event<T>},
         Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
 
-        Did: parami_did::{Pallet, Call, Storage, Event<T>},
+        Did: parami_did::{Pallet, Call, Storage, Config<T>, Event<T>},
     }
 );
 
@@ -68,11 +68,15 @@ impl pallet_timestamp::Config for Test {
     type WeightInfo = ();
 }
 
+parameter_types! {
+    pub const DidPalletId: PalletId = PalletId(*b"prm/did ");
+}
+
 impl parami_did::Config for Test {
     type Event = Event;
     type DecentralizedId = sp_core::H160;
     type Hashing = Keccak256;
-    type Time = Timestamp;
+    type PalletId = DidPalletId;
     type WeightInfo = ();
 }
 

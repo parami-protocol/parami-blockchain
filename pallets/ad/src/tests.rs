@@ -1,4 +1,4 @@
-use crate::{mock::*, Config, Error, Metadata};
+use crate::{mock::*, AdsOf, Config, Error, Metadata};
 use frame_support::{assert_noop, assert_ok, traits::StoredMap};
 use sp_core::sr25519;
 
@@ -21,16 +21,18 @@ fn should_create() {
             hashes.push(hash);
         }
 
-        let meta = [0u8; 64].into();
+        let metadata = vec![0u8; 64];
 
         assert_ok!(Ad::create(
             Origin::signed(alice),
             50,
             tags.clone(),
-            meta,
+            metadata.clone(),
             1,
             1
         ));
+
+        assert_eq!(<AdsOf<Test>>::get(&did).unwrap().len(), 1);
 
         let maybe_ad = <Metadata<Test>>::iter_values().next();
         assert_ne!(maybe_ad, None);
@@ -39,16 +41,20 @@ fn should_create() {
         assert_eq!(ad.creator, did);
         assert_eq!(ad.budget, 50);
         assert_eq!(ad.remain, 50);
-        assert_eq!(ad.metadata, meta);
+        assert_eq!(ad.metadata, metadata);
         assert_eq!(ad.reward_rate, 1);
         assert_eq!(ad.created, 0);
         assert_eq!(ad.deadline, 1);
 
         assert_eq!(Balances::free_balance(alice), 50);
 
+        let pool = ad.pot;
+
         let ad = <Metadata<Test>>::iter_keys().next().unwrap();
 
         assert_eq!(<Test as Config>::TagsStore::get(&ad), hashes);
+
+        assert_eq!(Balances::free_balance(pool), 50);
     });
 }
 

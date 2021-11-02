@@ -1,5 +1,5 @@
 use crate as parami_tag;
-use frame_support::{parameter_types, traits::GenesisBuild, Blake2_256};
+use frame_support::{parameter_types, traits::GenesisBuild, Blake2_256, PalletId};
 use frame_system::{self as system, EnsureRoot};
 use sp_core::{sr25519, H256};
 use sp_runtime::{
@@ -20,8 +20,8 @@ frame_support::construct_runtime!(
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
         Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
 
-        Did: parami_did::{Pallet, Call, Storage, Event<T>},
-        Tag: parami_tag::{Pallet, Call, Storage, Event<T>},
+        Did: parami_did::{Pallet, Call, Storage, Config<T>, Event<T>},
+        Tag: parami_tag::{Pallet, Call, Storage, Config<T>, Event<T>},
     }
 );
 
@@ -87,11 +87,15 @@ impl pallet_timestamp::Config for Test {
     type WeightInfo = ();
 }
 
+parameter_types! {
+    pub const DidPalletId: PalletId = PalletId(*b"prm/did ");
+}
+
 impl parami_did::Config for Test {
     type Event = Event;
     type DecentralizedId = sp_core::H160;
     type Hashing = Keccak256;
-    type Time = Timestamp;
+    type PalletId = DidPalletId;
     type WeightInfo = ();
 }
 
@@ -105,7 +109,6 @@ impl parami_tag::Config for Test {
     type DecentralizedId = DID;
     type Hashing = Blake2_256;
     type SubmissionFee = SubmissionFee;
-    type Time = Timestamp;
     type CallOrigin = parami_did::EnsureDid<Self>;
     type ForceOrigin = EnsureRoot<Self::AccountId>;
     type WeightInfo = ();

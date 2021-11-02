@@ -19,19 +19,26 @@ mod types;
 use frame_support::{
     dispatch::DispatchResult,
     ensure,
-    traits::{Currency, ExistenceRequirement::KeepAlive, StoredMap, Time},
+    traits::{Currency, ExistenceRequirement::KeepAlive, StoredMap},
+    weights::Weight,
     PalletId,
 };
 use scale_info::TypeInfo;
-use sp_runtime::traits::{AccountIdConversion, Hash, MaybeSerializeDeserialize, Member};
+use sp_runtime::{
+    traits::{AccountIdConversion, Hash, MaybeSerializeDeserialize, Member, Saturating},
+    DispatchError,
+};
 use sp_std::prelude::*;
 
 use weights::WeightInfo;
 
+type AccountOf<T> = <T as frame_system::Config>::AccountId;
+type BalanceOf<T> = <<T as parami_swap::Config>::Currency as Currency<AccountOf<T>>>::Balance;
+type DidOf<T> = <T as pallet::Config>::DecentralizedId;
 type HashOf<T> = <<T as frame_system::Config>::Hashing as Hash>::Output;
-type MomentOf<T> = <<T as pallet::Config>::Time as Time>::Moment;
-type BalanceOf<T> =
-    <<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+type MetaOf<T> = types::Metadata<AccountOf<T>, BalanceOf<T>, DidOf<T>, HashOf<T>, HeightOf<T>>;
+type SlotMetaOf<T> = types::Slot<BalanceOf<T>, HashOf<T>, HeightOf<T>>;
+type HeightOf<T> = <T as frame_system::Config>::BlockNumber;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -40,10 +47,8 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
 
     #[pallet::config]
-    pub trait Config: frame_system::Config {
+    pub trait Config: frame_system::Config + parami_swap::Config {
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
-
-        type Currency: Currency<Self::AccountId>;
 
         type DecentralizedId: Parameter
             + Member
@@ -62,8 +67,6 @@ pub mod pallet {
 
         type TagsStore: StoredMap<Vec<u8>, Vec<u8>> + StoredMap<HashOf<Self>, Vec<Vec<u8>>>;
 
-        type Time: Time;
-
         type CallOrigin: EnsureOrigin<
             Self::Origin,
             Success = (Self::DecentralizedId, Self::AccountId),
@@ -80,12 +83,8 @@ pub mod pallet {
 
     /// Metadata of an advertisement
     #[pallet::storage]
-    pub(super) type Metadata<T: Config> = StorageMap<
-        _,
-        Identity,
-        HashOf<T>,
-        types::Metadata<BalanceOf<T>, T::DecentralizedId, MomentOf<T>>,
-    >;
+    #[pallet::getter(fn meta)]
+    pub(super) type Metadata<T: Config> = StorageMap<_, Identity, HashOf<T>, MetaOf<T>>;
 
     /// Advertisement of an advertiser
     #[pallet::storage]
@@ -95,23 +94,19 @@ pub mod pallet {
     /// Slot of a KOL
     #[pallet::storage]
     #[pallet::getter(fn slot_of)]
-    pub(super) type SlotOf<T: Config> = StorageMap<
-        _,
-        Identity,
-        T::DecentralizedId,
-        types::Slot<BalanceOf<T>, T::DecentralizedId, MomentOf<T>>,
-    >;
+    pub(super) type SlotOf<T: Config> = StorageMap<_, Identity, T::DecentralizedId, SlotMetaOf<T>>;
 
     /// Slots of an advertisement
     #[pallet::storage]
     #[pallet::getter(fn slots_of)]
-    pub(super) type SlotsOf<T: Config> =
-        StorageMap<_, Identity, HashOf<T>, Vec<T::DecentralizedId>>;
+    pub(super) type SlotsOf<T: Config> = StorageMap<_, Identity, HashOf<T>, Vec<T::DecentralizedId>>;
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
+        /// New advertisement created \[id\]
         Created(HashOf<T>),
+        /// Advertisement updated \[id\]
         Updated(HashOf<T>),
     }
 
@@ -127,11 +122,11 @@ pub mod pallet {
         #[pallet::weight(T::WeightInfo::create(tags.len() as u32))]
         pub fn create(
             origin: OriginFor<T>,
-            budget: BalanceOf<T>,
+            #[pallet::compact] budget: BalanceOf<T>,
             tags: Vec<Vec<u8>>,
-            metadata: sp_core::H512,
+            metadata: Vec<u8>,
             reward_rate: u16,
-            deadline: MomentOf<T>,
+            deadline: HeightOf<T>,
         ) -> DispatchResult {
             let (creator, who) = T::CallOrigin::ensure_origin(origin)?;
 
@@ -144,33 +139,35 @@ pub mod pallet {
 
             // 1. derive deposit poll account and advertisement ID
 
-            let created = T::Time::now();
+            let created = <frame_system::Pallet<T>>::block_number();
 
+            // TODO: use a HMAC-based algorithm.
             let mut raw = T::AccountId::encode(&who);
-            let mut ord = codec::Encode::encode(&created);
+            let mut ord = T::BlockNumber::encode(&created);
             raw.append(&mut ord);
 
-            let pool: T::AccountId = T::PalletId::get().into_sub_account(raw);
-
-            let raw = T::AccountId::encode(&pool);
             let id = T::Hashing::hash(&raw);
+
+            let pot = <T as Config>::PalletId::get().into_sub_account(&id);
 
             // 2. deposit budget
 
-            T::Currency::transfer(&who, &pool, budget, KeepAlive)?;
+            T::Currency::transfer(&who, &pot, budget, KeepAlive)?;
 
             // 3. insert metadata, ads_of, tags_of
 
             <Metadata<T>>::insert(
                 &id,
                 types::Metadata {
+                    id,
                     creator,
+                    pot,
                     budget,
                     remain: budget,
                     metadata,
                     reward_rate,
-                    created,
                     deadline,
+                    created,
                 },
             );
             <AdsOf<T>>::mutate(&creator, |maybe| {
@@ -261,13 +258,7 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-    fn ensure_owned(
-        did: T::DecentralizedId,
-        id: HashOf<T>,
-    ) -> Result<
-        types::Metadata<BalanceOf<T>, T::DecentralizedId, MomentOf<T>>,
-        sp_runtime::DispatchError,
-    > {
+    fn ensure_owned(did: T::DecentralizedId, id: HashOf<T>) -> Result<MetaOf<T>, DispatchError> {
         let meta = <Metadata<T>>::get(id).ok_or(Error::<T>::NotExists)?;
         ensure!(meta.creator == did, Error::<T>::NotOwned);
 

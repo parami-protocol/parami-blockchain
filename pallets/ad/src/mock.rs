@@ -17,16 +17,19 @@ frame_support::construct_runtime!(
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
         System: system::{Pallet, Call, Config, Storage, Event<T>},
+        Assets: pallet_assets::{Pallet, Call, Storage, Event<T>},
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
         Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
 
         Ad: parami_ad::{Pallet, Call, Storage, Event<T>},
         Did: parami_did::{Pallet, Call, Storage, Config<T>, Event<T>},
+        Swap: parami_swap::{Pallet, Call, Storage, Event<T>},
         Tag: parami_tag::{Pallet, Call, Storage, Config<T>, Event<T>},
     }
 );
 
 pub type DID = <Test as parami_did::Config>::DecentralizedId;
+type AssetId = u64;
 type Balance = u128;
 type Moment = u64;
 
@@ -62,18 +65,26 @@ impl system::Config for Test {
 }
 
 parameter_types! {
-    pub const AdPalletId: PalletId = PalletId(*b"prm/ad  ");
+    pub const AssetDeposit: Balance = 100;
+    pub const ApprovalDeposit: Balance = 1;
+    pub const StringLimit: u32 = 50;
+    pub const MetadataDepositBase: Balance = 0;
+    pub const MetadataDepositPerByte: Balance = 0;
 }
 
-impl parami_ad::Config for Test {
+impl pallet_assets::Config for Test {
     type Event = Event;
+    type Balance = Balance;
+    type AssetId = AssetId;
     type Currency = Balances;
-    type DecentralizedId = <Self as parami_did::Config>::DecentralizedId;
-    type PalletId = AdPalletId;
-    type TagsStore = parami_tag::Pallet<Self>;
-    type Time = Timestamp;
-    type CallOrigin = parami_did::EnsureDid<Self>;
     type ForceOrigin = EnsureRoot<Self::AccountId>;
+    type AssetDeposit = AssetDeposit;
+    type MetadataDepositBase = MetadataDepositBase;
+    type MetadataDepositPerByte = MetadataDepositPerByte;
+    type ApprovalDeposit = ApprovalDeposit;
+    type StringLimit = StringLimit;
+    type Freezer = ();
+    type Extra = ();
     type WeightInfo = ();
 }
 
@@ -104,12 +115,28 @@ impl pallet_timestamp::Config for Test {
     type WeightInfo = ();
 }
 
+parameter_types! {
+    pub const DidPalletId: PalletId = PalletId(*b"prm/did ");
+}
+
 impl parami_did::Config for Test {
     type Event = Event;
     type DecentralizedId = sp_core::H160;
     type Hashing = Keccak256;
-    type Time = Timestamp;
+    type PalletId = DidPalletId;
     type WeightInfo = ();
+}
+
+parameter_types! {
+    pub const SwapPalletId: PalletId = PalletId(*b"prm/swap");
+}
+
+impl parami_swap::Config for Test {
+    type Event = Event;
+    type AssetId = AssetId;
+    type Assets = Assets;
+    type Currency = Balances;
+    type PalletId = SwapPalletId;
 }
 
 parameter_types! {
@@ -122,7 +149,20 @@ impl parami_tag::Config for Test {
     type DecentralizedId = DID;
     type Hashing = Blake2_256;
     type SubmissionFee = SubmissionFee;
-    type Time = Timestamp;
+    type CallOrigin = parami_did::EnsureDid<Self>;
+    type ForceOrigin = EnsureRoot<Self::AccountId>;
+    type WeightInfo = ();
+}
+
+parameter_types! {
+    pub const AdPalletId: PalletId = PalletId(*b"prm/ad  ");
+}
+
+impl parami_ad::Config for Test {
+    type Event = Event;
+    type DecentralizedId = <Self as parami_did::Config>::DecentralizedId;
+    type PalletId = AdPalletId;
+    type TagsStore = parami_tag::Pallet<Self>;
     type CallOrigin = parami_did::EnsureDid<Self>;
     type ForceOrigin = EnsureRoot<Self::AccountId>;
     type WeightInfo = ();

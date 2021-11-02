@@ -22,7 +22,7 @@ frame_support::construct_runtime!(
         Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
         Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>},
 
-        Did: parami_did::{Pallet, Call, Storage, Event<T>},
+        Did: parami_did::{Pallet, Call, Storage, Config<T>, Event<T>},
         Advertiser: parami_advertiser::{Pallet, Call, Storage, Event<T>},
     }
 );
@@ -117,11 +117,15 @@ impl pallet_treasury::Config for Test {
     type MaxApprovals = MaxApprovals;
 }
 
+parameter_types! {
+    pub const DidPalletId: PalletId = PalletId(*b"prm/did ");
+}
+
 impl parami_did::Config for Test {
     type Event = Event;
     type DecentralizedId = sp_core::H160;
     type Hashing = Keccak256;
-    type Time = Timestamp;
+    type PalletId = DidPalletId;
     type WeightInfo = ();
 }
 
@@ -136,8 +140,6 @@ impl parami_advertiser::Config for Test {
     type MinimalDeposit = MinimalDeposit;
     type PalletId = AdvertiserPalletId;
     type Slash = Treasury;
-    type Time = Timestamp;
-    type CallOrigin = parami_did::EnsureDid<Self>;
     type ForceOrigin = EnsureRoot<Self::AccountId>;
     type WeightInfo = ();
 }
