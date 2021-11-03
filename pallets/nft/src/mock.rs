@@ -119,11 +119,15 @@ impl pallet_timestamp::Config for Test {
 }
 
 parameter_types! {
+    pub const CreationDeposit: Balance = 1;
     pub const DidPalletId: PalletId = PalletId(*b"prm/did ");
 }
 
 impl parami_did::Config for Test {
     type Event = Event;
+    type AssetId = AssetId;
+    type CreationDeposit = CreationDeposit;
+    type Currency = Balances;
     type DecentralizedId = sp_core::H160;
     type Hashing = Keccak256;
     type PalletId = DidPalletId;
@@ -163,8 +167,10 @@ parameter_types! {
 
 impl parami_nft::Config for Test {
     type Event = Event;
+    type Assets = Assets;
     type InitialMintingValue = InitialMintingValue;
     type InitialMintingDeposit = InitialMintingDeposit;
+    type Swaps = Swap;
     type WeightInfo = ();
 }
 

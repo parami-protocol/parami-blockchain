@@ -65,7 +65,7 @@ fn should_add_liquidity() {
         assert_eq!(Assets::balance(token, &meta.pot), 20);
 
         assert_noop!(
-            Swap::add_liquidity(Origin::signed(alice), token, 100, 101, 10, 100,),
+            Swap::add_liquidity(Origin::signed(alice), token, 100, 101, 10, 100),
             Error::<Test>::TooLowLiquidity
         );
 
@@ -99,7 +99,7 @@ fn should_remove_liquidity() {
         let meta = <Metadata<Test>>::get(token).unwrap();
 
         assert_noop!(
-            Swap::remove_liquidity(Origin::signed(alice), token, 200, 200, 20, 100,),
+            Swap::remove_liquidity(Origin::signed(alice), token, 200, 200, 20, 100),
             Error::<Test>::NoLiquidity
         );
 
@@ -113,17 +113,17 @@ fn should_remove_liquidity() {
         ));
 
         assert_noop!(
-            Swap::remove_liquidity(Origin::signed(alice), token, 0, 0, 0, 100,),
+            Swap::remove_liquidity(Origin::signed(alice), token, 0, 0, 0, 100),
             Error::<Test>::ZeroLiquidity
         );
 
         assert_noop!(
-            Swap::remove_liquidity(Origin::signed(alice), token, 200, 2000, 0, 100,),
+            Swap::remove_liquidity(Origin::signed(alice), token, 200, 2000, 0, 100),
             Error::<Test>::TooLowCurrency
         );
 
         assert_noop!(
-            Swap::remove_liquidity(Origin::signed(alice), token, 200, 0, 2000, 100,),
+            Swap::remove_liquidity(Origin::signed(alice), token, 200, 0, 2000, 100),
             Error::<Test>::TooLowTokens
         );
 
@@ -170,7 +170,7 @@ fn should_buy_tokens() {
             Error::<Test>::TooExpensiveCurrency
         );
 
-        assert_ok!(Swap::buy_tokens(Origin::signed(alice), token, 17, 300, 100,));
+        assert_ok!(Swap::buy_tokens(Origin::signed(alice), token, 17, 300, 100));
 
         assert_eq!(Balances::free_balance(&alice), 10000 - 420 - 287);
         assert_eq!(Assets::balance(token, &alice), 2 + 17);
@@ -204,11 +204,11 @@ fn should_sell_tokens() {
         assert_ok!(Assets::mint_into(token, &alice, 42));
 
         assert_noop!(
-            Swap::sell_tokens(Origin::signed(alice), token, 20, 1000, 100,),
+            Swap::sell_tokens(Origin::signed(alice), token, 20, 1000, 100),
             Error::<Test>::TooLowCurrency,
         );
 
-        assert_ok!(Swap::sell_tokens(Origin::signed(alice), token, 20, 1, 100,));
+        assert_ok!(Swap::sell_tokens(Origin::signed(alice), token, 20, 1, 100));
 
         assert_eq!(Balances::free_balance(&alice), 10000 - 420 + 135);
         assert_eq!(Assets::balance(token, &alice), 2 + 42 - 20);

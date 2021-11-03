@@ -25,9 +25,9 @@ use parami_did::{EnsureDid, Pallet as Did};
 use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
-type BalanceOf<T> = <<T as pallet::Config>::Currency as Currency<AccountOf<T>>>::Balance;
-
-type NegativeImbOf<T> = <<T as Config>::Currency as Currency<AccountOf<T>>>::NegativeImbalance;
+type BalanceOf<T> = <CurrencyOf<T> as Currency<AccountOf<T>>>::Balance;
+type CurrencyOf<T> = <T as parami_did::Config>::Currency;
+type NegativeImbOf<T> = <CurrencyOf<T> as Currency<AccountOf<T>>>::NegativeImbalance;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -38,8 +38,6 @@ pub mod pallet {
     #[pallet::config]
     pub trait Config: frame_system::Config + parami_did::Config {
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
-
-        type Currency: NamedReservableCurrency<Self::AccountId, ReserveIdentifier = [u8; 8]>;
 
         #[pallet::constant]
         type MinimalDeposit: Get<BalanceOf<Self>>;
@@ -84,7 +82,7 @@ pub mod pallet {
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {
-        #[pallet::weight(<T as pallet::Config>::WeightInfo::deposit())]
+        #[pallet::weight(<T as Config>::WeightInfo::deposit())]
         pub fn deposit(
             origin: OriginFor<T>,
             #[pallet::compact] value: BalanceOf<T>,
@@ -112,7 +110,7 @@ pub mod pallet {
         pub fn block(origin: OriginFor<T>, advertiser: T::DecentralizedId) -> DispatchResult {
             T::ForceOrigin::ensure_origin(origin)?;
 
-            let meta = Did::<T>::meta(advertiser).ok_or(Error::<T>::NotExists)?;
+            let meta = Did::<T>::meta(&advertiser).ok_or(Error::<T>::NotExists)?;
 
             let id = <T as Config>::PalletId::get();
 
@@ -125,6 +123,29 @@ pub mod pallet {
             Self::deposit_event(Event::Blocked(advertiser));
 
             Ok(())
+        }
+    }
+
+    #[pallet::genesis_config]
+    pub struct GenesisConfig<T: Config> {
+        pub blocked: Vec<T::DecentralizedId>,
+    }
+
+    #[cfg(feature = "std")]
+    impl<T: Config> Default for GenesisConfig<T> {
+        fn default() -> Self {
+            Self {
+                blocked: Default::default(),
+            }
+        }
+    }
+
+    #[pallet::genesis_build]
+    impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
+        fn build(&self) {
+            for id in &self.blocked {
+                <Blocked<T>>::insert(id, true);
+            }
         }
     }
 }

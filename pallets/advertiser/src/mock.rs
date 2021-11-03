@@ -28,6 +28,7 @@ frame_support::construct_runtime!(
 );
 
 pub type DID = <Test as parami_did::Config>::DecentralizedId;
+type AssetId = u64;
 type Balance = u128;
 type Moment = u64;
 
@@ -118,11 +119,15 @@ impl pallet_treasury::Config for Test {
 }
 
 parameter_types! {
+    pub const CreationDeposit: Balance = 1;
     pub const DidPalletId: PalletId = PalletId(*b"prm/did ");
 }
 
 impl parami_did::Config for Test {
     type Event = Event;
+    type AssetId = AssetId;
+    type CreationDeposit = CreationDeposit;
+    type Currency = Balances;
     type DecentralizedId = sp_core::H160;
     type Hashing = Keccak256;
     type PalletId = DidPalletId;
@@ -136,7 +141,6 @@ parameter_types! {
 
 impl parami_advertiser::Config for Test {
     type Event = Event;
-    type Currency = Balances;
     type MinimalDeposit = MinimalDeposit;
     type PalletId = AdvertiserPalletId;
     type Slash = Treasury;

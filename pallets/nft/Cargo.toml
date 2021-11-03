@@ -19,6 +19,11 @@ path = '../did'
 [dependencies.parami-swap]
 default-features = false
 path = '../swap'
+optional = true
+
+[dependencies.parami-traits]
+default-features = false
+path = '../traits'
 
 [dependencies.codec]
 default-features = false
@@ -48,7 +53,7 @@ branch = 'polkadot-v0.9.12'
 [dependencies.orml-nft]
 default-features = false
 git = 'https://github.com/open-web3-stack/open-runtime-module-library.git'
-rev = 'ee37b76a7a8cf159e6c41851942758746318bb84'
+rev = 'd473d40eb1dbf927990d04ef1b0373326e7007ce'
 
 [dependencies.scale-info]
 default-features = false
@@ -88,7 +93,10 @@ branch = 'polkadot-v0.9.12'
 [features]
 default = ['std']
 
-runtime-benchmarks = ['frame-benchmarking']
+runtime-benchmarks = [
+    'frame-benchmarking',
+    'parami-swap',
+]
 
 std = [
     'codec/std',
@@ -98,6 +106,7 @@ std = [
     'orml-nft/std',
     'parami-did/std',
     'parami-swap/std',
+    'parami-traits/std',
     'scale-info/std',
     'serde',
     'sp-runtime/std',

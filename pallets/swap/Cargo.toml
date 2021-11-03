@@ -12,6 +12,10 @@ version = '3.0.0'
 [package.metadata.docs.rs]
 targets = ['x86_64-unknown-linux-gnu']
 
+[dependencies.parami-traits]
+default-features = false
+path = '../traits'
+
 [dependencies.codec]
 default-features = false
 features = ['derive']
@@ -86,6 +90,7 @@ std = [
     'frame-benchmarking/std',
     'frame-support/std',
     'frame-system/std',
+    'parami-traits/std',
     'scale-info/std',
     'serde',
     'sp-runtime/std',

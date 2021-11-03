@@ -32,10 +32,10 @@ use sp_std::prelude::*;
 use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
-type BalanceOf<T> = <<T as pallet::Config>::Currency as Currency<AccountOf<T>>>::Balance;
+type BalanceOf<T> = <<T as Config>::Currency as Currency<AccountOf<T>>>::Balance;
 type HashOf<T> = <<T as frame_system::Config>::Hashing as Hash>::Output;
 type HeightOf<T> = <T as frame_system::Config>::BlockNumber;
-type MetaOf<T> = types::Metadata<<T as pallet::Config>::DecentralizedId, HeightOf<T>>;
+type MetaOf<T> = types::Metadata<<T as Config>::DecentralizedId, HeightOf<T>>;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -82,8 +82,7 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::getter(fn meta)]
-    pub(super) type Metadata<T: Config> =
-        StorageMap<_, <T as pallet::Config>::Hashing, Vec<u8>, MetaOf<T>>;
+    pub(super) type Metadata<T: Config> = StorageMap<_, <T as Config>::Hashing, Vec<u8>, MetaOf<T>>;
 
     /// Tags of an advertisement
     #[pallet::storage]
@@ -129,14 +128,11 @@ pub mod pallet {
 
             let fee = T::SubmissionFee::get();
 
-            ensure!(
-                T::Currency::free_balance(&who) >= fee,
-                Error::<T>::InsufficientBalance
-            );
-
             let imb = T::Currency::burn(fee);
 
-            let _ = T::Currency::settle(&who, imb, WithdrawReasons::FEE, KeepAlive);
+            let res = T::Currency::settle(&who, imb, WithdrawReasons::FEE, KeepAlive);
+
+            ensure!(res.is_ok(), Error::<T>::InsufficientBalance);
 
             let hash = Self::inner_create(did, tag);
 

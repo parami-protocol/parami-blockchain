@@ -1036,8 +1036,8 @@ parameter_types! {
 
 impl parami_ad::Config for Runtime {
     type Event = Event;
-    type DecentralizedId = <Self as parami_did::Config>::DecentralizedId;
     type PalletId = AdPalletId;
+    type Swaps = Swap;
     type TagsStore = parami_tag::Pallet<Self>;
     type CallOrigin = parami_advertiser::EnsureAdvertiser<Self>;
     type ForceOrigin = EnsureRootOrHalfCouncil;
@@ -1051,7 +1051,6 @@ parameter_types! {
 
 impl parami_advertiser::Config for Runtime {
     type Event = Event;
-    type Currency = Balances;
     type MinimalDeposit = MinimalDeposit;
     type PalletId = AdvertiserPalletId;
     type Slash = Treasury;
@@ -1104,11 +1103,15 @@ impl parami_xassets::Config for Runtime {
 }
 
 parameter_types! {
+    pub const CreationDeposit: Balance = 1 * DOLLARS;
     pub const DidPalletId: PalletId = PalletId(*b"prm/did ");
 }
 
 impl parami_did::Config for Runtime {
     type Event = Event;
+    type AssetId = AssetId;
+    type CreationDeposit = CreationDeposit;
+    type Currency = Balances;
     type DecentralizedId = sp_core::H160;
     type Hashing = Keccak256;
     type PalletId = DidPalletId;
@@ -1121,7 +1124,7 @@ impl parami_linker::Config for Runtime {
 }
 
 parameter_types! {
-    pub const CreationFee: Balance = 100 * MILLICENTS;
+    pub const CreationFee: Balance = 50 * CENTS;
     pub const MagicPalletId: PalletId = PalletId(*b"prm/stab");
 }
 
@@ -1155,8 +1158,10 @@ parameter_types! {
 
 impl parami_nft::Config for Runtime {
     type Event = Event;
+    type Assets = Assets;
     type InitialMintingValue = InitialMintingValue;
     type InitialMintingDeposit = InitialMintingDeposit;
+    type Swaps = Swap;
     type WeightInfo = parami_nft::weights::SubstrateWeight<Runtime>;
 }
 

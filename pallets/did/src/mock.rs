@@ -17,6 +17,7 @@ frame_support::construct_runtime!(
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
         System: system::{Pallet, Call, Config, Storage, Event<T>},
+        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
         Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
 
         Did: parami_did::{Pallet, Call, Storage, Config<T>, Event<T>},
@@ -24,6 +25,8 @@ frame_support::construct_runtime!(
 );
 
 pub type DID = <Test as parami_did::Config>::DecentralizedId;
+type AssetId = u64;
+type Balance = u128;
 type Moment = u64;
 
 parameter_types! {
@@ -49,12 +52,30 @@ impl system::Config for Test {
     type BlockHashCount = BlockHashCount;
     type Version = ();
     type PalletInfo = PalletInfo;
-    type AccountData = ();
+    type AccountData = pallet_balances::AccountData<Balance>;
     type OnNewAccount = ();
     type OnKilledAccount = ();
     type SystemWeightInfo = ();
     type SS58Prefix = SS58Prefix;
     type OnSetCode = ();
+}
+
+parameter_types! {
+    pub const ExistentialDeposit: Balance = 1;
+    pub const MaxLocks: u32 = 50;
+    pub const MaxReserves: u32 = 50;
+}
+
+impl pallet_balances::Config for Test {
+    type Balance = Balance;
+    type DustRemoval = ();
+    type Event = Event;
+    type ExistentialDeposit = ExistentialDeposit;
+    type AccountStore = System;
+    type WeightInfo = ();
+    type MaxLocks = MaxLocks;
+    type MaxReserves = MaxReserves;
+    type ReserveIdentifier = [u8; 8];
 }
 
 parameter_types! {
@@ -69,11 +90,15 @@ impl pallet_timestamp::Config for Test {
 }
 
 parameter_types! {
+    pub const CreationDeposit: Balance = 1;
     pub const DidPalletId: PalletId = PalletId(*b"prm/did ");
 }
 
 impl parami_did::Config for Test {
     type Event = Event;
+    type AssetId = AssetId;
+    type CreationDeposit = CreationDeposit;
+    type Currency = Balances;
     type DecentralizedId = sp_core::H160;
     type Hashing = Keccak256;
     type PalletId = DidPalletId;
@@ -82,10 +107,17 @@ impl parami_did::Config for Test {
 
 pub fn new_test_ext() -> sp_io::TestExternalities {
     let alice = sr25519::Public([1; 32]);
+    let bob = sr25519::Public([2; 32]);
 
     let mut t = system::GenesisConfig::default()
         .build_storage::<Test>()
         .unwrap();
+
+    pallet_balances::GenesisConfig::<Test> {
+        balances: vec![(alice, 100), (bob, 100)],
+    }
+    .assimilate_storage(&mut t)
+    .unwrap();
 
     parami_did::GenesisConfig::<Test> {
         ids: vec![(alice, DID::from_slice(&[0xff; 20]))],

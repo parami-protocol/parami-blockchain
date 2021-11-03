@@ -20,12 +20,11 @@ use frame_support::{
     dispatch::DispatchResult,
     ensure,
     traits::{Currency, ExistenceRequirement::KeepAlive, StoredMap},
-    weights::Weight,
     PalletId,
 };
-use scale_info::TypeInfo;
+use parami_traits::Swaps;
 use sp_runtime::{
-    traits::{AccountIdConversion, Hash, MaybeSerializeDeserialize, Member, Saturating},
+    traits::{AccountIdConversion, Hash},
     DispatchError,
 };
 use sp_std::prelude::*;
@@ -33,12 +32,12 @@ use sp_std::prelude::*;
 use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
-type BalanceOf<T> = <<T as parami_swap::Config>::Currency as Currency<AccountOf<T>>>::Balance;
-type DidOf<T> = <T as pallet::Config>::DecentralizedId;
+type BalanceOf<T> = <<T as parami_did::Config>::Currency as Currency<AccountOf<T>>>::Balance;
+type DidOf<T> = <T as parami_did::Config>::DecentralizedId;
 type HashOf<T> = <<T as frame_system::Config>::Hashing as Hash>::Output;
+type HeightOf<T> = <T as frame_system::Config>::BlockNumber;
 type MetaOf<T> = types::Metadata<AccountOf<T>, BalanceOf<T>, DidOf<T>, HashOf<T>, HeightOf<T>>;
 type SlotMetaOf<T> = types::Slot<BalanceOf<T>, HashOf<T>, HeightOf<T>>;
-type HeightOf<T> = <T as frame_system::Config>::BlockNumber;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -47,23 +46,18 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
 
     #[pallet::config]
-    pub trait Config: frame_system::Config + parami_swap::Config {
+    pub trait Config: frame_system::Config + parami_did::Config {
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
-
-        type DecentralizedId: Parameter
-            + Member
-            + MaybeSerializeDeserialize
-            + Ord
-            + Default
-            + Copy
-            + sp_std::hash::Hash
-            + AsRef<[u8]>
-            + AsMut<[u8]>
-            + MaxEncodedLen
-            + TypeInfo;
 
         #[pallet::constant]
         type PalletId: Get<PalletId>;
+
+        type Swaps: Swaps<
+            AccountId = Self::AccountId,
+            AssetId = Self::AssetId,
+            QuoteBalance = BalanceOf<Self>,
+            TokenBalance = BalanceOf<Self>,
+        >;
 
         type TagsStore: StoredMap<Vec<u8>, Vec<u8>> + StoredMap<HashOf<Self>, Vec<Vec<u8>>>;
 
@@ -99,7 +93,8 @@ pub mod pallet {
     /// Slots of an advertisement
     #[pallet::storage]
     #[pallet::getter(fn slots_of)]
-    pub(super) type SlotsOf<T: Config> = StorageMap<_, Identity, HashOf<T>, Vec<T::DecentralizedId>>;
+    pub(super) type SlotsOf<T: Config> =
+        StorageMap<_, Identity, HashOf<T>, Vec<T::DecentralizedId>>;
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -119,7 +114,7 @@ pub mod pallet {
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {
-        #[pallet::weight(T::WeightInfo::create(tags.len() as u32))]
+        #[pallet::weight(<T as Config>::WeightInfo::create(tags.len() as u32))]
         pub fn create(
             origin: OriginFor<T>,
             #[pallet::compact] budget: BalanceOf<T>,
@@ -146,7 +141,7 @@ pub mod pallet {
             let mut ord = T::BlockNumber::encode(&created);
             raw.append(&mut ord);
 
-            let id = T::Hashing::hash(&raw);
+            let id = <T as frame_system::Config>::Hashing::hash(&raw);
 
             let pot = <T as Config>::PalletId::get().into_sub_account(&id);
 
@@ -185,7 +180,7 @@ pub mod pallet {
             Ok(())
         }
 
-        #[pallet::weight(T::WeightInfo::update_reward_rate())]
+        #[pallet::weight(<T as Config>::WeightInfo::update_reward_rate())]
         pub fn update_reward_rate(
             origin: OriginFor<T>,
             id: HashOf<T>,
@@ -204,7 +199,7 @@ pub mod pallet {
             Ok(())
         }
 
-        #[pallet::weight(T::WeightInfo::update_tags(tags.len() as u32))]
+        #[pallet::weight(<T as Config>::WeightInfo::update_tags(tags.len() as u32))]
         pub fn update_tags(
             origin: OriginFor<T>,
             id: HashOf<T>,

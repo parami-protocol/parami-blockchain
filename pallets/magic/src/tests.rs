@@ -14,10 +14,10 @@ fn should_create() {
         assert_ok!(Magic::create_stable_account(
             Origin::signed(alice),
             magic,
-            1
+            0
         ));
 
-        assert_eq!(Balances::free_balance(alice), 98);
+        assert_eq!(Balances::free_balance(alice), 99);
         assert_eq!(Balances::total_issuance(), 100);
 
         let maybe_stash = <StableAccountOf<Test>>::get(&alice);
@@ -27,7 +27,7 @@ fn should_create() {
         assert_eq!(stash.controller_account, alice);
         assert_eq!(stash.magic_account, magic);
 
-        assert_eq!(Balances::free_balance(stash.stash_account), 1);
+        assert_eq!(Balances::free_balance(stash.stash_account), 0);
         assert_eq!(Balances::free_balance(magic), 1);
 
         assert_eq!(<ControllerAccountOf<Test>>::get(&magic), Some(alice));

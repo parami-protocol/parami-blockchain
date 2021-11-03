@@ -19,14 +19,14 @@ mod types;
 use frame_support::{
     dispatch::DispatchResult,
     ensure,
-    traits::{EnsureOrigin, Get},
+    traits::{Currency, EnsureOrigin, NamedReservableCurrency},
     PalletId,
 };
 use scale_info::TypeInfo;
 use sp_runtime::{
     traits::{
-        AccountIdConversion, Hash, LookupError, MaybeDisplay, MaybeMallocSizeOf,
-        MaybeSerializeDeserialize, Member, SimpleBitOps, StaticLookup,
+        AccountIdConversion, AtLeast32BitUnsigned, Bounded, Hash, LookupError, MaybeDisplay,
+        MaybeMallocSizeOf, MaybeSerializeDeserialize, Member, SimpleBitOps, StaticLookup,
     },
     MultiAddress,
 };
@@ -35,8 +35,9 @@ use sp_std::prelude::*;
 use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
+type BalanceOf<T> = <<T as Config>::Currency as Currency<AccountOf<T>>>::Balance;
 type HeightOf<T> = <T as frame_system::Config>::BlockNumber;
-type MetaOf<T> = types::Metadata<AccountOf<T>, HeightOf<T>>;
+type MetaOf<T> = types::Metadata<AccountOf<T>, HeightOf<T>, <T as Config>::AssetId>;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -47,6 +48,13 @@ pub mod pallet {
     #[pallet::config]
     pub trait Config: frame_system::Config {
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+
+        type AssetId: Parameter + Member + AtLeast32BitUnsigned + Default + Copy + Bounded;
+
+        #[pallet::constant]
+        type CreationDeposit: Get<BalanceOf<Self>>;
+
+        type Currency: NamedReservableCurrency<Self::AccountId, ReserveIdentifier = [u8; 8]>;
 
         type DecentralizedId: Parameter
             + Member
@@ -144,16 +152,27 @@ pub mod pallet {
             let mut ord = T::BlockNumber::encode(&created);
             raw.append(&mut ord);
 
-            let did = <T as pallet::Config>::Hashing::hash(&raw);
+            let did = <T as Config>::Hashing::hash(&raw);
             let did = Self::truncate(&did);
 
-            // 2. store metadata
+            // 2. deposit
+
+            let id = T::PalletId::get();
+
+            let deposit = T::CreationDeposit::get();
+
+            T::Currency::reserve_named(&id.0, &who, deposit)?;
+
+            // 3. store metadata
+
+            let pot = id.into_sub_account(&did);
 
             <Metadata<T>>::insert(
                 &did,
                 types::Metadata {
                     account: who.clone(),
-                    pot: T::PalletId::get().into_sub_account(&did),
+                    pot,
+                    nft: None,
                     revoked: false,
                     created,
                 },
@@ -245,6 +264,7 @@ pub mod pallet {
                     types::Metadata {
                         account: id.clone(),
                         pot: T::PalletId::get().into_sub_account(&did),
+                        nft: None,
                         revoked: false,
                         created: Default::default(),
                     },
@@ -270,6 +290,10 @@ impl<T: Config> Pallet<T> {
 
     pub fn lookup_did(did: T::DecentralizedId) -> Option<T::AccountId> {
         <Metadata<T>>::get(&did).map(|x| x.account)
+    }
+
+    pub fn set_meta(did: &T::DecentralizedId, meta: MetaOf<T>) {
+        <Metadata<T>>::insert(did, meta)
     }
 
     fn truncate<H1: Default + AsMut<[u8]>, H2: AsRef<[u8]>>(src: &H2) -> H1 {

@@ -20,16 +20,20 @@ optional = true
 [dependencies.parami-did]
 default-features = false
 path = '../did'
-optional = true
 
 [dependencies.parami-swap]
 default-features = false
 path = '../swap'
+optional = true
 
 [dependencies.parami-tag]
 default-features = false
 path = '../tag'
 optional = true
+
+[dependencies.parami-traits]
+default-features = false
+path = '../traits'
 
 [dependencies.codec]
 default-features = false
@@ -104,7 +108,7 @@ default = ['std']
 runtime-benchmarks = [
     'frame-benchmarking',
     'parami-advertiser',
-    'parami-did',
+    'parami-swap',
     'parami-tag',
     'rand',
 ]
@@ -118,6 +122,7 @@ std = [
     'parami-did/std',
     'parami-swap/std',
     'parami-tag/std',
+    'parami-traits/std',
     'scale-info/std',
     'serde',
     'sp-core/std',

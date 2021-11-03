@@ -14,8 +14,6 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-mod types;
-
 use frame_support::{
     dispatch::DispatchResult,
     ensure,
@@ -30,16 +28,14 @@ use frame_support::{
 };
 use orml_nft::Pallet as Nft;
 use parami_did::{EnsureDid, Pallet as Did};
-use parami_swap::Pallet as Swap;
+use parami_traits::Swaps;
 use sp_runtime::traits::{Saturating, Zero};
 use sp_std::prelude::*;
 
 use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
-type BalanceOf<T> = <<T as parami_swap::Config>::Currency as Currency<AccountOf<T>>>::Balance;
-type HeightOf<T> = <T as frame_system::Config>::BlockNumber;
-type MetaOf<T> = types::Metadata<AccountOf<T>, HeightOf<T>, <T as parami_swap::Config>::AssetId>;
+type BalanceOf<T> = <<T as parami_did::Config>::Currency as Currency<AccountOf<T>>>::Balance;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -51,15 +47,19 @@ pub mod pallet {
     pub trait Config:
         frame_system::Config
         + parami_did::Config
-        + parami_swap::Config
         + orml_nft::Config<
-            ClassId = Self::AssetId,
-            TokenId = Self::AssetId,
+            ClassId = <Self as parami_did::Config>::AssetId,
+            TokenId = <Self as parami_did::Config>::AssetId,
             ClassData = (),
             TokenData = (),
         >
     {
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+
+        type Assets: FungCreate<Self::AccountId, AssetId = Self::AssetId>
+            + FungMetaMutate<Self::AccountId, AssetId = Self::AssetId>
+            + FungMutate<Self::AccountId, AssetId = Self::AssetId, Balance = BalanceOf<Self>>
+            + FungTransfer<Self::AccountId, AssetId = Self::AssetId, Balance = BalanceOf<Self>>;
 
         #[pallet::constant]
         type InitialMintingValue: Get<BalanceOf<Self>>;
@@ -67,16 +67,19 @@ pub mod pallet {
         #[pallet::constant]
         type InitialMintingDeposit: Get<BalanceOf<Self>>;
 
+        type Swaps: Swaps<
+            AccountId = Self::AccountId,
+            AssetId = Self::AssetId,
+            QuoteBalance = BalanceOf<Self>,
+            TokenBalance = BalanceOf<Self>,
+        >;
+
         type WeightInfo: WeightInfo;
     }
 
     #[pallet::pallet]
     #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(PhantomData<T>);
-
-    #[pallet::storage]
-    #[pallet::getter(fn meta)]
-    pub(super) type Metadata<T: Config> = StorageMap<_, Identity, T::DecentralizedId, MetaOf<T>>;
 
     /// Total deposit in pot
     #[pallet::storage]
@@ -136,15 +139,15 @@ pub mod pallet {
 
             ensure!(kol != did, Error::<T>::YourSelf);
 
-            ensure!(!<Metadata<T>>::contains_key(&kol), Error::<T>::Minted);
+            let meta = Did::<T>::meta(&kol).ok_or(Error::<T>::NotExists)?;
 
-            let meta = Did::<T>::meta(kol).ok_or(Error::<T>::NotExists)?;
+            ensure!(meta.nft.is_none(), Error::<T>::Minted);
 
-            T::Currency::transfer(&who, &meta.pot, value, KeepAlive)?;
+            <T as parami_did::Config>::Currency::transfer(&who, &meta.pot, value, KeepAlive)?;
 
             <Deposit<T>>::mutate(&kol, |maybe_deposit| {
                 if let Some(deposit) = maybe_deposit {
-                    *deposit += value;
+                    deposit.saturating_accrue(value);
                 } else {
                     *maybe_deposit = Some(value);
                 }
@@ -152,7 +155,7 @@ pub mod pallet {
 
             <Deposits<T>>::mutate(&kol, &did, |maybe_deposit| {
                 if let Some(deposit) = maybe_deposit {
-                    *deposit += value;
+                    deposit.saturating_accrue(value);
                 } else {
                     *maybe_deposit = Some(value);
                 }
@@ -168,17 +171,17 @@ pub mod pallet {
         pub fn mint(origin: OriginFor<T>, name: Vec<u8>, symbol: Vec<u8>) -> DispatchResult {
             let (did, who) = EnsureDid::<T>::ensure_origin(origin)?;
 
-            let created = <frame_system::Pallet<T>>::block_number();
-
             // 1. ensure funded
 
-            let meta = Did::<T>::meta(did).ok_or(Error::<T>::NotExists)?;
+            let mut meta = Did::<T>::meta(&did).ok_or(Error::<T>::NotExists)?;
 
-            let deposit = T::Currency::free_balance(&meta.pot);
-            let minimal = T::Currency::minimum_balance();
+            ensure!(meta.nft.is_none(), Error::<T>::Minted);
+
+            let deposit = <T as parami_did::Config>::Currency::free_balance(&meta.pot);
+            let minimal = <T as parami_did::Config>::Currency::minimum_balance();
 
             ensure!(
-                deposit > T::InitialMintingDeposit::get() + minimal,
+                deposit >= T::InitialMintingDeposit::get(),
                 Error::<T>::InsufficientBalance
             );
 
@@ -188,35 +191,22 @@ pub mod pallet {
             let cid = Nft::<T>::create_class(&who, raw, ())?;
             let tid = Nft::<T>::mint(&who, cid, vec![], ())?;
 
-            <Metadata<T>>::insert(
-                &did,
-                types::Metadata {
-                    pot: meta.pot.clone(),
-                    cid,
-                    created,
-                },
-            );
-
             // 3. initial minting
 
             let initial = T::InitialMintingValue::get();
 
-            T::Assets::create(cid, meta.pot.clone(), false, minimal)?;
+            T::Assets::create(cid, meta.pot.clone(), true, minimal)?;
             T::Assets::set(cid, &meta.pot, name, symbol, 18)?;
             T::Assets::mint_into(cid, &meta.pot, initial.saturating_mul(3u32.into()))?;
 
             // 4. transfer third of initial minting to swap
 
-            let origin: T::Origin = frame_system::RawOrigin::Signed(meta.pot).into();
-            Swap::<T>::create(origin.clone(), cid)?;
-            Swap::<T>::add_liquidity(
-                origin,
-                cid,
-                deposit - minimal,
-                Zero::zero(),
-                initial,
-                Zero::zero(),
-            )?;
+            T::Swaps::new(&meta.pot, cid)?;
+            T::Swaps::mint(&meta.pot, cid, deposit, Zero::zero(), initial, false)?;
+
+            meta.nft = Some(cid);
+
+            Did::<T>::set_meta(&did, meta);
 
             Self::deposit_event(Event::Minted(did, cid, tid, initial));
 
@@ -232,7 +222,10 @@ pub mod pallet {
 
             // TODO: KOL claim self-issued tokens
 
-            let meta = <Metadata<T>>::get(&kol).ok_or(Error::<T>::NotExists)?;
+            let meta = Did::<T>::meta(&kol).ok_or(Error::<T>::NotExists)?;
+
+            let cid = meta.nft.ok_or(Error::<T>::NotExists)?;
+
             let total = <Deposit<T>>::get(&kol).ok_or(Error::<T>::NotExists)?;
 
             let deposit = <Deposits<T>>::get(&kol, &did).ok_or(Error::<T>::NoTokens)?;
@@ -241,7 +234,7 @@ pub mod pallet {
 
             let tokens = initial * deposit / total;
 
-            T::Assets::transfer(meta.cid, &meta.pot, &who, tokens, false)?;
+            T::Assets::transfer(cid, &meta.pot, &who, tokens, false)?;
 
             <Deposits<T>>::remove(&kol, &did);
 
@@ -250,6 +243,33 @@ pub mod pallet {
             Ok(())
         }
     }
-}
 
-impl<T: Config> Pallet<T> {}
+    #[pallet::genesis_config]
+    pub struct GenesisConfig<T: Config> {
+        pub deposit: Vec<(T::DecentralizedId, BalanceOf<T>)>,
+        pub deposits: Vec<(T::DecentralizedId, T::DecentralizedId, BalanceOf<T>)>,
+    }
+
+    #[cfg(feature = "std")]
+    impl<T: Config> Default for GenesisConfig<T> {
+        fn default() -> Self {
+            Self {
+                deposit: Default::default(),
+                deposits: Default::default(),
+            }
+        }
+    }
+
+    #[pallet::genesis_build]
+    impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
+        fn build(&self) {
+            for (kol, deposit) in &self.deposit {
+                <Deposit<T>>::insert(kol, deposit);
+            }
+
+            for (kol, did, deposit) in &self.deposits {
+                <Deposits<T>>::insert(kol, did, deposit);
+            }
+        }
+    }
+}

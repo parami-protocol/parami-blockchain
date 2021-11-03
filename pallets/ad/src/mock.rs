@@ -90,6 +90,8 @@ impl pallet_assets::Config for Test {
 
 parameter_types! {
     pub const ExistentialDeposit: Balance = 1;
+    pub const MaxLocks: u32 = 50;
+    pub const MaxReserves: u32 = 50;
 }
 
 impl pallet_balances::Config for Test {
@@ -99,9 +101,9 @@ impl pallet_balances::Config for Test {
     type ExistentialDeposit = ExistentialDeposit;
     type AccountStore = System;
     type WeightInfo = ();
-    type MaxLocks = ();
-    type MaxReserves = ();
-    type ReserveIdentifier = ();
+    type MaxLocks = MaxLocks;
+    type MaxReserves = MaxReserves;
+    type ReserveIdentifier = [u8; 8];
 }
 
 parameter_types! {
@@ -116,11 +118,15 @@ impl pallet_timestamp::Config for Test {
 }
 
 parameter_types! {
+    pub const CreationDeposit: Balance = 1;
     pub const DidPalletId: PalletId = PalletId(*b"prm/did ");
 }
 
 impl parami_did::Config for Test {
     type Event = Event;
+    type AssetId = AssetId;
+    type CreationDeposit = CreationDeposit;
+    type Currency = Balances;
     type DecentralizedId = sp_core::H160;
     type Hashing = Keccak256;
     type PalletId = DidPalletId;
@@ -160,8 +166,8 @@ parameter_types! {
 
 impl parami_ad::Config for Test {
     type Event = Event;
-    type DecentralizedId = <Self as parami_did::Config>::DecentralizedId;
     type PalletId = AdPalletId;
+    type Swaps = Swap;
     type TagsStore = parami_tag::Pallet<Self>;
     type CallOrigin = parami_did::EnsureDid<Self>;
     type ForceOrigin = EnsureRoot<Self::AccountId>;

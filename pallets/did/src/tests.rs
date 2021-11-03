@@ -67,6 +67,18 @@ fn should_fail_when_referer_not_exist() {
 }
 
 #[test]
+fn should_fail_when_insufficient() {
+    new_test_ext().execute_with(|| {
+        let charlie = sr25519::Public([3; 32]);
+
+        assert_noop!(
+            Did::register(Origin::signed(charlie), None),
+            pallet_balances::Error::<Test>::InsufficientBalance
+        );
+    });
+}
+
+#[test]
 fn should_revoke() {
     new_test_ext().execute_with(|| {
         let alice = sr25519::Public([1; 32]);

@@ -114,7 +114,12 @@ optional = true
 [dependencies.orml-nft]
 default-features = false
 git = 'https://github.com/open-web3-stack/open-runtime-module-library.git'
-rev = 'ee37b76a7a8cf159e6c41851942758746318bb84'
+rev = 'd473d40eb1dbf927990d04ef1b0373326e7007ce'
+
+[dependencies.pallet-assets]
+default-features = false
+git = 'https://github.com/paritytech/substrate.git'
+branch = 'polkadot-v0.9.12'
 
 [dependencies.pallet-authority-discovery]
 default-features = false
@@ -122,11 +127,6 @@ git = 'https://github.com/paritytech/substrate.git'
 branch = 'polkadot-v0.9.12'
 
 [dependencies.pallet-authorship]
-default-features = false
-git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
-
-[dependencies.pallet-assets]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
 branch = 'polkadot-v0.9.12'

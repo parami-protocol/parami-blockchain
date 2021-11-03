@@ -23,6 +23,7 @@ frame_support::construct_runtime!(
         Magic: parami_magic::{Pallet, Call, Storage, Event<T>},
     }
 );
+
 type Balance = u128;
 type Moment = u64;
 
@@ -59,6 +60,8 @@ impl system::Config for Test {
 
 parameter_types! {
     pub const ExistentialDeposit: Balance = 1;
+    pub const MaxLocks: u32 = 50;
+    pub const MaxReserves: u32 = 50;
 }
 
 impl pallet_balances::Config for Test {
@@ -68,9 +71,9 @@ impl pallet_balances::Config for Test {
     type ExistentialDeposit = ExistentialDeposit;
     type AccountStore = System;
     type WeightInfo = ();
-    type MaxLocks = ();
-    type MaxReserves = ();
-    type ReserveIdentifier = ();
+    type MaxLocks = MaxLocks;
+    type MaxReserves = MaxReserves;
+    type ReserveIdentifier = [u8; 8];
 }
 
 parameter_types! {

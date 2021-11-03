@@ -33,7 +33,7 @@ use sp_std::boxed::Box;
 use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
-type BalanceOf<T> = <<T as pallet::Config>::Currency as Currency<AccountOf<T>>>::Balance;
+type BalanceOf<T> = <<T as Config>::Currency as Currency<AccountOf<T>>>::Balance;
 type HeightOf<T> = <T as frame_system::Config>::BlockNumber;
 type MetaOf<T> = types::StableAccount<AccountOf<T>, HeightOf<T>>;
 
@@ -265,14 +265,18 @@ pub mod pallet {
 
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
-        pub _phantom: PhantomData<T>,
+        // pub stash_account: A,
+        // pub controller_account: A,
+        // pub magic_account: A,
+        // pub created: N,
+        pub accounts: Vec<(T::AccountId, T::AccountId, T::AccountId)>,
     }
 
     #[cfg(feature = "std")]
     impl<T: Config> Default for GenesisConfig<T> {
         fn default() -> Self {
             Self {
-                _phantom: Default::default(),
+                accounts: Default::default(),
             }
         }
     }
@@ -280,7 +284,19 @@ pub mod pallet {
     #[pallet::genesis_build]
     impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
         fn build(&self) {
-            // TODO
+            let length = self.accounts.len();
+
+            for i in 0..length {
+                let sa = types::StableAccount {
+                    stash_account: self.accounts[i].1.clone(),
+                    controller_account: self.accounts[i].2.clone(),
+                    magic_account: self.accounts[i].0.clone(),
+                    created: Default::default(),
+                };
+
+                <StableAccountOf<T>>::insert(&sa.controller_account, &sa);
+                <ControllerAccountOf<T>>::insert(&sa.magic_account, &sa.controller_account);
+            }
         }
     }
 }

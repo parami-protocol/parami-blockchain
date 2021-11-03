@@ -27,15 +27,17 @@ use frame_support::{
     },
     PalletId,
 };
-use sp_runtime::traits::{
-    AccountIdConversion, AtLeast32BitUnsigned, Bounded, CheckedSub, One, Zero,
+use parami_traits::Swaps;
+use sp_runtime::{
+    traits::{AccountIdConversion, AtLeast32BitUnsigned, Bounded, CheckedSub, One, Zero},
+    DispatchError,
 };
 use sp_std::prelude::*;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
-type BalanceOf<T> = <<T as pallet::Config>::Currency as Currency<AccountOf<T>>>::Balance;
+type BalanceOf<T> = <<T as Config>::Currency as Currency<AccountOf<T>>>::Balance;
 type HeightOf<T> = <T as frame_system::Config>::BlockNumber;
-type SwapOf<T> = types::Swap<AccountOf<T>, HeightOf<T>, <T as pallet::Config>::AssetId>;
+type SwapOf<T> = types::Swap<AccountOf<T>, HeightOf<T>, <T as Config>::AssetId>;
 
 pub struct MaxValue {}
 impl<T: Bounded> Get<T> for MaxValue {
@@ -85,14 +87,14 @@ pub mod pallet {
     pub enum Event<T: Config> {
         /// New swap pair created \[id\]
         Created(T::AssetId),
-        /// Liquidity add \[id, account, currency, tokens\]
-        LiquidityAdded(T::AssetId, T::AccountId, BalanceOf<T>, BalanceOf<T>),
+        /// Liquidity add \[id, account, liquidity, currency, tokens\]
+        LiquidityAdded(T::AssetId, AccountOf<T>, BalanceOf<T>, BalanceOf<T>),
         /// Liquidity removed \[id, account, currency, tokens\]
-        LiquidityRemoved(T::AssetId, T::AccountId, BalanceOf<T>, BalanceOf<T>),
-        /// Tokens bought \[id, account, tokens\]
-        SwapBuy(T::AssetId, T::AccountId, BalanceOf<T>),
-        /// Tokens sold \[id, account, tokens\]
-        SwapSell(T::AssetId, T::AccountId, BalanceOf<T>),
+        LiquidityRemoved(T::AssetId, AccountOf<T>, BalanceOf<T>, BalanceOf<T>),
+        /// Tokens bought \[id, account, tokens, currency\]
+        SwapBuy(T::AssetId, AccountOf<T>, BalanceOf<T>, BalanceOf<T>),
+        /// Tokens sold \[id, account, tokens, currency\]
+        SwapSell(T::AssetId, AccountOf<T>, BalanceOf<T>, BalanceOf<T>),
     }
 
     #[pallet::hooks]
@@ -123,51 +125,11 @@ pub mod pallet {
             origin: OriginFor<T>,
             #[pallet::compact] token_id: T::AssetId,
         ) -> DispatchResult {
-            let _who = ensure_signed(origin)?;
+            let who = ensure_signed(origin)?;
 
-            ensure!(!Metadata::<T>::contains_key(&token_id), Error::<T>::Exists);
+            let swap_id = Self::new(&who, token_id)?;
 
-            let minimum = T::Currency::minimum_balance();
-
-            let mut name = T::Assets::name(&token_id);
-            name.extend_from_slice(b"/AD3 LP");
-
-            let mut symbol = T::Assets::symbol(&token_id);
-            symbol.extend_from_slice(b"/AD3");
-
-            let lp_token_id =
-                <NextLpId<T>>::try_mutate(|id| -> Result<T::AssetId, DispatchError> {
-                    let current_id = *id;
-                    *id = id
-                        .checked_sub(&One::one())
-                        .ok_or(Error::<T>::NoAvailableTokenId)?;
-                    Ok(current_id)
-                })?;
-
-            // 1. create pot
-
-            let created = <frame_system::Pallet<T>>::block_number();
-
-            let pot: T::AccountId = T::PalletId::get().into_sub_account(token_id);
-
-            // 2. create lp token
-
-            T::Assets::create(lp_token_id, pot.clone(), false, minimum)?;
-            T::Assets::set(lp_token_id, &pot, name, symbol, 18)?;
-
-            // 3. insert metadata
-
-            <Metadata<T>>::insert(
-                &token_id,
-                types::Swap {
-                    pot,
-                    token_id,
-                    lp_token_id,
-                    created,
-                },
-            );
-
-            Self::deposit_event(Event::Created(token_id));
+            Self::deposit_event(Event::Created(swap_id));
 
             Ok(())
         }
@@ -179,44 +141,21 @@ pub mod pallet {
             #[pallet::compact] currency: BalanceOf<T>,
             #[pallet::compact] min_liquidity: BalanceOf<T>,
             #[pallet::compact] max_tokens: BalanceOf<T>,
-            deadline: T::BlockNumber,
+            deadline: HeightOf<T>,
         ) -> DispatchResult {
-            if deadline > Zero::zero() {
-                let height = <frame_system::Pallet<T>>::block_number();
-                ensure!(deadline > height, Error::<T>::Deadline);
-            }
+            let height = <frame_system::Pallet<T>>::block_number();
+            ensure!(deadline > height, Error::<T>::Deadline);
 
             let who = ensure_signed(origin)?;
 
-            ensure!(currency > Zero::zero(), Error::<T>::ZeroCurrency);
-            ensure!(max_tokens > Zero::zero(), Error::<T>::ZeroTokens);
-
-            let meta = Metadata::<T>::get(&token_id).ok_or(Error::<T>::NotExists)?;
-
-            let total_liquidity = T::Assets::total_issuance(meta.lp_token_id);
-
-            let (tokens, liquidity) = if total_liquidity > Zero::zero() {
-                ensure!(min_liquidity > Zero::zero(), Error::<T>::ZeroLiquidity);
-
-                let swap_balance = T::Currency::free_balance(&meta.pot);
-                let token_reserve = T::Assets::balance(token_id, &meta.pot);
-
-                let tokens = currency * token_reserve / swap_balance;
-                let liquidity = currency * total_liquidity / swap_balance;
-
-                (tokens, liquidity)
-            } else {
-                // Fresh swap with no liquidity
-                (max_tokens, currency)
-            };
-
-            ensure!(max_tokens >= tokens, Error::<T>::TooManyTokens);
-            ensure!(liquidity >= min_liquidity, Error::<T>::TooLowLiquidity);
-
-            T::Currency::transfer(&who, &meta.pot, currency, KeepAlive)?;
-            T::Assets::transfer(token_id, &who, &meta.pot, tokens, true)?;
-
-            T::Assets::mint_into(meta.lp_token_id, &who, liquidity)?;
+            let (currency, tokens) = Self::mint(
+                &who,
+                token_id,
+                currency,
+                min_liquidity,
+                max_tokens,
+                true, // keep alive
+            )?;
 
             Self::deposit_event(Event::LiquidityAdded(token_id, who, currency, tokens));
 
@@ -230,36 +169,20 @@ pub mod pallet {
             #[pallet::compact] liquidity: BalanceOf<T>,
             #[pallet::compact] min_currency: BalanceOf<T>,
             #[pallet::compact] min_tokens: BalanceOf<T>,
-            deadline: T::BlockNumber,
+            deadline: HeightOf<T>,
         ) -> DispatchResult {
-            if deadline > Zero::zero() {
-                let height = <frame_system::Pallet<T>>::block_number();
-                ensure!(deadline > height, Error::<T>::Deadline);
-            }
+            let height = <frame_system::Pallet<T>>::block_number();
+            ensure!(deadline > height, Error::<T>::Deadline);
 
             let who = ensure_signed(origin)?;
 
-            ensure!(liquidity > Zero::zero(), Error::<T>::ZeroLiquidity);
-
-            let meta = Metadata::<T>::get(&token_id).ok_or(Error::<T>::NotExists)?;
-
-            let total_liquidity = T::Assets::total_issuance(meta.lp_token_id);
-
-            ensure!(total_liquidity > Zero::zero(), Error::<T>::NoLiquidity);
-
-            let swap_balance = T::Currency::free_balance(&meta.pot);
-            let token_reserve = T::Assets::balance(token_id, &meta.pot);
-
-            let currency = liquidity * swap_balance / total_liquidity;
-            let tokens = liquidity * token_reserve / total_liquidity;
-
-            ensure!(currency >= min_currency, Error::<T>::TooLowCurrency);
-            ensure!(tokens >= min_tokens, Error::<T>::TooLowTokens);
-
-            T::Assets::slash(meta.lp_token_id, &who, liquidity)?;
-
-            T::Assets::transfer(token_id, &meta.pot, &who, tokens, false)?;
-            T::Currency::transfer(&meta.pot, &who, currency, AllowDeath)?;
+            let (currency, tokens) = Self::burn(
+                &who,
+                token_id,
+                liquidity, // can burn all
+                min_currency,
+                min_tokens,
+            )?;
 
             Self::deposit_event(Event::LiquidityRemoved(token_id, who, currency, tokens));
 
@@ -272,32 +195,16 @@ pub mod pallet {
             #[pallet::compact] token_id: T::AssetId,
             #[pallet::compact] tokens: BalanceOf<T>,
             #[pallet::compact] max_currency: BalanceOf<T>,
-            deadline: T::BlockNumber,
+            deadline: HeightOf<T>,
         ) -> DispatchResult {
             let height = <frame_system::Pallet<T>>::block_number();
             ensure!(deadline > height, Error::<T>::Deadline);
 
             let who = ensure_signed(origin)?;
 
-            ensure!(tokens > Zero::zero(), Error::<T>::ZeroTokens);
-            ensure!(max_currency > Zero::zero(), Error::<T>::ZeroCurrency);
+            let (tokens, currency) = Self::token_out(&who, token_id, tokens, max_currency, true)?;
 
-            let meta = Metadata::<T>::get(&token_id).ok_or(Error::<T>::NotExists)?;
-
-            let swap_balance = T::Currency::free_balance(&meta.pot);
-            let token_reserve = T::Assets::balance(token_id, &meta.pot);
-
-            let currency_sold = Self::price_buy(tokens, swap_balance, token_reserve);
-
-            ensure!(
-                currency_sold <= max_currency,
-                Error::<T>::TooExpensiveCurrency
-            );
-
-            T::Currency::transfer(&who, &meta.pot, currency_sold, KeepAlive)?;
-            T::Assets::transfer(token_id, &meta.pot, &who, tokens, false)?;
-
-            Self::deposit_event(Event::SwapBuy(token_id, who, tokens));
+            Self::deposit_event(Event::SwapBuy(token_id, who, tokens, currency));
 
             Ok(())
         }
@@ -308,29 +215,16 @@ pub mod pallet {
             #[pallet::compact] token_id: T::AssetId,
             #[pallet::compact] tokens: BalanceOf<T>,
             #[pallet::compact] min_currency: BalanceOf<T>,
-            deadline: T::BlockNumber,
+            deadline: HeightOf<T>,
         ) -> DispatchResult {
             let height = <frame_system::Pallet<T>>::block_number();
             ensure!(deadline > height, Error::<T>::Deadline);
 
             let who = ensure_signed(origin)?;
 
-            ensure!(tokens > Zero::zero(), Error::<T>::ZeroTokens);
-            ensure!(min_currency > Zero::zero(), Error::<T>::ZeroCurrency);
+            let (tokens, currency) = Self::token_in(&who, token_id, tokens, min_currency, true)?;
 
-            let meta = Metadata::<T>::get(&token_id).ok_or(Error::<T>::NotExists)?;
-
-            let swap_balance = T::Currency::free_balance(&meta.pot);
-            let token_reserve = T::Assets::balance(token_id, &meta.pot);
-
-            let currency_bought = Self::price_sell(tokens, token_reserve, swap_balance);
-
-            ensure!(currency_bought >= min_currency, Error::<T>::TooLowCurrency);
-
-            T::Assets::transfer(token_id, &who, &meta.pot, tokens, true)?;
-            T::Currency::transfer(&meta.pot, &who, currency_bought, AllowDeath)?;
-
-            Self::deposit_event(Event::SwapSell(token_id, who, tokens));
+            Self::deposit_event(Event::SwapSell(token_id, who, tokens, currency));
 
             Ok(())
         }
@@ -341,29 +235,16 @@ pub mod pallet {
             #[pallet::compact] token_id: T::AssetId,
             #[pallet::compact] currency: BalanceOf<T>,
             #[pallet::compact] min_tokens: BalanceOf<T>,
-            deadline: T::BlockNumber,
+            deadline: HeightOf<T>,
         ) -> DispatchResult {
             let height = <frame_system::Pallet<T>>::block_number();
             ensure!(deadline > height, Error::<T>::Deadline);
 
             let who = ensure_signed(origin)?;
 
-            ensure!(currency > Zero::zero(), Error::<T>::ZeroCurrency);
-            ensure!(min_tokens > Zero::zero(), Error::<T>::ZeroTokens);
+            let (currency, tokens) = Self::quote_in(&who, token_id, currency, min_tokens, true)?;
 
-            let meta = Metadata::<T>::get(&token_id).ok_or(Error::<T>::NotExists)?;
-
-            let swap_balance = T::Currency::free_balance(&meta.pot);
-            let token_reserve = T::Assets::balance(token_id, &meta.pot);
-
-            let tokens_bought = Self::price_sell(currency, swap_balance, token_reserve);
-
-            ensure!(tokens_bought >= min_tokens, Error::<T>::TooExpensiveTokens);
-
-            T::Currency::transfer(&who, &meta.pot, currency, KeepAlive)?;
-            T::Assets::transfer(token_id, &meta.pot, &who, tokens_bought, false)?;
-
-            Self::deposit_event(Event::SwapBuy(token_id, who, tokens_bought));
+            Self::deposit_event(Event::SwapBuy(token_id, who, tokens, currency));
 
             Ok(())
         }
@@ -374,51 +255,323 @@ pub mod pallet {
             #[pallet::compact] token_id: T::AssetId,
             #[pallet::compact] currency: BalanceOf<T>,
             #[pallet::compact] max_tokens: BalanceOf<T>,
-            deadline: T::BlockNumber,
+            deadline: HeightOf<T>,
         ) -> DispatchResult {
             let height = <frame_system::Pallet<T>>::block_number();
             ensure!(deadline > height, Error::<T>::Deadline);
 
             let who = ensure_signed(origin)?;
 
-            ensure!(max_tokens > Zero::zero(), Error::<T>::ZeroTokens);
-            ensure!(currency > Zero::zero(), Error::<T>::ZeroCurrency);
+            let (currency, tokens) = Self::quote_out(&who, token_id, currency, max_tokens, true)?;
 
-            let meta = Metadata::<T>::get(&token_id).ok_or(Error::<T>::NotExists)?;
-
-            let swap_balance = T::Currency::free_balance(&meta.pot);
-            let token_reserve = T::Assets::balance(token_id, &meta.pot);
-
-            let tokens_sold = Self::price_buy(currency, token_reserve, swap_balance);
-
-            ensure!(max_tokens >= tokens_sold, Error::<T>::TooLowTokens);
-
-            T::Assets::transfer(token_id, &who, &meta.pot, tokens_sold, true)?;
-            T::Currency::transfer(&meta.pot, &who, currency, AllowDeath)?;
-
-            Self::deposit_event(Event::SwapSell(token_id, who, tokens_sold));
+            Self::deposit_event(Event::SwapSell(token_id, who, tokens, currency));
 
             Ok(())
         }
     }
+
+    #[pallet::genesis_config]
+    pub struct GenesisConfig<T: Config> {
+        pub swaps: Vec<(u32, u32, T::AccountId)>,
+    }
+
+    #[cfg(feature = "std")]
+    impl<T: Config> Default for GenesisConfig<T> {
+        fn default() -> Self {
+            Self {
+                swaps: Default::default(),
+            }
+        }
+    }
+
+    #[pallet::genesis_build]
+    impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
+        fn build(&self) {
+            use sp_runtime::traits::Saturating;
+
+            let length = self.swaps.len();
+
+            for i in 0..length {
+                let token_id = self.swaps[i].0.into();
+                let lp_token_id = self.swaps[i].1.into();
+
+                <Metadata<T>>::insert(
+                    token_id,
+                    types::Swap {
+                        pot: self.swaps[i].2.clone(),
+                        token_id,
+                        lp_token_id,
+                        created: Default::default(),
+                    },
+                );
+            }
+
+            let length = length as u32;
+            <NextLpId<T>>::put(T::AssetId::max_value().saturating_sub(length.into()));
+        }
+    }
 }
 
-impl<T: Config> Pallet<T> {
+impl<T: Config> Swaps for Pallet<T> {
+    type AccountId = AccountOf<T>;
+    type AssetId = T::AssetId;
+    type QuoteBalance = BalanceOf<T>;
+    type TokenBalance = BalanceOf<T>;
+
+    fn new(
+        _who: &Self::AccountId,
+        token_id: Self::AssetId,
+    ) -> Result<Self::AssetId, DispatchError> {
+        ensure!(!Metadata::<T>::contains_key(&token_id), Error::<T>::Exists);
+
+        let minimum = T::Currency::minimum_balance();
+
+        let mut name = T::Assets::name(&token_id);
+        name.extend_from_slice(b"/AD3 LP");
+
+        let mut symbol = T::Assets::symbol(&token_id);
+        symbol.extend_from_slice(b"/AD3");
+
+        let lp_token_id = <NextLpId<T>>::try_mutate(|id| -> Result<T::AssetId, DispatchError> {
+            let current_id = *id;
+            *id = id
+                .checked_sub(&One::one())
+                .ok_or(Error::<T>::NoAvailableTokenId)?;
+            Ok(current_id)
+        })?;
+
+        // 1. create pot
+
+        let created = <frame_system::Pallet<T>>::block_number();
+
+        let pot: AccountOf<T> = T::PalletId::get().into_sub_account(token_id);
+
+        // 2. create lp token
+
+        T::Assets::create(lp_token_id, pot.clone(), true, minimum)?;
+        T::Assets::set(lp_token_id, &pot, name, symbol, 18)?;
+
+        // 3. insert metadata
+
+        <Metadata<T>>::insert(
+            &token_id,
+            types::Swap {
+                pot,
+                token_id,
+                lp_token_id,
+                created,
+            },
+        );
+
+        Ok(token_id)
+    }
+
+    fn mint(
+        who: &Self::AccountId,
+        token_id: Self::AssetId,
+        currency: Self::QuoteBalance,
+        min_liquidity: Self::TokenBalance,
+        max_tokens: Self::TokenBalance,
+        keep_alive: bool,
+    ) -> Result<(Self::QuoteBalance, Self::TokenBalance), DispatchError> {
+        ensure!(currency > Zero::zero(), Error::<T>::ZeroCurrency);
+        ensure!(max_tokens > Zero::zero(), Error::<T>::ZeroTokens);
+
+        let meta = Metadata::<T>::get(&token_id).ok_or(Error::<T>::NotExists)?;
+
+        let total_liquidity = T::Assets::total_issuance(meta.lp_token_id);
+
+        let (tokens, liquidity) = if total_liquidity > Zero::zero() {
+            ensure!(min_liquidity > Zero::zero(), Error::<T>::ZeroLiquidity);
+
+            let swap_balance = T::Currency::free_balance(&meta.pot);
+            let token_reserve = T::Assets::balance(token_id, &meta.pot);
+
+            let tokens = currency * token_reserve / swap_balance;
+            let liquidity = currency * total_liquidity / swap_balance;
+
+            (tokens, liquidity)
+        } else {
+            // Fresh swap with no liquidity
+            (max_tokens, currency)
+        };
+
+        ensure!(max_tokens >= tokens, Error::<T>::TooManyTokens);
+        ensure!(liquidity >= min_liquidity, Error::<T>::TooLowLiquidity);
+
+        T::Currency::transfer(
+            &who,
+            &meta.pot,
+            currency,
+            if keep_alive { KeepAlive } else { AllowDeath },
+        )?;
+        T::Assets::transfer(token_id, &who, &meta.pot, tokens, keep_alive)?;
+
+        T::Assets::mint_into(meta.lp_token_id, &who, liquidity)?;
+
+        Ok((currency, tokens))
+    }
+
+    fn burn(
+        who: &Self::AccountId,
+        token_id: Self::AssetId,
+        liquidity: Self::TokenBalance,
+        min_currency: Self::QuoteBalance,
+        min_tokens: Self::TokenBalance,
+    ) -> Result<(Self::QuoteBalance, Self::TokenBalance), DispatchError> {
+        ensure!(liquidity > Zero::zero(), Error::<T>::ZeroLiquidity);
+
+        let meta = Metadata::<T>::get(&token_id).ok_or(Error::<T>::NotExists)?;
+
+        let total_liquidity = T::Assets::total_issuance(meta.lp_token_id);
+
+        ensure!(total_liquidity > Zero::zero(), Error::<T>::NoLiquidity);
+
+        let swap_balance = T::Currency::free_balance(&meta.pot);
+        let token_reserve = T::Assets::balance(token_id, &meta.pot);
+
+        let currency = liquidity * swap_balance / total_liquidity;
+        let tokens = liquidity * token_reserve / total_liquidity;
+
+        ensure!(currency >= min_currency, Error::<T>::TooLowCurrency);
+        ensure!(tokens >= min_tokens, Error::<T>::TooLowTokens);
+
+        T::Assets::slash(meta.lp_token_id, &who, liquidity)?;
+
+        T::Assets::transfer(token_id, &meta.pot, &who, tokens, false)?;
+        T::Currency::transfer(&meta.pot, &who, currency, AllowDeath)?;
+
+        Ok((currency, tokens))
+    }
+
+    fn token_out(
+        who: &Self::AccountId,
+        token_id: Self::AssetId,
+        tokens: Self::TokenBalance,
+        max_currency: Self::QuoteBalance,
+        keep_alive: bool,
+    ) -> Result<(Self::TokenBalance, Self::QuoteBalance), DispatchError> {
+        ensure!(tokens > Zero::zero(), Error::<T>::ZeroTokens);
+        ensure!(max_currency > Zero::zero(), Error::<T>::ZeroCurrency);
+
+        let meta = Metadata::<T>::get(&token_id).ok_or(Error::<T>::NotExists)?;
+
+        let swap_balance = T::Currency::free_balance(&meta.pot);
+        let token_reserve = T::Assets::balance(token_id, &meta.pot);
+
+        let currency_sold = Self::price_buy(tokens, swap_balance, token_reserve);
+
+        ensure!(
+            currency_sold <= max_currency,
+            Error::<T>::TooExpensiveCurrency
+        );
+
+        T::Currency::transfer(
+            &who,
+            &meta.pot,
+            currency_sold,
+            if keep_alive { KeepAlive } else { AllowDeath },
+        )?;
+        T::Assets::transfer(token_id, &meta.pot, &who, tokens, false)?;
+
+        Ok((tokens, currency_sold))
+    }
+
+    fn token_in(
+        who: &Self::AccountId,
+        token_id: Self::AssetId,
+        tokens: Self::TokenBalance,
+        min_currency: Self::QuoteBalance,
+        keep_alive: bool,
+    ) -> Result<(Self::TokenBalance, Self::QuoteBalance), DispatchError> {
+        ensure!(tokens > Zero::zero(), Error::<T>::ZeroTokens);
+        ensure!(min_currency > Zero::zero(), Error::<T>::ZeroCurrency);
+
+        let meta = Metadata::<T>::get(&token_id).ok_or(Error::<T>::NotExists)?;
+
+        let swap_balance = T::Currency::free_balance(&meta.pot);
+        let token_reserve = T::Assets::balance(token_id, &meta.pot);
+
+        let currency_bought = Self::price_sell(tokens, token_reserve, swap_balance);
+
+        ensure!(currency_bought >= min_currency, Error::<T>::TooLowCurrency);
+
+        T::Assets::transfer(token_id, &who, &meta.pot, tokens, keep_alive)?;
+        T::Currency::transfer(&meta.pot, &who, currency_bought, AllowDeath)?;
+
+        Ok((tokens, currency_bought))
+    }
+
+    fn quote_in(
+        who: &Self::AccountId,
+        token_id: Self::AssetId,
+        currency: Self::QuoteBalance,
+        min_tokens: Self::TokenBalance,
+        keep_alive: bool,
+    ) -> Result<(Self::QuoteBalance, Self::TokenBalance), DispatchError> {
+        ensure!(currency > Zero::zero(), Error::<T>::ZeroCurrency);
+        ensure!(min_tokens > Zero::zero(), Error::<T>::ZeroTokens);
+
+        let meta = Metadata::<T>::get(&token_id).ok_or(Error::<T>::NotExists)?;
+
+        let swap_balance = T::Currency::free_balance(&meta.pot);
+        let token_reserve = T::Assets::balance(token_id, &meta.pot);
+
+        let tokens_bought = Self::price_sell(currency, swap_balance, token_reserve);
+
+        ensure!(tokens_bought >= min_tokens, Error::<T>::TooExpensiveTokens);
+
+        T::Currency::transfer(
+            &who,
+            &meta.pot,
+            currency,
+            if keep_alive { KeepAlive } else { AllowDeath },
+        )?;
+        T::Assets::transfer(token_id, &meta.pot, &who, tokens_bought, false)?;
+
+        Ok((currency, tokens_bought))
+    }
+
+    fn quote_out(
+        who: &Self::AccountId,
+        token_id: Self::AssetId,
+        currency: Self::QuoteBalance,
+        max_tokens: Self::TokenBalance,
+        keep_alive: bool,
+    ) -> Result<(Self::QuoteBalance, Self::TokenBalance), DispatchError> {
+        ensure!(max_tokens > Zero::zero(), Error::<T>::ZeroTokens);
+        ensure!(currency > Zero::zero(), Error::<T>::ZeroCurrency);
+
+        let meta = Metadata::<T>::get(&token_id).ok_or(Error::<T>::NotExists)?;
+
+        let swap_balance = T::Currency::free_balance(&meta.pot);
+        let token_reserve = T::Assets::balance(token_id, &meta.pot);
+
+        let tokens_sold = Self::price_buy(currency, token_reserve, swap_balance);
+
+        ensure!(max_tokens >= tokens_sold, Error::<T>::TooLowTokens);
+
+        T::Assets::transfer(token_id, &who, &meta.pot, tokens_sold, keep_alive)?;
+        T::Currency::transfer(&meta.pot, &who, currency, AllowDeath)?;
+
+        Ok((currency, tokens_sold))
+    }
+
     fn price_buy(
-        output_amount: BalanceOf<T>,
-        input_reserve: BalanceOf<T>,
-        output_reserve: BalanceOf<T>,
-    ) -> BalanceOf<T> {
+        output_amount: Self::TokenBalance,
+        input_reserve: Self::TokenBalance,
+        output_reserve: Self::TokenBalance,
+    ) -> Self::TokenBalance {
         let numerator = input_reserve * output_amount * 1000u32.into();
         let denominator = (output_reserve - output_amount) * 997u32.into();
         numerator / denominator + 1u32.into()
     }
 
     fn price_sell(
-        input_amount: BalanceOf<T>,
-        input_reserve: BalanceOf<T>,
-        output_reserve: BalanceOf<T>,
-    ) -> BalanceOf<T> {
+        input_amount: Self::TokenBalance,
+        input_reserve: Self::TokenBalance,
+        output_reserve: Self::TokenBalance,
+    ) -> Self::TokenBalance {
         let input_amount_with_fee = input_amount * 997u32.into();
         let numerator = input_amount_with_fee * output_reserve;
         let denominator = (input_reserve * 1000u32.into()) + input_amount_with_fee;

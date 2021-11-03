@@ -12,7 +12,7 @@ fn should_back() {
         let did = DID::from_slice(&[0xee; 20]);
         let kol = DID::from_slice(&[0xff; 20]);
 
-        let meta = Did::<Test>::meta(kol).unwrap();
+        let meta = Did::<Test>::meta(&kol).unwrap();
 
         assert_ok!(Nft::back(Origin::signed(bob), kol, 50));
 
@@ -70,6 +70,15 @@ fn should_fail_when_minted() {
         ));
 
         assert_noop!(
+            Nft::mint(
+                Origin::signed(alice),
+                b"Test Token".to_vec(),
+                b"XTT".to_vec()
+            ),
+            Error::<Test>::Minted
+        );
+
+        assert_noop!(
             Nft::back(Origin::signed(bob), kol, 50),
             Error::<Test>::Minted
         );
@@ -105,6 +114,9 @@ fn should_mint() {
             b"Test Token".to_vec(),
             b"XTT".to_vec()
         ));
+
+        let meta = Did::<Test>::meta(&kol).unwrap();
+        assert_eq!(meta.nft, Some(0));
     });
 }
 
@@ -132,6 +144,8 @@ fn should_claim() {
         let charlie = sr25519::Public([3; 32]);
 
         let kol = DID::from_slice(&[0xff; 20]);
+        let did2 = DID::from_slice(&[0xee; 20]);
+        let did3 = DID::from_slice(&[0xdd; 20]);
 
         assert_ok!(Nft::back(Origin::signed(bob), kol, 2_000_000u128));
         assert_ok!(Nft::back(Origin::signed(charlie), kol, 1_000_000u128));
@@ -147,5 +161,8 @@ fn should_claim() {
 
         assert_eq!(Assets::balance(0, &bob), 666_666);
         assert_eq!(Assets::balance(0, &charlie), 333_333);
+
+        assert_eq!(<Deposits<Test>>::get(&kol, &did2), None);
+        assert_eq!(<Deposits<Test>>::get(&kol, &did3), None);
     });
 }
