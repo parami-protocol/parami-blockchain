@@ -46,6 +46,12 @@ pub trait Swaps {
         min_tokens: Self::TokenBalance,
     ) -> Result<(Self::QuoteBalance, Self::TokenBalance), DispatchError>;
 
+    /// dry-run of token_out
+    fn token_out_dry(
+        token_id: Self::AssetId,
+        tokens: Self::TokenBalance,
+    ) -> Result<(Self::QuoteBalance, Self::AccountId), DispatchError>;
+
     /// buy tokens
     fn token_out(
         who: &Self::AccountId,
@@ -54,6 +60,12 @@ pub trait Swaps {
         max_currency: Self::QuoteBalance,
         keep_alive: bool,
     ) -> Result<(Self::TokenBalance, Self::QuoteBalance), DispatchError>;
+
+    /// dry-run of token_in
+    fn token_in_dry(
+        token_id: Self::AssetId,
+        tokens: Self::TokenBalance,
+    ) -> Result<(Self::QuoteBalance, Self::AccountId), DispatchError>;
 
     /// sell tokens
     fn token_in(
@@ -64,6 +76,12 @@ pub trait Swaps {
         keep_alive: bool,
     ) -> Result<(Self::TokenBalance, Self::QuoteBalance), DispatchError>;
 
+    /// dry-run of quote_in
+    fn quote_in_dry(
+        token_id: Self::AssetId,
+        currency: Self::QuoteBalance,
+    ) -> Result<(Self::TokenBalance, Self::AccountId), DispatchError>;
+
     /// sell currency (buy tokens)
     fn quote_in(
         who: &Self::AccountId,
@@ -73,6 +91,12 @@ pub trait Swaps {
         keep_alive: bool,
     ) -> Result<(Self::QuoteBalance, Self::TokenBalance), DispatchError>;
 
+    /// dry-run of quote_out
+    fn quote_out_dry(
+        token_id: Self::AssetId,
+        currency: Self::QuoteBalance,
+    ) -> Result<(Self::TokenBalance, Self::AccountId), DispatchError>;
+
     /// buy currency (sell tokens)
     fn quote_out(
         who: &Self::AccountId,
@@ -81,16 +105,4 @@ pub trait Swaps {
         max_tokens: Self::TokenBalance,
         keep_alive: bool,
     ) -> Result<(Self::QuoteBalance, Self::TokenBalance), DispatchError>;
-
-    fn price_buy(
-        output_amount: Self::TokenBalance,
-        input_reserve: Self::TokenBalance,
-        output_reserve: Self::TokenBalance,
-    ) -> Self::TokenBalance;
-
-    fn price_sell(
-        input_amount: Self::TokenBalance,
-        input_reserve: Self::TokenBalance,
-        output_reserve: Self::TokenBalance,
-    ) -> Self::TokenBalance;
 }

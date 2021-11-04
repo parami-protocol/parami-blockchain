@@ -23,7 +23,8 @@ pub struct Metadata<A, B, D, H, N> {
 
 #[derive(Clone, Decode, Default, Encode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-pub struct Slot<B, H, N> {
+pub struct Slot<B, H, N, T> {
+    pub nft: T,
     #[codec(compact)]
     pub budget: B,
     #[codec(compact)]

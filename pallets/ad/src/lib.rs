@@ -20,11 +20,13 @@ use frame_support::{
     dispatch::DispatchResult,
     ensure,
     traits::{Currency, ExistenceRequirement::KeepAlive, StoredMap},
+    weights::Weight,
     PalletId,
 };
+use parami_did::Pallet as Did;
 use parami_traits::Swaps;
 use sp_runtime::{
-    traits::{AccountIdConversion, Hash},
+    traits::{AccountIdConversion, Hash, One, Saturating},
     DispatchError,
 };
 use sp_std::prelude::*;
@@ -32,12 +34,13 @@ use sp_std::prelude::*;
 use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
+type AssetOf<T> = <T as parami_did::Config>::AssetId;
 type BalanceOf<T> = <<T as parami_did::Config>::Currency as Currency<AccountOf<T>>>::Balance;
 type DidOf<T> = <T as parami_did::Config>::DecentralizedId;
 type HashOf<T> = <<T as frame_system::Config>::Hashing as Hash>::Output;
 type HeightOf<T> = <T as frame_system::Config>::BlockNumber;
 type MetaOf<T> = types::Metadata<AccountOf<T>, BalanceOf<T>, DidOf<T>, HashOf<T>, HeightOf<T>>;
-type SlotMetaOf<T> = types::Slot<BalanceOf<T>, HashOf<T>, HeightOf<T>>;
+type SlotMetaOf<T> = types::Slot<BalanceOf<T>, HashOf<T>, HeightOf<T>, AssetOf<T>>;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -85,6 +88,12 @@ pub mod pallet {
     #[pallet::getter(fn ads_of)]
     pub(super) type AdsOf<T: Config> = StorageMap<_, Identity, T::DecentralizedId, Vec<HashOf<T>>>;
 
+    /// Deadline of an advertisement in slot
+    #[pallet::storage]
+    #[pallet::getter(fn deadline_of)]
+    pub(super) type DeadlineOf<T: Config> =
+        StorageDoubleMap<_, Identity, T::DecentralizedId, Identity, HashOf<T>, HeightOf<T>>;
+
     /// Slot of a KOL
     #[pallet::storage]
     #[pallet::getter(fn slot_of)]
@@ -103,13 +112,31 @@ pub mod pallet {
         Created(HashOf<T>),
         /// Advertisement updated \[id\]
         Updated(HashOf<T>),
+        /// Advertiser bid for slot \[kol, id\]
+        Bid(T::DecentralizedId, HashOf<T>),
+        /// Advertisement (in slot) deadline reached
+        End(T::DecentralizedId, HashOf<T>),
+    }
+
+    #[pallet::hooks]
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+        fn on_initialize(n: HeightOf<T>) -> Weight {
+            Self::begin_block(n).unwrap_or_else(|e| {
+                sp_runtime::print(e);
+                0
+            })
+        }
     }
 
     #[pallet::error]
     pub enum Error<T> {
+        Deadline,
+        InsufficientBalance,
         NotExists,
+        NotMinted,
         NotOwned,
         TagNotExists,
+        Underbid,
     }
 
     #[pallet::call]
@@ -123,6 +150,10 @@ pub mod pallet {
             reward_rate: u16,
             deadline: HeightOf<T>,
         ) -> DispatchResult {
+            let created = <frame_system::Pallet<T>>::block_number();
+
+            ensure!(deadline > created, Error::<T>::Deadline);
+
             let (creator, who) = T::CallOrigin::ensure_origin(origin)?;
 
             let mut hashes = vec![];
@@ -133,8 +164,6 @@ pub mod pallet {
             }
 
             // 1. derive deposit poll account and advertisement ID
-
-            let created = <frame_system::Pallet<T>>::block_number();
 
             // TODO: use a HMAC-based algorithm.
             let mut raw = T::AccountId::encode(&who);
@@ -190,6 +219,9 @@ pub mod pallet {
 
             let mut meta = Self::ensure_owned(did, id)?;
 
+            let height = <frame_system::Pallet<T>>::block_number();
+            ensure!(meta.deadline > height, Error::<T>::Deadline);
+
             meta.reward_rate = reward_rate;
 
             <Metadata<T>>::insert(&id, meta);
@@ -207,7 +239,10 @@ pub mod pallet {
         ) -> DispatchResult {
             let (did, _) = T::CallOrigin::ensure_origin(origin)?;
 
-            Self::ensure_owned(did, id)?;
+            let meta = Self::ensure_owned(did, id)?;
+
+            let height = <frame_system::Pallet<T>>::block_number();
+            ensure!(meta.deadline > height, Error::<T>::Deadline);
 
             let mut hashes = vec![];
             for tag in &tags {
@@ -224,28 +259,124 @@ pub mod pallet {
         }
 
         #[pallet::weight(1_000_000_000)]
-        pub fn payouts(
+        pub fn bid(
+            origin: OriginFor<T>,
+            ad: HashOf<T>,
+            kol: T::DecentralizedId,
+            #[pallet::compact] value: BalanceOf<T>,
+        ) -> DispatchResult {
+            let (did, _) = T::CallOrigin::ensure_origin(origin)?;
+
+            let mut meta = Self::ensure_owned(did, ad)?;
+
+            let kol_meta = Did::<T>::meta(&kol).ok_or(Error::<T>::NotMinted)?;
+            let nft = kol_meta.nft.ok_or(Error::<T>::NotMinted)?;
+
+            let height = <frame_system::Pallet<T>>::block_number();
+
+            ensure!(meta.deadline > height, Error::<T>::Deadline);
+
+            // 1. check slot of kol
+
+            let slot = <SlotOf<T>>::get(&kol);
+
+            // 2. swap AD3 to assets
+
+            let (tokens, _) = T::Swaps::quote_in_dry(nft, value)?;
+
+            // 3. if slot is used
+            // require a 20% increase of current budget
+            // and drawback current ad
+
+            if let Some(slot) = slot {
+                ensure!(
+                    tokens >= slot.remain.saturating_mul(120u32.into()) / 100u32.into(),
+                    Error::<T>::Underbid
+                );
+
+                Self::drawback(&kol, slot)?;
+            }
+
+            // 4. swap AD3 to assets
+
+            let (_, tokens) = T::Swaps::quote_in(&meta.pot, nft, value, One::one(), false)?;
+
+            // 5. update slot
+
+            let deadline = height.saturating_add(43200u32.into()); // 3 Days (3 * 24 * 60 * 60 /6)
+            let deadline = if deadline > meta.deadline {
+                meta.deadline
+            } else {
+                deadline
+            };
+
+            <DeadlineOf<T>>::insert(&kol, &ad, deadline);
+
+            <SlotOf<T>>::insert(
+                &kol,
+                types::Slot {
+                    nft,
+                    budget: tokens,
+                    remain: tokens,
+                    deadline,
+                    ad,
+                },
+            );
+
+            meta.remain.saturating_reduce(value);
+
+            <Metadata<T>>::insert(&ad, meta);
+
+            Self::deposit_event(Event::Bid(kol, ad));
+
+            Ok(())
+        }
+
+        #[pallet::weight(1_000_000_000)]
+        pub fn deposit(
             origin: OriginFor<T>,
             id: HashOf<T>,
+            #[pallet::compact] value: BalanceOf<T>,
+        ) -> DispatchResult {
+            let (did, who) = T::CallOrigin::ensure_origin(origin)?;
+
+            let mut meta = Self::ensure_owned(did, id)?;
+
+            let height = <frame_system::Pallet<T>>::block_number();
+            ensure!(meta.deadline > height, Error::<T>::Deadline);
+
+            T::Currency::transfer(&who, &meta.pot, value, KeepAlive)?;
+
+            meta.budget.saturating_accrue(value);
+            meta.remain.saturating_accrue(value);
+
+            <Metadata<T>>::insert(&id, meta);
+
+            Self::deposit_event(Event::Updated(id));
+
+            Ok(())
+        }
+
+        #[pallet::weight(1_000_000_000)]
+        pub fn pay(
+            origin: OriginFor<T>,
+            id: HashOf<T>,
+            slot: T::DecentralizedId,
             visitor: T::DecentralizedId,
             referer: Option<T::DecentralizedId>,
         ) -> DispatchResult {
             let (did, _) = T::CallOrigin::ensure_origin(origin)?;
 
-            Self::ensure_owned(did, id)?;
+            let meta = Self::ensure_owned(did, id)?;
 
-            todo!()
-        }
+            let height = <frame_system::Pallet<T>>::block_number();
+            ensure!(meta.deadline > height, Error::<T>::Deadline);
 
-        #[pallet::weight(1_000_000_000)]
-        pub fn punish(
-            origin: OriginFor<T>,
-            id: HashOf<T>,
-            slot: T::DecentralizedId,
-        ) -> DispatchResult {
-            let (did, _) = T::CallOrigin::ensure_origin(origin)?;
+            // 1. get slot, check current ad
 
-            Self::ensure_owned(did, id)?;
+            // 2. scoring visitor
+
+            // 3. payout assets
 
             todo!()
         }
@@ -253,6 +384,45 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
+    fn begin_block(now: HeightOf<T>) -> Result<Weight, DispatchError> {
+        let weight = 1_000_000_000;
+
+        // TODO: weight benchmark
+
+        for (kol, ad, deadline) in <DeadlineOf<T>>::iter() {
+            if deadline > now {
+                continue;
+            }
+
+            let slot = <SlotOf<T>>::get(&kol);
+
+            if let Some(slot) = slot {
+                if slot.ad != ad {
+                    continue;
+                }
+
+                Self::drawback(&kol, slot)?;
+            }
+        }
+
+        Ok(weight)
+    }
+
+    fn drawback(kol: &T::DecentralizedId, slot: SlotMetaOf<T>) -> DispatchResult {
+        let mut meta = <Metadata<T>>::get(&slot.ad).ok_or(Error::<T>::NotExists)?;
+
+        let (_, amount) = T::Swaps::token_in(&meta.pot, slot.nft, slot.remain, One::one(), false)?;
+
+        meta.remain.saturating_accrue(amount);
+
+        <Metadata<T>>::insert(&slot.ad, meta);
+
+        <SlotOf<T>>::remove(kol);
+        <DeadlineOf<T>>::remove(&kol, &slot.ad);
+
+        Ok(())
+    }
+
     fn ensure_owned(did: T::DecentralizedId, id: HashOf<T>) -> Result<MetaOf<T>, DispatchError> {
         let meta = <Metadata<T>>::get(id).ok_or(Error::<T>::NotExists)?;
         ensure!(meta.creator == did, Error::<T>::NotOwned);

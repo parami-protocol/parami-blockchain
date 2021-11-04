@@ -21,6 +21,11 @@ optional = true
 default-features = false
 path = '../did'
 
+[dependencies.parami-nft]
+default-features = false
+path = '../nft'
+optional = true
+
 [dependencies.parami-swap]
 default-features = false
 path = '../swap'
@@ -86,6 +91,10 @@ default-features = false
 git = 'https://github.com/paritytech/substrate.git'
 branch = 'polkadot-v0.9.12'
 
+[dev-dependencies.orml-nft]
+git = 'https://github.com/open-web3-stack/open-runtime-module-library.git'
+rev = 'd473d40eb1dbf927990d04ef1b0373326e7007ce'
+
 [dev-dependencies.pallet-assets]
 git = 'https://github.com/paritytech/substrate.git'
 branch = 'polkadot-v0.9.12'
@@ -108,6 +117,7 @@ default = ['std']
 runtime-benchmarks = [
     'frame-benchmarking',
     'parami-advertiser',
+    'parami-nft',
     'parami-swap',
     'parami-tag',
     'rand',
@@ -119,6 +129,7 @@ std = [
     'frame-support/std',
     'frame-system/std',
     'parami-advertiser/std',
+    'parami-nft/std',
     'parami-did/std',
     'parami-swap/std',
     'parami-tag/std',

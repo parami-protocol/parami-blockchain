@@ -21,8 +21,11 @@ frame_support::construct_runtime!(
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
         Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
 
+        OrmlNft: orml_nft::{Pallet, Storage} = 100,
+
         Ad: parami_ad::{Pallet, Call, Storage, Event<T>},
         Did: parami_did::{Pallet, Call, Storage, Config<T>, Event<T>},
+        Nft: parami_nft::{Pallet, Call, Storage, Event<T>},
         Swap: parami_swap::{Pallet, Call, Storage, Event<T>},
         Tag: parami_tag::{Pallet, Call, Storage, Config<T>, Event<T>},
     }
@@ -118,6 +121,20 @@ impl pallet_timestamp::Config for Test {
 }
 
 parameter_types! {
+    pub const MaxClassMetadata: u32 = 256;
+    pub const MaxTokenMetadata: u32 = 256;
+}
+
+impl orml_nft::Config for Test {
+    type ClassId = AssetId;
+    type TokenId = AssetId;
+    type ClassData = ();
+    type TokenData = ();
+    type MaxClassMetadata = MaxClassMetadata;
+    type MaxTokenMetadata = MaxTokenMetadata;
+}
+
+parameter_types! {
     pub const CreationDeposit: Balance = 1;
     pub const DidPalletId: PalletId = PalletId(*b"prm/did ");
 }
@@ -130,6 +147,20 @@ impl parami_did::Config for Test {
     type DecentralizedId = sp_core::H160;
     type Hashing = Keccak256;
     type PalletId = DidPalletId;
+    type WeightInfo = ();
+}
+
+parameter_types! {
+    pub const InitialMintingDeposit: Balance = 1_000_000;
+    pub const InitialMintingValue: Balance = 1_000_000;
+}
+
+impl parami_nft::Config for Test {
+    type Event = Event;
+    type Assets = Assets;
+    type InitialMintingValue = InitialMintingValue;
+    type InitialMintingDeposit = InitialMintingDeposit;
+    type Swaps = Swap;
     type WeightInfo = ();
 }
 
@@ -177,13 +208,14 @@ impl parami_ad::Config for Test {
 pub fn new_test_ext() -> sp_io::TestExternalities {
     let alice = sr25519::Public([1; 32]);
     let bob = sr25519::Public([2; 32]);
+    let charlie = sr25519::Public([3; 32]);
 
     let mut t = system::GenesisConfig::default()
         .build_storage::<Test>()
         .unwrap();
 
     pallet_balances::GenesisConfig::<Test> {
-        balances: vec![(alice, 100)],
+        balances: vec![(alice, 100), (bob, 3_000_000), (charlie, 3_000_000)],
     }
     .assimilate_storage(&mut t)
     .unwrap();
@@ -192,6 +224,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         ids: vec![
             (alice, DID::from_slice(&[0xff; 20])),
             (bob, DID::from_slice(&[0xee; 20])),
+            (charlie, DID::from_slice(&[0xdd; 20])),
         ],
     }
     .assimilate_storage(&mut t)
