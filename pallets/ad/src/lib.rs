@@ -19,14 +19,14 @@ mod types;
 use frame_support::{
     dispatch::DispatchResult,
     ensure,
-    traits::{Currency, ExistenceRequirement::KeepAlive, StoredMap},
+    traits::{fungibles::Transfer, Currency, ExistenceRequirement::KeepAlive, StoredMap},
     weights::Weight,
     PalletId,
 };
 use parami_did::Pallet as Did;
 use parami_traits::Swaps;
 use sp_runtime::{
-    traits::{AccountIdConversion, Hash, One, Saturating},
+    traits::{AccountIdConversion, Hash, One, Saturating, Zero},
     DispatchError,
 };
 use sp_std::prelude::*;
@@ -52,6 +52,9 @@ pub mod pallet {
     pub trait Config: frame_system::Config + parami_did::Config {
         /// The overarching event type
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+
+        /// The assets trait to pay rewards
+        type Assets: Transfer<Self::AccountId, AssetId = Self::AssetId, Balance = BalanceOf<Self>>;
 
         /// The pallet id, used for deriving "pot" accounts of budgets
         #[pallet::constant]
@@ -138,6 +141,7 @@ pub mod pallet {
     #[pallet::error]
     pub enum Error<T> {
         Deadline,
+        DidNotExists,
         InsufficientBalance,
         NotExists,
         NotMinted,
@@ -368,8 +372,9 @@ pub mod pallet {
         pub fn pay(
             origin: OriginFor<T>,
             id: HashOf<T>,
-            slot: T::DecentralizedId,
+            kol: T::DecentralizedId,
             visitor: T::DecentralizedId,
+            tags: Vec<(Vec<u8>, i8)>,
             referer: Option<T::DecentralizedId>,
         ) -> DispatchResult {
             let (did, _) = T::CallOrigin::ensure_origin(origin)?;
@@ -380,12 +385,41 @@ pub mod pallet {
             ensure!(meta.deadline > height, Error::<T>::Deadline);
 
             // 1. get slot, check current ad
+            let mut slot = <SlotOf<T>>::get(&kol).ok_or(Error::<T>::NotExists)?;
+            ensure!(slot.ad == id, Error::<T>::Underbid);
 
             // 2. scoring visitor
 
+            // TODO: todo!()
+
+            let amount = T::Currency::minimum_balance();
+
             // 3. payout assets
 
-            todo!()
+            let visitor = Did::<T>::lookup_did(visitor).ok_or(Error::<T>::DidNotExists)?;
+
+            let award = if let Some(referer) = referer {
+                let rate = meta.reward_rate.into();
+                let award = amount.saturating_mul(rate) / 100u32.into();
+
+                let referer = Did::<T>::lookup_did(referer).ok_or(Error::<T>::DidNotExists)?;
+
+                T::Assets::transfer(slot.nft, &meta.pot, &referer, award, false)?;
+
+                award
+            } else {
+                Zero::zero()
+            };
+
+            let reward = amount.saturating_sub(award);
+
+            T::Assets::transfer(slot.nft, &meta.pot, &visitor, reward, false)?;
+
+            slot.remain.saturating_reduce(amount);
+
+            <SlotOf<T>>::insert(&kol, slot);
+
+            Ok(())
         }
     }
 }
@@ -401,15 +435,13 @@ impl<T: Config> Pallet<T> {
                 continue;
             }
 
-            let slot = <SlotOf<T>>::get(&kol);
+            let slot = <SlotOf<T>>::get(&kol).ok_or(Error::<T>::NotExists)?;
 
-            if let Some(slot) = slot {
-                if slot.ad != ad {
-                    continue;
-                }
-
-                Self::drawback(&kol, slot)?;
+            if slot.ad != ad {
+                continue;
             }
+
+            Self::drawback(&kol, slot)?;
         }
 
         Ok(weight)

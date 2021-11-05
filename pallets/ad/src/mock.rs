@@ -198,6 +198,7 @@ parameter_types! {
 
 impl parami_ad::Config for Test {
     type Event = Event;
+    type Assets = Assets;
     type PalletId = AdPalletId;
     type Swaps = Swap;
     type TagsStore = parami_tag::Pallet<Self>;

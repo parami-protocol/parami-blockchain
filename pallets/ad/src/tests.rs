@@ -374,3 +374,60 @@ fn should_deposit() {
         assert_eq!(Balances::free_balance(meta.pot), 70);
     });
 }
+
+#[test]
+fn should_pay() {
+    new_test_ext().execute_with(|| {
+        let alice = sr25519::Public([1; 32]);
+        let kol = DID::from_slice(&[0xff; 20]);
+
+        let bob = sr25519::Public([2; 32]);
+
+        let charlie = sr25519::Public([3; 32]);
+        let did = DID::from_slice(&[0xdd; 20]);
+
+        // 1. prepare
+
+        assert_ok!(Nft::back(Origin::signed(bob), kol, 2_000_100u128));
+
+        assert_ok!(Nft::mint(
+            Origin::signed(alice),
+            b"Test Token".to_vec(),
+            b"XTT".to_vec()
+        ));
+
+        // create ad
+
+        assert_ok!(Ad::create(
+            Origin::signed(bob),
+            500,
+            vec![],
+            [0u8; 64].into(),
+            1,
+            1
+        ));
+
+        let ad = <Metadata<Test>>::iter_keys().next().unwrap();
+
+        // bid
+
+        assert_ok!(Ad::bid(Origin::signed(bob), ad, kol, 400));
+
+        let meta = <Metadata<Test>>::get(&ad).unwrap();
+        let slot = <SlotOf<Test>>::get(&kol).unwrap();
+        assert_eq!(slot.budget, 199);
+        assert_eq!(slot.remain, 199);
+
+        ensure_remain!(meta, 100, slot.remain);
+
+        // 2. pay
+
+        assert_ok!(Ad::pay(Origin::signed(bob), ad, kol, did, vec![], None));
+
+        let slot = <SlotOf<Test>>::get(&kol).unwrap();
+        assert_eq!(slot.remain, 198);
+        assert_eq!(Assets::balance(0, &meta.pot), 198);
+
+        assert_eq!(Assets::balance(0, &charlie), 1);
+    });
+}
