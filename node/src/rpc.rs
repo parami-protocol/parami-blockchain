@@ -7,7 +7,7 @@
 
 use std::sync::Arc;
 
-use parami_runtime::{opaque::Block, AccountId, Balance, BlockNumber, Hash, Index};
+use parami_runtime::{opaque::Block, AccountId, AssetId, Balance, BlockNumber, Hash, Index};
 use sc_client_api::AuxStore;
 use sc_consensus_babe::{Config, Epoch};
 use sc_consensus_babe_rpc::BabeRpcHandler;
@@ -87,6 +87,7 @@ where
     C::Api: pallet_contracts_rpc::ContractsRuntimeApi<Block, AccountId, Balance, BlockNumber, Hash>,
     C::Api: pallet_mmr_rpc::MmrRuntimeApi<Block, <Block as sp_runtime::traits::Block>::Hash>,
     C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
+    C::Api: parami_swap_rpc::SwapRuntimeApi<Block, AssetId, Balance>,
     C::Api: BabeApi<Block>,
     C::Api: BlockBuilder<Block>,
     P: TransactionPool + 'static,
@@ -97,6 +98,7 @@ where
     use pallet_contracts_rpc::{Contracts, ContractsApi};
     use pallet_mmr_rpc::{Mmr, MmrApi};
     use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApi};
+    use parami_swap_rpc::{SwapApi, SwapsRpcHandler};
     use substrate_frame_rpc_system::{FullSystem, SystemApi};
 
     let mut io = jsonrpc_core::IoHandler::default();
@@ -155,6 +157,8 @@ where
             finality_provider,
         ),
     ));
+
+    io.extend_with(SwapApi::to_delegate(SwapsRpcHandler::new(client.clone())));
 
     io.extend_with(sc_sync_state_rpc::SyncStateRpcApi::to_delegate(
         sc_sync_state_rpc::SyncStateRpcHandler::new(

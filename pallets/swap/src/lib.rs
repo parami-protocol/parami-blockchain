@@ -31,13 +31,15 @@ use frame_support::{
     PalletId,
 };
 use parami_traits::Swaps;
+use sp_core::U512;
 use sp_runtime::{
-    traits::{
-        AccountIdConversion, AtLeast32BitUnsigned, Bounded, CheckedSub, One, Saturating, Zero,
-    },
+    traits::{AccountIdConversion, AtLeast32BitUnsigned, Bounded, Saturating, Zero},
     DispatchError,
 };
-use sp_std::prelude::*;
+use sp_std::{
+    convert::{TryFrom, TryInto},
+    prelude::*,
+};
 
 use weights::WeightInfo;
 
@@ -64,7 +66,13 @@ pub mod pallet {
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
         /// Fungible token ID type
-        type AssetId: Parameter + Member + AtLeast32BitUnsigned + Default + Copy + Bounded;
+        type AssetId: Parameter
+            + Member
+            + MaybeSerializeDeserialize
+            + AtLeast32BitUnsigned
+            + Default
+            + Bounded
+            + Copy;
 
         /// The assets trait to create, mint, and transfer fungible tokens
         type Assets: FungCreate<Self::AccountId, AssetId = Self::AssetId>
@@ -118,15 +126,14 @@ pub mod pallet {
     pub enum Error<T> {
         Deadline,
         Exists,
-        NoAvailableTokenId,
         NoLiquidity,
         NotExists,
+        Overflow,
+        TooExpensiveCurrency,
+        TooExpensiveTokens,
         TooLowCurrency,
         TooLowLiquidity,
         TooLowTokens,
-        TooManyTokens,
-        TooExpensiveTokens,
-        TooExpensiveCurrency,
         ZeroCurrency,
         ZeroLiquidity,
         ZeroTokens,
@@ -333,25 +340,96 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
+    fn try_into<S, D>(value: S) -> Result<D, Error<T>>
+    where
+        S: TryInto<u128>,
+        D: TryFrom<u128>,
+    {
+        let value: u128 = value.try_into().map_err(|_| Error::<T>::Overflow)?;
+
+        value.try_into().map_err(|_| Error::<T>::Overflow)
+    }
+
+    fn calculate_liquidity(
+        currency: BalanceOf<T>,
+        max_tokens: BalanceOf<T>,
+        total_quote: BalanceOf<T>,
+        total_token: BalanceOf<T>,
+        total_liquidity: BalanceOf<T>,
+    ) -> Result<(BalanceOf<T>, BalanceOf<T>), Error<T>> {
+        if total_liquidity <= Zero::zero() {
+            return Ok((max_tokens, currency));
+        }
+
+        let currency: U512 = Self::try_into(currency)?;
+        let total_quote: U512 = Self::try_into(total_quote)?;
+        let total_token: U512 = Self::try_into(total_token)?;
+        let total_liquidity: U512 = Self::try_into(total_liquidity)?;
+
+        let tokens = currency * total_token / total_quote;
+        let liquidity = currency * total_liquidity / total_quote;
+
+        let tokens = Self::try_into(tokens)?;
+        let liquidity = Self::try_into(liquidity)?;
+
+        Ok((tokens, liquidity))
+    }
+
+    fn calculate_solidness(
+        liquidity: BalanceOf<T>,
+        total_quote: BalanceOf<T>,
+        total_token: BalanceOf<T>,
+        total_liquidity: BalanceOf<T>,
+    ) -> Result<(BalanceOf<T>, BalanceOf<T>), Error<T>> {
+        let liquidity: U512 = Self::try_into(liquidity)?;
+        let total_quote: U512 = Self::try_into(total_quote)?;
+        let total_token: U512 = Self::try_into(total_token)?;
+        let total_liquidity: U512 = Self::try_into(total_liquidity)?;
+
+        let currency = liquidity * total_quote / total_liquidity;
+        let tokens = liquidity * total_token / total_liquidity;
+
+        let currency = Self::try_into(currency)?;
+        let tokens = Self::try_into(tokens)?;
+
+        Ok((currency, tokens))
+    }
+
     fn price_buy(
         output_amount: BalanceOf<T>,
         input_reserve: BalanceOf<T>,
         output_reserve: BalanceOf<T>,
-    ) -> BalanceOf<T> {
-        let numerator = input_reserve * output_amount * 1000u32.into();
-        let denominator = (output_reserve - output_amount) * 997u32.into();
-        numerator / denominator + 1u32.into()
+    ) -> Result<BalanceOf<T>, Error<T>> {
+        let output_amount: U512 = Self::try_into(output_amount)?;
+        let input_reserve: U512 = Self::try_into(input_reserve)?;
+        let output_reserve: U512 = Self::try_into(output_reserve)?;
+
+        let numerator = input_reserve * output_amount * U512::from(1000);
+        let denominator = (output_reserve - output_amount) * U512::from(997);
+        let result = numerator / denominator + U512::from(1);
+
+        let result = Self::try_into(result)?;
+
+        Ok(result)
     }
 
     fn price_sell(
         input_amount: BalanceOf<T>,
         input_reserve: BalanceOf<T>,
         output_reserve: BalanceOf<T>,
-    ) -> BalanceOf<T> {
-        let input_amount_with_fee = input_amount * 997u32.into();
+    ) -> Result<BalanceOf<T>, Error<T>> {
+        let input_amount: U512 = Self::try_into(input_amount)?;
+        let input_reserve: U512 = Self::try_into(input_reserve)?;
+        let output_reserve: U512 = Self::try_into(output_reserve)?;
+
+        let input_amount_with_fee = input_amount * U512::from(997);
         let numerator = input_amount_with_fee * output_reserve;
-        let denominator = (input_reserve * 1000u32.into()) + input_amount_with_fee;
-        numerator / denominator
+        let denominator = (input_reserve * U512::from(1000)) + input_amount_with_fee;
+        let result = numerator / denominator;
+
+        let result = Self::try_into(result)?;
+
+        Ok(result)
     }
 }
 
@@ -375,11 +453,9 @@ impl<T: Config> Swaps for Pallet<T> {
         let mut symbol = T::Assets::symbol(&token_id);
         symbol.extend_from_slice(b"/AD3");
 
-        let lp_token_id = <NextLpId<T>>::try_mutate(|id| -> Result<T::AssetId, DispatchError> {
+        let lp_token_id = <NextLpId<T>>::try_mutate(|id| -> Result<T::AssetId, Error<T>> {
             let current_id = *id;
-            *id = id
-                .checked_sub(&One::one())
-                .ok_or(Error::<T>::NoAvailableTokenId)?;
+            id.saturating_dec();
             Ok(current_id)
         })?;
 
@@ -411,6 +487,35 @@ impl<T: Config> Swaps for Pallet<T> {
         Ok(token_id)
     }
 
+    fn mint_dry(
+        token_id: Self::AssetId,
+        currency: Self::QuoteBalance,
+        max_tokens: Self::TokenBalance,
+    ) -> Result<
+        (
+            Self::AssetId,      // token_id
+            Self::TokenBalance, // token
+            Self::AssetId,      // lp_token_id
+            Self::TokenBalance, // liquidity
+            Self::AccountId,    // pot
+        ),
+        DispatchError,
+    > {
+        let meta = <Metadata<T>>::get(&token_id).ok_or(Error::<T>::NotExists)?;
+
+        let total_liquidity = T::Assets::total_issuance(meta.lp_token_id);
+
+        let (tokens, liquidity) = Self::calculate_liquidity(
+            currency,
+            max_tokens,
+            meta.quote,
+            meta.token,
+            total_liquidity,
+        )?;
+
+        Ok((token_id, tokens, meta.lp_token_id, liquidity, meta.pot))
+    }
+
     fn mint(
         who: &Self::AccountId,
         token_id: Self::AssetId,
@@ -420,43 +525,67 @@ impl<T: Config> Swaps for Pallet<T> {
         keep_alive: bool,
     ) -> Result<(Self::QuoteBalance, Self::TokenBalance), DispatchError> {
         ensure!(currency > Zero::zero(), Error::<T>::ZeroCurrency);
+        ensure!(min_liquidity > Zero::zero(), Error::<T>::ZeroLiquidity);
         ensure!(max_tokens > Zero::zero(), Error::<T>::ZeroTokens);
 
-        let mut meta = <Metadata<T>>::get(&token_id).ok_or(Error::<T>::NotExists)?;
+        let (
+            token_id,
+            tokens,
+            lp_token_id,
+            liquidity,
+            pot, //
+        ) = Self::mint_dry(token_id, currency, max_tokens)?;
 
-        let total_liquidity = T::Assets::total_issuance(meta.lp_token_id);
-
-        let (tokens, liquidity) = if total_liquidity > Zero::zero() {
-            ensure!(min_liquidity > Zero::zero(), Error::<T>::ZeroLiquidity);
-
-            let tokens = currency * meta.token / meta.quote;
-            let liquidity = currency * total_liquidity / meta.quote;
-
-            (tokens, liquidity)
-        } else {
-            // Fresh swap with no liquidity
-            (max_tokens, currency)
-        };
-
-        ensure!(max_tokens >= tokens, Error::<T>::TooManyTokens);
+        ensure!(max_tokens >= tokens, Error::<T>::TooExpensiveCurrency);
         ensure!(liquidity >= min_liquidity, Error::<T>::TooLowLiquidity);
 
         T::Currency::transfer(
             &who,
-            &meta.pot,
+            &pot,
             currency,
             if keep_alive { KeepAlive } else { AllowDeath },
         )?;
-        T::Assets::transfer(token_id, &who, &meta.pot, tokens, keep_alive)?;
+        T::Assets::transfer(token_id, &who, &pot, tokens, keep_alive)?;
 
-        T::Assets::mint_into(meta.lp_token_id, &who, liquidity)?;
+        T::Assets::mint_into(lp_token_id, &who, liquidity)?;
 
-        meta.quote.saturating_accrue(currency);
-        meta.token.saturating_accrue(tokens);
-
-        <Metadata<T>>::insert(token_id, meta);
+        <Metadata<T>>::mutate(&token_id, |maybe_meta| {
+            if let Some(meta) = maybe_meta {
+                meta.quote.saturating_accrue(currency);
+                meta.token.saturating_accrue(tokens);
+            }
+        });
 
         Ok((currency, tokens))
+    }
+
+    fn burn_dry(
+        token_id: Self::AssetId,
+        liquidity: Self::TokenBalance,
+    ) -> Result<
+        (
+            Self::AssetId,
+            Self::TokenBalance,
+            Self::AssetId,
+            Self::QuoteBalance,
+            Self::AccountId,
+        ),
+        DispatchError,
+    > {
+        let meta = <Metadata<T>>::get(&token_id).ok_or(Error::<T>::NotExists)?;
+
+        let total_liquidity = T::Assets::total_issuance(meta.lp_token_id);
+
+        ensure!(total_liquidity > Zero::zero(), Error::<T>::NoLiquidity);
+
+        let (currency, tokens) = Self::calculate_solidness(
+            liquidity, //
+            meta.quote,
+            meta.token,
+            total_liquidity,
+        )?;
+
+        Ok((token_id, tokens, meta.lp_token_id, currency, meta.pot))
     }
 
     fn burn(
@@ -468,27 +597,22 @@ impl<T: Config> Swaps for Pallet<T> {
     ) -> Result<(Self::QuoteBalance, Self::TokenBalance), DispatchError> {
         ensure!(liquidity > Zero::zero(), Error::<T>::ZeroLiquidity);
 
-        let mut meta = <Metadata<T>>::get(&token_id).ok_or(Error::<T>::NotExists)?;
-
-        let total_liquidity = T::Assets::total_issuance(meta.lp_token_id);
-
-        ensure!(total_liquidity > Zero::zero(), Error::<T>::NoLiquidity);
-
-        let currency = liquidity * meta.quote / total_liquidity;
-        let tokens = liquidity * meta.token / total_liquidity;
+        let (token_id, tokens, lp_token_id, currency, pot) = Self::burn_dry(token_id, liquidity)?;
 
         ensure!(currency >= min_currency, Error::<T>::TooLowCurrency);
         ensure!(tokens >= min_tokens, Error::<T>::TooLowTokens);
 
-        T::Assets::slash(meta.lp_token_id, &who, liquidity)?;
+        T::Assets::slash(lp_token_id, &who, liquidity)?;
 
-        T::Assets::transfer(token_id, &meta.pot, &who, tokens, false)?;
-        T::Currency::transfer(&meta.pot, &who, currency, AllowDeath)?;
+        T::Assets::transfer(token_id, &pot, &who, tokens, false)?;
+        T::Currency::transfer(&pot, &who, currency, AllowDeath)?;
 
-        meta.quote.saturating_reduce(currency);
-        meta.token.saturating_reduce(tokens);
-
-        <Metadata<T>>::insert(token_id, meta);
+        <Metadata<T>>::mutate(&token_id, |maybe_meta| {
+            if let Some(meta) = maybe_meta {
+                meta.quote.saturating_reduce(currency);
+                meta.token.saturating_reduce(tokens);
+            }
+        });
 
         Ok((currency, tokens))
     }
@@ -499,7 +623,7 @@ impl<T: Config> Swaps for Pallet<T> {
     ) -> Result<(Self::QuoteBalance, Self::AccountId), DispatchError> {
         let meta = <Metadata<T>>::get(&token_id).ok_or(Error::<T>::NotExists)?;
 
-        let currency_sold = Self::price_buy(tokens, meta.quote, meta.token);
+        let currency_sold = Self::price_buy(tokens, meta.quote, meta.token)?;
 
         Ok((currency_sold, meta.pot))
     }
@@ -545,7 +669,7 @@ impl<T: Config> Swaps for Pallet<T> {
     ) -> Result<(Self::QuoteBalance, Self::AccountId), DispatchError> {
         let meta = <Metadata<T>>::get(&token_id).ok_or(Error::<T>::NotExists)?;
 
-        let currency_bought = Self::price_sell(tokens, meta.token, meta.quote);
+        let currency_bought = Self::price_sell(tokens, meta.token, meta.quote)?;
 
         Ok((currency_bought, meta.pot))
     }
@@ -584,7 +708,7 @@ impl<T: Config> Swaps for Pallet<T> {
     ) -> Result<(Self::TokenBalance, Self::AccountId), DispatchError> {
         let meta = <Metadata<T>>::get(&token_id).ok_or(Error::<T>::NotExists)?;
 
-        let tokens_bought = Self::price_sell(currency, meta.quote, meta.token);
+        let tokens_bought = Self::price_sell(currency, meta.quote, meta.token)?;
 
         Ok((tokens_bought, meta.pot))
     }
@@ -628,7 +752,7 @@ impl<T: Config> Swaps for Pallet<T> {
     ) -> Result<(Self::TokenBalance, Self::AccountId), DispatchError> {
         let meta = <Metadata<T>>::get(&token_id).ok_or(Error::<T>::NotExists)?;
 
-        let tokens_sold = Self::price_buy(currency, meta.token, meta.quote);
+        let tokens_sold = Self::price_buy(currency, meta.token, meta.quote)?;
 
         Ok((tokens_sold, meta.pot))
     }

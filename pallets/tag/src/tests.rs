@@ -42,7 +42,7 @@ fn should_fail_when_insufficient() {
     new_test_ext().execute_with(|| {
         let bob = sr25519::Public([2; 32]);
 
-        <Test as Config>::Currency::make_free_balance_be(&bob, 1);
+        Balances::make_free_balance_be(&bob, 1);
 
         assert_eq!(Balances::free_balance(bob), 1);
         assert_eq!(Balances::total_issuance(), 101);

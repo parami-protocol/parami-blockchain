@@ -23,6 +23,9 @@ branch = 'polkadot-v0.9.12'
 [dependencies.parami-runtime]
 path = '../runtime'
 
+[dependencies.parami-swap-rpc]
+path = '../pallets/swap/rpc'
+
 [dependencies]
 jsonrpc-core = '18.0.0'
 rand = '0.7'

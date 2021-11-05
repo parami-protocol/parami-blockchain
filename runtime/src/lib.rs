@@ -7,6 +7,8 @@
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 use codec::{Decode, Encode};
+use parami_swap_rpc_runtime_api::BalanceWrapper;
+use parami_traits::Swaps;
 use sp_api::impl_runtime_apis;
 use sp_core::{
     crypto::KeyTypeId,
@@ -970,6 +972,7 @@ impl OnUnbalanced<NegativeImbalance> for DealWithFees {
                 // for tips, if any, 80% to treasury, 20% to author (though this can be anything)
                 tips.ration_merge_into(80, 20, &mut split);
             }
+
             Treasury::on_unbalanced(split.0);
             Author::on_unbalanced(split.1);
         }
@@ -1328,10 +1331,7 @@ impl_runtime_apis! {
             data.create_extrinsics()
         }
 
-        fn check_inherents(
-            block: Block,
-            data: InherentData,
-        ) -> CheckInherentsResult {
+        fn check_inherents(block: Block, data: InherentData) -> CheckInherentsResult {
             data.check_extrinsics(&block)
         }
     }
@@ -1379,11 +1379,7 @@ impl_runtime_apis! {
             key_owner_proof: sp_consensus_babe::OpaqueKeyOwnershipProof,
         ) -> Option<()> {
             let key_owner_proof = key_owner_proof.decode()?;
-
-            Babe::submit_unsigned_equivocation_report(
-                equivocation_proof,
-                key_owner_proof,
-            )
+            Babe::submit_unsigned_equivocation_report(equivocation_proof, key_owner_proof)
         }
     }
 
@@ -1398,9 +1394,7 @@ impl_runtime_apis! {
             opaque::SessionKeys::generate(seed)
         }
 
-        fn decode_session_keys(
-            encoded: Vec<u8>,
-        ) -> Option<Vec<(Vec<u8>, KeyTypeId)>> {
+        fn decode_session_keys(encoded: Vec<u8>) -> Option<Vec<(Vec<u8>, KeyTypeId)>> {
             opaque::SessionKeys::decode_into_raw_public_keys(&encoded)
         }
     }
@@ -1432,11 +1426,7 @@ impl_runtime_apis! {
             key_owner_proof: fg_primitives::OpaqueKeyOwnershipProof,
         ) -> Option<()> {
             let key_owner_proof = key_owner_proof.decode()?;
-
-            Grandpa::submit_unsigned_equivocation_report(
-                equivocation_proof,
-                key_owner_proof,
-            )
+            Grandpa::submit_unsigned_equivocation_report(equivocation_proof, key_owner_proof)
         }
 
         fn generate_key_ownership_proof(
@@ -1455,9 +1445,7 @@ impl_runtime_apis! {
         }
     }
 
-    impl pallet_contracts_rpc_runtime_api::ContractsApi<
-        Block, AccountId, Balance, BlockNumber, Hash,
-    >
+    impl pallet_contracts_rpc_runtime_api::ContractsApi<Block, AccountId, Balance, BlockNumber, Hash>
         for Runtime
     {
         fn call(
@@ -1477,8 +1465,7 @@ impl_runtime_apis! {
             code: pallet_contracts_primitives::Code<Hash>,
             data: Vec<u8>,
             salt: Vec<u8>,
-        ) -> pallet_contracts_primitives::ContractInstantiateResult<AccountId>
-        {
+        ) -> pallet_contracts_primitives::ContractInstantiateResult<AccountId> {
             Contracts::bare_instantiate(origin, endowment, gas_limit, code, data, salt, true)
         }
 
@@ -1488,12 +1475,6 @@ impl_runtime_apis! {
         ) -> pallet_contracts_primitives::GetStorageResult {
             Contracts::get_storage(address, key)
         }
-
-        // fn rent_projection(
-        //     address: AccountId,
-        // ) -> pallet_contracts_primitives::RentProjectionResult<BlockNumber> {
-        //     Contracts::rent_projection(address)
-        // }
     }
 
     impl pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance> for Runtime {
@@ -1503,6 +1484,7 @@ impl_runtime_apis! {
         ) -> pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo<Balance> {
             TransactionPayment::query_info(uxt, len)
         }
+
         fn query_fee_details(
             uxt: <Block as BlockT>::Extrinsic,
             len: u32,
@@ -1511,20 +1493,18 @@ impl_runtime_apis! {
         }
     }
 
-    impl pallet_mmr::primitives::MmrApi<
-        Block,
-        mmr::Hash,
-    > for Runtime {
-        fn generate_proof(leaf_index: u64)
-            -> Result<(mmr::EncodableOpaqueLeaf, mmr::Proof<mmr::Hash>), mmr::Error>
-        {
+    impl pallet_mmr::primitives::MmrApi<Block, mmr::Hash> for Runtime {
+        fn generate_proof(
+            leaf_index: u64,
+        ) -> Result<(mmr::EncodableOpaqueLeaf, mmr::Proof<mmr::Hash>), mmr::Error> {
             Mmr::generate_proof(leaf_index)
                 .map(|(leaf, proof)| (mmr::EncodableOpaqueLeaf::from_leaf(&leaf), proof))
         }
 
-        fn verify_proof(leaf: mmr::EncodableOpaqueLeaf, proof: mmr::Proof<mmr::Hash>)
-            -> Result<(), mmr::Error>
-        {
+        fn verify_proof(
+            leaf: mmr::EncodableOpaqueLeaf,
+            proof: mmr::Proof<mmr::Hash>,
+        ) -> Result<(), mmr::Error> {
             let leaf: mmr::Leaf = leaf
                 .into_opaque_leaf()
                 .try_decode()
@@ -1535,10 +1515,81 @@ impl_runtime_apis! {
         fn verify_proof_stateless(
             root: mmr::Hash,
             leaf: mmr::EncodableOpaqueLeaf,
-            proof: mmr::Proof<mmr::Hash>
+            proof: mmr::Proof<mmr::Hash>,
         ) -> Result<(), mmr::Error> {
             let node = mmr::DataOrHash::Data(leaf.into_opaque_leaf());
             pallet_mmr::verify_leaf_proof::<mmr::Hashing, _>(root, node, proof)
+        }
+    }
+
+    impl parami_swap_rpc_runtime_api::SwapRuntimeApi<Block, AssetId, Balance> for Runtime {
+        fn dryly_mint(
+            token_id: AssetId,
+            currency: BalanceWrapper<Balance>,
+            tokens: BalanceWrapper<Balance>,
+        ) -> Option<(
+            AssetId,
+            BalanceWrapper<Balance>,
+            AssetId,
+            BalanceWrapper<Balance>,
+        )> {
+            Swap::mint_dry(token_id, currency.into(), tokens.into())
+                .map(|(token_id, tokens, lp_token_id, liquidity, _)| {
+                    (token_id, tokens.into(), lp_token_id, liquidity.into())
+                })
+                .ok()
+        }
+
+        fn dryly_burn(
+            token_id: AssetId,
+            liquidity: BalanceWrapper<Balance>,
+        ) -> Option<(
+            AssetId,
+            BalanceWrapper<Balance>,
+            AssetId,
+            BalanceWrapper<Balance>,
+        )> {
+            Swap::burn_dry(token_id, liquidity.into())
+                .map(|(token_id, tokens, lp_token_id, currency, _)| {
+                    (token_id, tokens.into(), lp_token_id, currency.into())
+                })
+                .ok()
+        }
+
+        fn dryly_token_out(
+            token_id: AssetId,
+            tokens: BalanceWrapper<Balance>,
+        ) -> Option<BalanceWrapper<Balance>> {
+            Swap::token_out_dry(token_id, tokens.into())
+                .map(|(currency, _)| currency.into())
+                .ok()
+        }
+
+        fn dryly_token_in(
+            token_id: AssetId,
+            tokens: BalanceWrapper<Balance>,
+        ) -> Option<BalanceWrapper<Balance>> {
+            Swap::token_in_dry(token_id, tokens.into())
+                .map(|(currency, _)| currency.into())
+                .ok()
+        }
+
+        fn dryly_quote_in(
+            token_id: AssetId,
+            currency: BalanceWrapper<Balance>,
+        ) -> Option<BalanceWrapper<Balance>> {
+            Swap::quote_in_dry(token_id, currency.into())
+                .map(|(tokens, _)| tokens.into())
+                .ok()
+        }
+
+        fn dryly_quote_out(
+            token_id: AssetId,
+            currency: BalanceWrapper<Balance>,
+        ) -> Option<BalanceWrapper<Balance>> {
+            Swap::quote_out_dry(token_id, currency.into())
+                .map(|(tokens, _)| tokens.into())
+                .ok()
         }
     }
 
@@ -1548,7 +1599,7 @@ impl_runtime_apis! {
             Vec<frame_benchmarking::BenchmarkList>,
             Vec<frame_support::traits::StorageInfo>,
         ) {
-            use frame_benchmarking::{list_benchmark, Benchmarking, BenchmarkList};
+            use frame_benchmarking::{list_benchmark, BenchmarkList, Benchmarking};
             use frame_support::traits::StorageInfoTrait;
             use frame_system_benchmarking::Pallet as SystemBench;
 
@@ -1589,14 +1640,13 @@ impl_runtime_apis! {
 
             let storage_info = AllPalletsWithSystem::storage_info();
 
-            return (list, storage_info)
+            (list, storage_info)
         }
 
         fn dispatch_benchmark(
-            config: frame_benchmarking::BenchmarkConfig
+            config: frame_benchmarking::BenchmarkConfig,
         ) -> Result<Vec<frame_benchmarking::BenchmarkBatch>, sp_runtime::RuntimeString> {
-            use frame_benchmarking::{Benchmarking, BenchmarkBatch, add_benchmark, TrackedStorageKey};
-
+            use frame_benchmarking::{add_benchmark, BenchmarkBatch, Benchmarking, TrackedStorageKey};
             use frame_system_benchmarking::Pallet as SystemBench;
             impl frame_system_benchmarking::Config for Runtime {}
 
@@ -1649,7 +1699,10 @@ impl_runtime_apis! {
             add_benchmark!(params, batches, parami_magic, Magic);
             add_benchmark!(params, batches, parami_tag, Tag);
 
-            if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
+            if batches.is_empty() {
+                return Err("Benchmark not found for this pallet.".into());
+            }
+
             Ok(batches)
         }
     }

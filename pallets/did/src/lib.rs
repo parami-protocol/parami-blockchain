@@ -51,7 +51,13 @@ pub mod pallet {
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
         /// Non-Fungible Token and fragments (fungible token) ID type used to store NFT Class ID in metadata
-        type AssetId: Parameter + Member + AtLeast32BitUnsigned + Default + Copy + Bounded;
+        type AssetId: Parameter
+            + Member
+            + MaybeSerializeDeserialize
+            + AtLeast32BitUnsigned
+            + Default
+            + Bounded
+            + Copy;
 
         /// Deposit to create a new DID
         #[pallet::constant]

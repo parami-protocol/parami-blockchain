@@ -1,5 +1,8 @@
 use crate::{mock::*, Config, Error, Metadata};
-use frame_support::{assert_noop, assert_ok, traits::tokens::fungibles::Mutate as FungMutate};
+use frame_support::{
+    assert_noop, assert_ok,
+    traits::{tokens::fungibles::Mutate as FungMutate, Currency},
+};
 use sp_core::sr25519;
 
 macro_rules! ensure_balance {
@@ -60,7 +63,7 @@ fn should_add_liquidity() {
             Origin::signed(alice),
             token,
             200,
-            0,
+            200,
             20,
             100,
         ));
@@ -113,7 +116,7 @@ fn should_remove_liquidity() {
             Origin::signed(alice),
             token,
             200,
-            0,
+            200,
             20,
             100,
         ));
@@ -167,7 +170,7 @@ fn should_buy_tokens() {
             Origin::signed(alice),
             token,
             420,
-            0,
+            420,
             42,
             100,
         ));
@@ -204,7 +207,7 @@ fn should_sell_tokens() {
             Origin::signed(alice),
             token,
             420,
-            0,
+            420,
             42,
             100,
         ));
@@ -243,7 +246,7 @@ fn should_sell_currency() {
             Origin::signed(alice),
             token,
             420,
-            0,
+            420,
             42,
             100,
         ));
@@ -286,7 +289,7 @@ fn should_buy_currency() {
             Origin::signed(alice),
             token,
             420,
-            0,
+            420,
             42,
             100,
         ));
@@ -315,5 +318,52 @@ fn should_buy_currency() {
         assert_eq!(Balances::free_balance(&alice), 10000 - 420 + 135);
         assert_eq!(Assets::balance(token, &alice), 2 + 42 - 20);
         assert_eq!(Assets::balance(meta.lp_token_id, &alice), 420);
+    });
+}
+
+#[test]
+fn should_not_overflow() {
+    new_test_ext().execute_with(|| {
+        let token = 0;
+
+        let alice = sr25519::Public([1; 32]);
+
+        assert_ok!(Assets::create(Origin::signed(alice), token, alice, 1));
+
+        Balances::make_free_balance_be(&alice, 3_000_000_000_000_000_000_000_000_000u128);
+        assert_ok!(Assets::mint_into(
+            token,
+            &alice,
+            3_000_000_000_000_000_000_000_000_000u128
+        ));
+
+        assert_ok!(Swap::create(Origin::signed(alice), token));
+
+        assert_ok!(Swap::add_liquidity(
+            Origin::signed(alice),
+            token,
+            2_000_000_000_000_000_000_000_000_000u128,
+            2_000_000_000_000_000_000_000_000_000u128,
+            200_000_000_000_000_000_000_000_000u128,
+            100,
+        ));
+
+        assert_ok!(Swap::remove_liquidity(
+            Origin::signed(alice),
+            token,
+            2_000_000_000_000_000_000_000_000_000u128,
+            2_000_000_000_000_000_000_000_000_000u128,
+            200_000_000_000_000_000_000_000_000u128,
+            100,
+        ));
+
+        assert_eq!(
+            Balances::free_balance(&alice),
+            3_000_000_000_000_000_000_000_000_000u128
+        );
+        assert_eq!(
+            Assets::balance(token, &alice),
+            3_000_000_000_000_000_000_000_000_000u128
+        );
     });
 }

@@ -1,0 +1,48 @@
+[package]
+authors = ['Parami Devs <info@parami.io>']
+edition = '2018'
+homepage = 'https://parami.io'
+license = 'GPL-3.0-only WITH Classpath-exception-2.0'
+name = 'parami-swap-rpc'
+publish = false
+repository = 'https://github.com/parami-protocol/parami-blockchain/'
+version = '3.0.0'
+
+[package.metadata.docs.rs]
+targets = ['x86_64-unknown-linux-gnu']
+
+[dependencies.parami-swap-rpc-runtime-api]
+path = 'runtime-api'
+
+[dependencies.codec]
+features = ['derive']
+package = 'parity-scale-codec'
+version = '2.2.0'
+
+[dependencies.parami-traits]
+path = '../../traits'
+
+[dependencies]
+jsonrpc-core = '18.0.0'
+jsonrpc-core-client = '18.0.0'
+jsonrpc-derive = '18.0.0'
+
+[dependencies.sp-api]
+git = 'https://github.com/paritytech/substrate.git'
+branch = 'polkadot-v0.9.12'
+
+[dependencies.sp-blockchain]
+git = 'https://github.com/paritytech/substrate.git'
+branch = 'polkadot-v0.9.12'
+
+[dependencies.sp-core]
+git = 'https://github.com/paritytech/substrate.git'
+branch = 'polkadot-v0.9.12'
+
+[dependencies.sp-rpc]
+git = 'https://github.com/paritytech/substrate.git'
+branch = 'polkadot-v0.9.12'
+
+[dependencies.sp-runtime]
+git = 'https://github.com/paritytech/substrate.git'
+branch = 'polkadot-v0.9.12'

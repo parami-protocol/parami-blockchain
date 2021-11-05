@@ -29,7 +29,7 @@ use frame_support::{
 use orml_nft::Pallet as Nft;
 use parami_did::{EnsureDid, Pallet as Did};
 use parami_traits::Swaps;
-use sp_runtime::traits::{Saturating, Zero};
+use sp_runtime::traits::Saturating;
 use sp_std::prelude::*;
 
 use weights::WeightInfo;
@@ -210,7 +210,7 @@ pub mod pallet {
             // 4. transfer third of initial minting to swap
 
             T::Swaps::new(&meta.pot, cid)?;
-            T::Swaps::mint(&meta.pot, cid, deposit, Zero::zero(), initial, false)?;
+            T::Swaps::mint(&meta.pot, cid, deposit, deposit, initial, false)?;
 
             meta.nft = Some(cid);
 
