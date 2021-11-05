@@ -47,8 +47,10 @@ pub mod pallet {
     pub trait Config: frame_system::Config {
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
+        /// The currency trait
         type Currency: Currency<Self::AccountId>;
 
+        /// The DID type
         type DecentralizedId: Parameter
             + Member
             + MaybeSerializeDeserialize
@@ -61,18 +63,23 @@ pub mod pallet {
             + MaxEncodedLen
             + TypeInfo;
 
+        /// The hashing algorithm being used for hash map to hash tags
         type Hashing: StorageHasher;
 
+        /// Submission fee to create new tags
         #[pallet::constant]
         type SubmissionFee: Get<BalanceOf<Self>>;
 
+        /// The origin which may do calls
         type CallOrigin: EnsureOrigin<
             Self::Origin,
             Success = (Self::DecentralizedId, Self::AccountId),
         >;
 
+        /// The origin which may forcibly create tag or otherwise alter privileged attributes
         type ForceOrigin: EnsureOrigin<Self::Origin>;
 
+        /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
     }
 

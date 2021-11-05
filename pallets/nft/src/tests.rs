@@ -1,6 +1,5 @@
 use crate::{mock::*, Deposit, Deposits, Error};
 use frame_support::{assert_noop, assert_ok};
-use parami_did::Pallet as Did;
 use sp_core::sr25519;
 
 #[test]
@@ -12,7 +11,7 @@ fn should_back() {
         let did = DID::from_slice(&[0xee; 20]);
         let kol = DID::from_slice(&[0xff; 20]);
 
-        let meta = Did::<Test>::meta(&kol).unwrap();
+        let meta = Did::meta(&kol).unwrap();
 
         assert_ok!(Nft::back(Origin::signed(bob), kol, 50));
 
@@ -115,7 +114,7 @@ fn should_mint() {
             b"XTT".to_vec()
         ));
 
-        let meta = Did::<Test>::meta(&kol).unwrap();
+        let meta = Did::meta(&kol).unwrap();
         assert_eq!(meta.nft, Some(0));
     });
 }

@@ -123,6 +123,7 @@ impl parami_swap::Config for Test {
     type Assets = Assets;
     type Currency = Balances;
     type PalletId = SwapPalletId;
+    type WeightInfo = ();
 }
 
 pub fn new_test_ext() -> sp_io::TestExternalities {

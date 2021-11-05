@@ -47,15 +47,20 @@ pub mod pallet {
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
+        /// The overarching event type
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
+        /// Non-Fungible Token and fragments (fungible token) ID type used to store NFT Class ID in metadata
         type AssetId: Parameter + Member + AtLeast32BitUnsigned + Default + Copy + Bounded;
 
+        /// Deposit to create a new DID
         #[pallet::constant]
         type CreationDeposit: Get<BalanceOf<Self>>;
 
+        /// The reservable currency trait
         type Currency: NamedReservableCurrency<Self::AccountId, ReserveIdentifier = [u8; 8]>;
 
+        /// The DID type, should be 20 bytes length
         type DecentralizedId: Parameter
             + Member
             + MaybeSerializeDeserialize
@@ -75,11 +80,14 @@ pub mod pallet {
             + MaxEncodedLen
             + TypeInfo;
 
+        /// The hashing algorithm being used to create DID
         type Hashing: Hash + TypeInfo;
 
+        /// The pallet id, used for deriving "pot" accounts to receive donation
         #[pallet::constant]
         type PalletId: Get<PalletId>;
 
+        /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
     }
 

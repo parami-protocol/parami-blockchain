@@ -50,11 +50,14 @@ pub mod pallet {
 
     #[pallet::config]
     pub trait Config: frame_system::Config + parami_did::Config {
+        /// The overarching event type
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
+        /// The pallet id, used for deriving "pot" accounts of budgets
         #[pallet::constant]
         type PalletId: Get<PalletId>;
 
+        /// The swaps trait
         type Swaps: Swaps<
             AccountId = Self::AccountId,
             AssetId = Self::AssetId,
@@ -62,15 +65,19 @@ pub mod pallet {
             TokenBalance = BalanceOf<Self>,
         >;
 
+        /// The means of storing the tags and tags of advertisement
         type TagsStore: StoredMap<Vec<u8>, Vec<u8>> + StoredMap<HashOf<Self>, Vec<Vec<u8>>>;
 
+        /// The origin which may do calls
         type CallOrigin: EnsureOrigin<
             Self::Origin,
             Success = (Self::DecentralizedId, Self::AccountId),
         >;
 
+        /// The origin which may forcibly drawback or destroy an advertisement or otherwise alter privileged attributes
         type ForceOrigin: EnsureOrigin<Self::Origin>;
 
+        /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
     }
 

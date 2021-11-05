@@ -1,5 +1,5 @@
-use crate::{mock::*, Error, InfluencesOf, Metadata, PersonasOf};
-use frame_support::{assert_noop, assert_ok};
+use crate::{mock::*, Config, Error, InfluencesOf, Metadata, PersonasOf};
+use frame_support::{assert_noop, assert_ok, traits::Currency};
 use sp_core::sr25519;
 use sp_runtime::DispatchError;
 
@@ -9,7 +9,7 @@ fn should_create() {
         let alice = sr25519::Public([1; 32]);
 
         assert_eq!(Balances::free_balance(alice), 100);
-        assert_eq!(Balances::total_issuance(), 101);
+        assert_eq!(Balances::total_issuance(), 100);
 
         let tag = vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8];
 
@@ -19,7 +19,7 @@ fn should_create() {
         assert_ne!(maybe_tag, None);
 
         assert_eq!(Balances::free_balance(alice), 99);
-        assert_eq!(Balances::total_issuance(), 100);
+        assert_eq!(Balances::total_issuance(), 99);
     });
 }
 
@@ -42,6 +42,8 @@ fn should_fail_when_insufficient() {
     new_test_ext().execute_with(|| {
         let bob = sr25519::Public([2; 32]);
 
+        <Test as Config>::Currency::make_free_balance_be(&bob, 1);
+
         assert_eq!(Balances::free_balance(bob), 1);
         assert_eq!(Balances::total_issuance(), 101);
 
@@ -63,7 +65,7 @@ fn should_fail_when_insufficient() {
 #[test]
 fn should_force_create() {
     new_test_ext().execute_with(|| {
-        assert_eq!(Balances::total_issuance(), 101);
+        assert_eq!(Balances::total_issuance(), 100);
 
         let tag = vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8];
 
@@ -72,7 +74,7 @@ fn should_force_create() {
         let maybe_tag = <Metadata<Test>>::get(&tag);
         assert_ne!(maybe_tag, None);
 
-        assert_eq!(Balances::total_issuance(), 101);
+        assert_eq!(Balances::total_issuance(), 100);
     });
 }
 

@@ -54,19 +54,26 @@ pub mod pallet {
             TokenData = (),
         >
     {
+        /// The overarching event type
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
+        /// The assets trait to create, mint, and transfer fragments (fungible token)
+        /// it uses parami_did::Config::AssetId as AssetId
         type Assets: FungCreate<Self::AccountId, AssetId = Self::AssetId>
             + FungMetaMutate<Self::AccountId, AssetId = Self::AssetId>
             + FungMutate<Self::AccountId, AssetId = Self::AssetId, Balance = BalanceOf<Self>>
             + FungTransfer<Self::AccountId, AssetId = Self::AssetId, Balance = BalanceOf<Self>>;
 
+        /// The ICO value base of fragments, system will mint triple of the value
+        /// once for KOL, once to swaps, once to supporters
         #[pallet::constant]
-        type InitialMintingValue: Get<BalanceOf<Self>>;
+        type InitialMintingValueBase: Get<BalanceOf<Self>>;
 
+        /// The ICO baseline of donation for currency
         #[pallet::constant]
         type InitialMintingDeposit: Get<BalanceOf<Self>>;
 
+        /// The swaps trait
         type Swaps: Swaps<
             AccountId = Self::AccountId,
             AssetId = Self::AssetId,
@@ -74,6 +81,7 @@ pub mod pallet {
             TokenBalance = BalanceOf<Self>,
         >;
 
+        /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
     }
 
@@ -193,7 +201,7 @@ pub mod pallet {
 
             // 3. initial minting
 
-            let initial = T::InitialMintingValue::get();
+            let initial = T::InitialMintingValueBase::get();
 
             T::Assets::create(cid, meta.pot.clone(), true, minimal)?;
             T::Assets::set(cid, &meta.pot, name, symbol, 18)?;
@@ -230,7 +238,7 @@ pub mod pallet {
 
             let deposit = <Deposits<T>>::get(&kol, &did).ok_or(Error::<T>::NoTokens)?;
 
-            let initial = T::InitialMintingValue::get();
+            let initial = T::InitialMintingValueBase::get();
 
             let tokens = initial * deposit / total;
 

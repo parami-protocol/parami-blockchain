@@ -45,13 +45,13 @@ pub mod pallet {
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
-        /// The overarching event type.
+        /// The overarching event type
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
-        /// The currency mechanism.
+        /// The currency trait
         type Currency: Currency<Self::AccountId>;
 
-        /// The overarching call type.
+        /// The overarching call type
         type Call: Parameter
             + Dispatchable<Origin = Self::Origin>
             + GetDispatchInfo
@@ -59,12 +59,15 @@ pub mod pallet {
             + IsSubType<Call<Self>>
             + IsType<<Self as frame_system::Config>::Call>;
 
+        /// The value to transfer to magic account when create new stash account
         #[pallet::constant]
         type CreationFee: Get<BalanceOf<Self>>;
 
+        /// The pallet id, used for deriving stash accounts
         #[pallet::constant]
         type PalletId: Get<PalletId>;
 
+        /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
     }
 

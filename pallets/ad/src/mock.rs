@@ -152,13 +152,13 @@ impl parami_did::Config for Test {
 
 parameter_types! {
     pub const InitialMintingDeposit: Balance = 1_000_000;
-    pub const InitialMintingValue: Balance = 1_000_000;
+    pub const InitialMintingValueBase: Balance = 1_000_000;
 }
 
 impl parami_nft::Config for Test {
     type Event = Event;
     type Assets = Assets;
-    type InitialMintingValue = InitialMintingValue;
+    type InitialMintingValueBase = InitialMintingValueBase;
     type InitialMintingDeposit = InitialMintingDeposit;
     type Swaps = Swap;
     type WeightInfo = ();
@@ -174,6 +174,7 @@ impl parami_swap::Config for Test {
     type Assets = Assets;
     type Currency = Balances;
     type PalletId = SwapPalletId;
+    type WeightInfo = ();
 }
 
 parameter_types! {

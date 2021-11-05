@@ -1153,13 +1153,13 @@ impl orml_nft::Config for Runtime {
 
 parameter_types! {
     pub const InitialMintingDeposit: Balance = 1_000 * DOLLARS;
-    pub const InitialMintingValue: Balance = 1_000_000 * DOLLARS;
+    pub const InitialMintingValueBase: Balance = 1_000_000 * DOLLARS;
 }
 
 impl parami_nft::Config for Runtime {
     type Event = Event;
     type Assets = Assets;
-    type InitialMintingValue = InitialMintingValue;
+    type InitialMintingValueBase = InitialMintingValueBase;
     type InitialMintingDeposit = InitialMintingDeposit;
     type Swaps = Swap;
     type WeightInfo = parami_nft::weights::SubstrateWeight<Runtime>;
@@ -1175,6 +1175,7 @@ impl parami_swap::Config for Runtime {
     type Assets = Assets;
     type Currency = Balances;
     type PalletId = SwapPalletId;
+    type WeightInfo = parami_swap::weights::SubstrateWeight<Runtime>;
 }
 
 parameter_types! {

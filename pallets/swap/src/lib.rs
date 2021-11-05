@@ -2,6 +2,9 @@
 
 pub use pallet::*;
 
+#[rustfmt::skip]
+pub mod weights;
+
 #[cfg(test)]
 mod mock;
 
@@ -36,6 +39,8 @@ use sp_runtime::{
 };
 use sp_std::prelude::*;
 
+use weights::WeightInfo;
+
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> = <<T as Config>::Currency as Currency<AccountOf<T>>>::Balance;
 type HeightOf<T> = <T as frame_system::Config>::BlockNumber;
@@ -58,18 +63,25 @@ pub mod pallet {
     pub trait Config: frame_system::Config {
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
+        /// Fungible token ID type
         type AssetId: Parameter + Member + AtLeast32BitUnsigned + Default + Copy + Bounded;
 
+        /// The assets trait to create, mint, and transfer fungible tokens
         type Assets: FungCreate<Self::AccountId, AssetId = Self::AssetId>
             + FungMeta<Self::AccountId, AssetId = Self::AssetId>
             + FungMetaMutate<Self::AccountId, AssetId = Self::AssetId>
             + FungMutate<Self::AccountId, AssetId = Self::AssetId, Balance = BalanceOf<Self>>
             + FungTransfer<Self::AccountId, AssetId = Self::AssetId, Balance = BalanceOf<Self>>;
 
+        /// The currency trait
         type Currency: Currency<Self::AccountId>;
 
+        /// The pallet id, used for deriving liquid accounts
         #[pallet::constant]
         type PalletId: Get<PalletId>;
+
+        /// Weight information for extrinsics in this pallet.
+        type WeightInfo: WeightInfo;
     }
 
     #[pallet::pallet]

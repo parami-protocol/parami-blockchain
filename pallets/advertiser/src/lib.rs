@@ -37,18 +37,24 @@ pub mod pallet {
 
     #[pallet::config]
     pub trait Config: frame_system::Config + parami_did::Config {
+        /// The overarching event type
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
+        /// Minimal deposit to become an advertiser
         #[pallet::constant]
         type MinimalDeposit: Get<BalanceOf<Self>>;
 
+        /// The pallet id, used for deriving "pot" accounts of deposits
         #[pallet::constant]
         type PalletId: Get<PalletId>;
 
+        /// Handler for the unbalanced reduction when slashing an advertiser
         type Slash: OnUnbalanced<NegativeImbOf<Self>>;
 
+        /// The origin which may forcibly block an advertiser or otherwise alter privileged attributes
         type ForceOrigin: EnsureOrigin<Self::Origin>;
 
+        /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
     }
 
