@@ -437,7 +437,7 @@ const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(10);
 parameter_types! {
     pub TombstoneDeposit: Balance = deposit(
         1,
-        <pallet_contracts::Pallet<Runtime>>::contract_info_size(),
+        <pallet_contracts::Pallet<Runtime>>::contract_info_size().into(),
     );
     pub DepositPerContract: Balance = TombstoneDeposit::get();
     pub const DepositPerStorageByte: Balance = deposit(0, 1);
@@ -1063,18 +1063,8 @@ impl parami_advertiser::Config for Runtime {
 }
 
 parameter_types! {
-    pub const AirdropPalletId: PalletId = PalletId(*b"py/adrop");
-}
-
-impl parami_airdrop::Config for Runtime {
-    type PalletId = AirdropPalletId;
-    type Event = Event;
-    type Currency = Balances;
-}
-
-parameter_types! {
-    pub const ParamiChainId: parami_chainbridge::ChainId = 233;
     pub const ChainBridgePalletId: PalletId = PalletId(*b"chnbrdge");
+    pub const ParamiChainId: parami_chainbridge::ChainId = 233;
     pub const ProposalLifetime: BlockNumber = 50;
 }
 
@@ -1085,7 +1075,7 @@ impl parami_chainbridge::Config for Runtime {
     type ChainId = ParamiChainId;
     type PalletId = ChainBridgePalletId;
     type ProposalLifetime = ProposalLifetime;
-    type WeightInfo = ();
+    type WeightInfo = parami_chainbridge::weights::SubstrateWeight<Runtime>;
 }
 
 parameter_types! {
@@ -1239,18 +1229,17 @@ construct_runtime!(
         Utility: pallet_utility::{Pallet, Call, Event},
         Vesting: pallet_vesting::{Pallet, Call, Storage, Event<T>, Config<T>},
 
-        OrmlNft: orml_nft::{Pallet, Storage} = 100,
+        OrmlNft: orml_nft::{Pallet, Storage, Config<T>} = 100,
 
         Ad: parami_ad::{Pallet, Call, Storage, Event<T>},
-        Advertiser: parami_advertiser::{Pallet, Call, Storage, Event<T>},
-        Airdrop: parami_airdrop::{Pallet, Call, Storage, Config<T>, Event<T>},
+        Advertiser: parami_advertiser::{Pallet, Call, Storage, Config<T>, Event<T>},
         ChainBridge: parami_chainbridge::{Pallet, Call, Storage, Event<T>},
         XAssets: parami_xassets::{Pallet, Call, Event<T>},
         Did: parami_did::{Pallet, Call, Storage, Config<T>, Event<T>},
         Linker: parami_linker::{Pallet, Call, Storage, Event<T>},
         Magic: parami_magic::{Pallet, Call, Storage, Config<T>, Event<T>},
-        Nft: parami_nft::{Pallet, Call, Storage, Event<T>},
-        Swap: parami_swap::{Pallet, Call, Storage, Event<T>},
+        Nft: parami_nft::{Pallet, Call, Storage, Config<T>, Event<T>},
+        Swap: parami_swap::{Pallet, Call, Storage, Config<T>, Event<T>},
         Tag: parami_tag::{Pallet, Call, Storage, Config<T>, Event<T>},
     }
 );

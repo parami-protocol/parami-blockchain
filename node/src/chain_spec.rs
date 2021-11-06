@@ -435,10 +435,13 @@ pub fn testnet_genesis(
         },
         vesting: Default::default(),
 
-        airdrop: Default::default(),
-        ad: Default::default(),
+        orml_nft: Default::default(),
+
+        advertiser: Default::default(),
         did: Default::default(),
         magic: Default::default(),
+        nft: Default::default(),
+        swap: Default::default(),
         tag: Default::default(),
     }
 }

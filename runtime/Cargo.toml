@@ -24,9 +24,6 @@ path = '../pallets/ad'
 default-features = false
 path = '../pallets/advertiser'
 
-[dependencies.parami-airdrop]
-default-features = false
-path = '../pallets/airdrop'
 
 [dependencies.parami-chainbridge]
 default-features = false
@@ -434,7 +431,6 @@ runtime-benchmarks = [
     'pallet-vesting/runtime-benchmarks',
     'parami-ad/runtime-benchmarks',
     'parami-advertiser/runtime-benchmarks',
-    'parami-airdrop/runtime-benchmarks',
     'parami-chainbridge/runtime-benchmarks',
     'parami-xassets/runtime-benchmarks',
     'parami-did/runtime-benchmarks',
@@ -491,7 +487,6 @@ std = [
     'pallet-vesting/std',
     'parami-ad/std',
     'parami-advertiser/std',
-    'parami-airdrop/std',
     'parami-chainbridge/std',
     'parami-xassets/std',
     'parami-did/std',
