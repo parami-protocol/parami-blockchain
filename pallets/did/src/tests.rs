@@ -177,6 +177,38 @@ fn should_fail_when_revoked() {
 }
 
 #[test]
+fn should_set_avatar() {
+    new_test_ext().execute_with(|| {
+        let alice = sr25519::Public([1; 32]);
+        let did = DID::from_slice(&[0xff; 20]);
+
+        let meta = <Metadata<Test>>::get(did).unwrap();
+        assert_eq!(meta.avatar, Vec::<u8>::new());
+
+        assert_ok!(Did::set_avatar(Origin::signed(alice), vec![1, 2, 3]));
+
+        let meta = <Metadata<Test>>::get(did).unwrap();
+        assert_eq!(meta.avatar, vec![1, 2, 3]);
+    });
+}
+
+#[test]
+fn should_set_nickname() {
+    new_test_ext().execute_with(|| {
+        let alice = sr25519::Public([1; 32]);
+        let did = DID::from_slice(&[0xff; 20]);
+
+        let meta = <Metadata<Test>>::get(did).unwrap();
+        assert_eq!(meta.nickname, Vec::<u8>::new());
+
+        assert_ok!(Did::set_nickname(Origin::signed(alice), vec![1, 2, 3]));
+
+        let meta = <Metadata<Test>>::get(did).unwrap();
+        assert_eq!(meta.nickname, vec![1, 2, 3]);
+    });
+}
+
+#[test]
 fn should_ensure() {
     new_test_ext().execute_with(|| {
         use frame_support::traits::EnsureOrigin;

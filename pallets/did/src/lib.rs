@@ -126,6 +126,8 @@ pub mod pallet {
         Revoked(T::DecentralizedId),
         /// DID transferred \[did, from, to\]
         Transferred(T::DecentralizedId, T::AccountId, T::AccountId),
+        /// DID was updated \[did\]
+        Updated(T::DecentralizedId),
     }
 
     #[pallet::hooks]
@@ -186,9 +188,9 @@ pub mod pallet {
                 types::Metadata {
                     account: who.clone(),
                     pot,
-                    nft: None,
                     revoked: false,
                     created,
+                    ..Default::default()
                 },
             );
             <DidOf<T>>::insert(&who, did);
@@ -210,15 +212,11 @@ pub mod pallet {
 
             let did = <DidOf<T>>::get(&who).ok_or(Error::<T>::NotExists)?;
 
-            <Metadata<T>>::mutate(&did, |maybe| {
-                if let Some(meta) = maybe {
-                    *meta = types::Metadata {
-                        account: account.clone(),
-                        pot: meta.pot.clone(),
-                        ..*meta
-                    };
-                }
-            });
+            let mut meta = <Metadata<T>>::get(&did).ok_or(Error::<T>::NotExists)?;
+
+            meta.account = account.clone();
+
+            <Metadata<T>>::insert(&did, meta);
 
             <DidOf<T>>::remove(&who);
             <DidOf<T>>::insert(&account, did);
@@ -253,6 +251,38 @@ pub mod pallet {
 
             Ok(())
         }
+
+        /// Set avatar of a DID.
+        #[pallet::weight(T::WeightInfo::set_avatar(avatar.len() as u32))]
+        pub fn set_avatar(origin: OriginFor<T>, avatar: Vec<u8>) -> DispatchResult {
+            let (did, _) = EnsureDid::<T>::ensure_origin(origin)?;
+
+            let mut meta = <Metadata<T>>::get(&did).ok_or(Error::<T>::NotExists)?;
+
+            meta.avatar = avatar.clone();
+
+            <Metadata<T>>::insert(&did, meta);
+
+            Self::deposit_event(Event::<T>::Updated(did));
+
+            Ok(())
+        }
+
+        /// Set nickname of a DID.
+        #[pallet::weight(T::WeightInfo::set_nickname(nickname.len() as u32))]
+        pub fn set_nickname(origin: OriginFor<T>, nickname: Vec<u8>) -> DispatchResult {
+            let (did, _) = EnsureDid::<T>::ensure_origin(origin)?;
+
+            let mut meta = <Metadata<T>>::get(&did).ok_or(Error::<T>::NotExists)?;
+
+            meta.nickname = nickname.clone();
+
+            <Metadata<T>>::insert(&did, meta);
+
+            Self::deposit_event(Event::<T>::Updated(did));
+
+            Ok(())
+        }
     }
 
     #[pallet::genesis_config]
@@ -278,9 +308,8 @@ pub mod pallet {
                     types::Metadata {
                         account: id.clone(),
                         pot: T::PalletId::get().into_sub_account(&did),
-                        nft: None,
                         revoked: false,
-                        created: Default::default(),
+                        ..Default::default()
                     },
                 );
                 <DidOf<T>>::insert(&id, did);
