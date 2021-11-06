@@ -4,6 +4,8 @@ use super::*;
 use crate::Pallet as Tag;
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite, whitelisted_caller};
 use frame_system::RawOrigin;
+use parami_advertiser::Pallet as Advertiser;
+use parami_did::Pallet as Did;
 use sp_runtime::traits::{Bounded, Saturating};
 
 benchmarks! {
@@ -19,12 +21,12 @@ benchmarks! {
         let caller: T::AccountId = whitelisted_caller();
 
         let max = BalanceOf::<T>::max_value();
-        let min = <T as parami_advertiser::Config>::Currency::minimum_balance();
+        let min = <T as parami_did::Config>::Currency::minimum_balance();
         let pot = min.saturating_mul(1_000_000u32.into());
 
         <T as crate::Config>::Currency::make_free_balance_be(&caller, max);
-        parami_did::Pallet::<T>::register(RawOrigin::Signed(caller.clone()).into(), None)?;
-        parami_advertiser::Pallet::<T>::deposit(RawOrigin::Signed(caller.clone()).into(), pot)?;
+        Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), None)?;
+        Advertiser::<T>::deposit(RawOrigin::Signed(caller.clone()).into(), pot)?;
 
         let name = vec![0u8; n as usize];
     }: _(RawOrigin::Signed(caller), name.clone())

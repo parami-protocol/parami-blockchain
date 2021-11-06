@@ -281,9 +281,17 @@ impl frame_system::offchain::SigningTypes for Runtime {
 parameter_types! {
     pub const AssetDeposit: Balance = 100 * DOLLARS;
     pub const ApprovalDeposit: Balance = 1 * DOLLARS;
-    pub const StringLimit: u32 = 50;
     pub const MetadataDepositBase: Balance = 0;
     pub const MetadataDepositPerByte: Balance = 0;
+}
+
+#[cfg(not(feature = "runtime-benchmarks"))]
+parameter_types! {
+    pub const StringLimit: u32 = 50;
+}
+#[cfg(feature = "runtime-benchmarks")]
+parameter_types! {
+    pub const StringLimit: u32 = 1000;
 }
 
 impl pallet_assets::Config for Runtime {
@@ -1155,6 +1163,7 @@ impl parami_nft::Config for Runtime {
     type Assets = Assets;
     type InitialMintingValueBase = InitialMintingValueBase;
     type InitialMintingDeposit = InitialMintingDeposit;
+    type StringLimit = StringLimit;
     type Swaps = Swap;
     type WeightInfo = parami_nft::weights::SubstrateWeight<Runtime>;
 }
@@ -1512,7 +1521,7 @@ impl_runtime_apis! {
     }
 
     impl parami_swap_rpc_runtime_api::SwapRuntimeApi<Block, AssetId, Balance> for Runtime {
-        fn dryly_mint(
+        fn dryly_add_liquidity(
             token_id: AssetId,
             currency: BalanceWrapper<Balance>,
             tokens: BalanceWrapper<Balance>,
@@ -1523,13 +1532,13 @@ impl_runtime_apis! {
             BalanceWrapper<Balance>,
         )> {
             Swap::mint_dry(token_id, currency.into(), tokens.into())
-                .map(|(token_id, tokens, lp_token_id, liquidity, _)| {
+                .map(|(token_id, tokens, lp_token_id, liquidity)| {
                     (token_id, tokens.into(), lp_token_id, liquidity.into())
                 })
                 .ok()
         }
 
-        fn dryly_burn(
+        fn dryly_remove_liquidity(
             token_id: AssetId,
             liquidity: BalanceWrapper<Balance>,
         ) -> Option<(
@@ -1539,45 +1548,45 @@ impl_runtime_apis! {
             BalanceWrapper<Balance>,
         )> {
             Swap::burn_dry(token_id, liquidity.into())
-                .map(|(token_id, tokens, lp_token_id, currency, _)| {
+                .map(|(token_id, tokens, lp_token_id, currency)| {
                     (token_id, tokens.into(), lp_token_id, currency.into())
                 })
                 .ok()
         }
 
-        fn dryly_token_out(
+        fn dryly_buy_tokens(
             token_id: AssetId,
             tokens: BalanceWrapper<Balance>,
         ) -> Option<BalanceWrapper<Balance>> {
             Swap::token_out_dry(token_id, tokens.into())
-                .map(|(currency, _)| currency.into())
+                .map(|currency| currency.into())
                 .ok()
         }
 
-        fn dryly_token_in(
+        fn dryly_sell_tokens(
             token_id: AssetId,
             tokens: BalanceWrapper<Balance>,
         ) -> Option<BalanceWrapper<Balance>> {
             Swap::token_in_dry(token_id, tokens.into())
-                .map(|(currency, _)| currency.into())
+                .map(|currency| currency.into())
                 .ok()
         }
 
-        fn dryly_quote_in(
+        fn dryly_sell_currency(
             token_id: AssetId,
             currency: BalanceWrapper<Balance>,
         ) -> Option<BalanceWrapper<Balance>> {
             Swap::quote_in_dry(token_id, currency.into())
-                .map(|(tokens, _)| tokens.into())
+                .map(|tokens| tokens.into())
                 .ok()
         }
 
-        fn dryly_quote_out(
+        fn dryly_buy_currency(
             token_id: AssetId,
             currency: BalanceWrapper<Balance>,
         ) -> Option<BalanceWrapper<Balance>> {
             Swap::quote_out_dry(token_id, currency.into())
-                .map(|(tokens, _)| tokens.into())
+                .map(|tokens| tokens.into())
                 .ok()
         }
     }
@@ -1625,6 +1634,8 @@ impl_runtime_apis! {
             list_benchmark!(list, extra, parami_advertiser, Advertiser);
             list_benchmark!(list, extra, parami_did, Did);
             list_benchmark!(list, extra, parami_magic, Magic);
+            list_benchmark!(list, extra, parami_nft, Nft);
+            list_benchmark!(list, extra, parami_swap, Swap);
             list_benchmark!(list, extra, parami_tag, Tag);
 
             let storage_info = AllPalletsWithSystem::storage_info();
@@ -1686,6 +1697,8 @@ impl_runtime_apis! {
             add_benchmark!(params, batches, parami_advertiser, Advertiser);
             add_benchmark!(params, batches, parami_did, Did);
             add_benchmark!(params, batches, parami_magic, Magic);
+            add_benchmark!(params, batches, parami_nft, Nft);
+            add_benchmark!(params, batches, parami_swap, Swap);
             add_benchmark!(params, batches, parami_tag, Tag);
 
             if batches.is_empty() {

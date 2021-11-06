@@ -23,7 +23,6 @@ use frame_support::{
         ExistenceRequirement::{AllowDeath, KeepAlive},
         IsSubType, IsType, OriginTrait,
     },
-    transactional,
     weights::GetDispatchInfo,
     PalletId,
 };
@@ -112,7 +111,6 @@ pub mod pallet {
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {
-        #[transactional]
         #[pallet::weight(T::WeightInfo::create_stable_account())]
         pub fn create_stable_account(
             origin: OriginFor<T>,
@@ -185,7 +183,6 @@ pub mod pallet {
             Ok(())
         }
 
-        #[transactional]
         #[pallet::weight(T::WeightInfo::change_controller())]
         pub fn change_controller(
             origin: OriginFor<T>,
@@ -221,8 +218,8 @@ pub mod pallet {
             <StableAccountOf<T>>::remove(&old_controller);
             <StableAccountOf<T>>::insert(&sa.controller_account, &sa);
 
-            <ControllerAccountOf<T>>::mutate(&sa.magic_account, |maybe_ca| {
-                *maybe_ca = Some(new_controller)
+            <ControllerAccountOf<T>>::mutate(&sa.magic_account, |maybe| {
+                *maybe = Some(new_controller)
             });
 
             Self::deposit_event(Event::ChangedController(
@@ -236,12 +233,12 @@ pub mod pallet {
         #[pallet::weight({
             let di = call.get_dispatch_info();
             (
-                di.weight.saturating_add(1_000_000)
+                T::WeightInfo::codo()
+                    .saturating_add(di.weight)
                     .saturating_add(T::DbWeight::get().reads_writes(1, 1)),
-                di.class
+                di.class,
             )
         })]
-        #[transactional]
         pub fn codo(origin: OriginFor<T>, call: Box<<T as Config>::Call>) -> DispatchResult {
             let controller_account = ensure_signed(origin)?;
             let sa = <StableAccountOf<T>>::get(&controller_account)

@@ -171,6 +171,7 @@ impl parami_nft::Config for Test {
     type Assets = Assets;
     type InitialMintingValueBase = InitialMintingValueBase;
     type InitialMintingDeposit = InitialMintingDeposit;
+    type StringLimit = StringLimit;
     type Swaps = Swap;
     type WeightInfo = ();
 }

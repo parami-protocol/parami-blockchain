@@ -112,7 +112,7 @@ pub mod pallet {
             Ok(())
         }
 
-        #[pallet::weight(1_000_000_000)]
+        #[pallet::weight(<T as Config>::WeightInfo::block())]
         pub fn block(origin: OriginFor<T>, advertiser: T::DecentralizedId) -> DispatchResult {
             T::ForceOrigin::ensure_origin(origin)?;
 

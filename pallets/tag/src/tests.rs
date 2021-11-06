@@ -1,4 +1,4 @@
-use crate::{mock::*, Config, Error, InfluencesOf, Metadata, PersonasOf};
+use crate::{mock::*, Error, InfluencesOf, Metadata, PersonasOf};
 use frame_support::{assert_noop, assert_ok, traits::Currency};
 use sp_core::sr25519;
 use sp_runtime::DispatchError;

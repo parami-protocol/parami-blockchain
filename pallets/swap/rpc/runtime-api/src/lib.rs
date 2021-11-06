@@ -84,7 +84,7 @@ sp_api::decl_runtime_apis! {
         AssetId: Codec,
         Balance: Codec + MaybeDisplay + MaybeFromStr,
     {
-        fn dryly_mint(
+        fn dryly_add_liquidity(
             token_id: AssetId,
             currency: BalanceWrapper<Balance>,
             tokens: BalanceWrapper<Balance>,
@@ -95,7 +95,7 @@ sp_api::decl_runtime_apis! {
             BalanceWrapper<Balance>,
         )>;
 
-        fn dryly_burn(
+        fn dryly_remove_liquidity(
             token_id: AssetId,
             liquidity: BalanceWrapper<Balance>,
         ) -> Option<(
@@ -105,22 +105,22 @@ sp_api::decl_runtime_apis! {
             BalanceWrapper<Balance>,
         )>;
 
-        fn dryly_token_out(
+        fn dryly_buy_tokens(
             token_id: AssetId,
             tokens: BalanceWrapper<Balance>,
         ) -> Option<BalanceWrapper<Balance>>;
 
-        fn dryly_token_in(
+        fn dryly_sell_tokens(
             token_id: AssetId,
             tokens: BalanceWrapper<Balance>,
         ) -> Option<BalanceWrapper<Balance>>;
 
-        fn dryly_quote_in(
+        fn dryly_sell_currency(
             token_id: AssetId,
             currency: BalanceWrapper<Balance>,
         ) -> Option<BalanceWrapper<Balance>>;
 
-        fn dryly_quote_out(
+        fn dryly_buy_currency(
             token_id: AssetId,
             currency: BalanceWrapper<Balance>,
         ) -> Option<BalanceWrapper<Balance>>;

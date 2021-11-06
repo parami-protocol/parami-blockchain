@@ -73,6 +73,10 @@ pub mod pallet {
         #[pallet::constant]
         type InitialMintingDeposit: Get<BalanceOf<Self>>;
 
+        /// The maximum length of a name or symbol stored on-chain.
+        #[pallet::constant]
+        type StringLimit: Get<u32>;
+
         /// The swaps trait
         type Swaps: Swaps<
             AccountId = Self::AccountId,
@@ -127,6 +131,7 @@ pub mod pallet {
 
     #[pallet::error]
     pub enum Error<T> {
+        BadMetadata,
         InsufficientBalance,
         Minted,
         NotExists,
@@ -137,7 +142,7 @@ pub mod pallet {
     #[pallet::call]
     impl<T: Config> Pallet<T> {
         /// Back (support) the KOL.
-        #[pallet::weight(1_000_000_000)]
+        #[pallet::weight(<T as Config>::WeightInfo::back())]
         pub fn back(
             origin: OriginFor<T>,
             kol: T::DecentralizedId,
@@ -153,19 +158,19 @@ pub mod pallet {
 
             <T as parami_did::Config>::Currency::transfer(&who, &meta.pot, value, KeepAlive)?;
 
-            <Deposit<T>>::mutate(&kol, |maybe_deposit| {
-                if let Some(deposit) = maybe_deposit {
+            <Deposit<T>>::mutate(&kol, |maybe| {
+                if let Some(deposit) = maybe {
                     deposit.saturating_accrue(value);
                 } else {
-                    *maybe_deposit = Some(value);
+                    *maybe = Some(value);
                 }
             });
 
-            <Deposits<T>>::mutate(&kol, &did, |maybe_deposit| {
-                if let Some(deposit) = maybe_deposit {
+            <Deposits<T>>::mutate(&kol, &did, |maybe| {
+                if let Some(deposit) = maybe {
                     deposit.saturating_accrue(value);
                 } else {
-                    *maybe_deposit = Some(value);
+                    *maybe = Some(value);
                 }
             });
 
@@ -175,8 +180,29 @@ pub mod pallet {
         }
 
         /// Fragment the NFT and mint token.
-        #[pallet::weight(1_000_000_000)]
+        #[pallet::weight(<T as Config>::WeightInfo::mint(name.len() as u32, symbol.len() as u32))]
         pub fn mint(origin: OriginFor<T>, name: Vec<u8>, symbol: Vec<u8>) -> DispatchResult {
+            let limit = T::StringLimit::get() as usize - 4;
+            ensure!(
+                0 < name.len() && name.len() <= limit,
+                Error::<T>::BadMetadata
+            );
+            ensure!(
+                0 < name.len() && symbol.len() <= limit,
+                Error::<T>::BadMetadata
+            );
+
+            let is_valid_char = |c: &u8| c.is_ascii_whitespace() || c.is_ascii_alphanumeric();
+
+            ensure!(
+                name[0].is_ascii_alphabetic() && name.iter().all(is_valid_char),
+                Error::<T>::BadMetadata
+            );
+            ensure!(
+                symbol[0].is_ascii_alphabetic() && symbol.iter().all(is_valid_char),
+                Error::<T>::BadMetadata
+            );
+
             let (did, who) = EnsureDid::<T>::ensure_origin(origin)?;
 
             // 1. ensure funded
@@ -222,7 +248,7 @@ pub mod pallet {
         }
 
         /// Claim the fragments.
-        #[pallet::weight(1_000_000_000)]
+        #[pallet::weight(<T as Config>::WeightInfo::claim())]
         pub fn claim(origin: OriginFor<T>, kol: T::DecentralizedId) -> DispatchResult {
             let (did, who) = EnsureDid::<T>::ensure_origin(origin)?;
 

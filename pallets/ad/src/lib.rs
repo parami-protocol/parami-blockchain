@@ -205,6 +205,7 @@ pub mod pallet {
                     created,
                 },
             );
+
             <AdsOf<T>>::mutate(&creator, |maybe| {
                 if let Some(ads) = maybe {
                     ads.push(id);
@@ -293,7 +294,7 @@ pub mod pallet {
 
             // 2. swap AD3 to assets
 
-            let (tokens, _) = T::Swaps::quote_in_dry(nft, value)?;
+            let tokens = T::Swaps::quote_in_dry(nft, value)?;
 
             // 3. if slot is used
             // require a 20% increase of current budget
@@ -305,7 +306,7 @@ pub mod pallet {
                     Error::<T>::Underbid
                 );
 
-                Self::drawback(&kol, slot)?;
+                Self::drawback(&kol, &slot)?;
             }
 
             // 4. swap AD3 to assets
@@ -430,34 +431,40 @@ impl<T: Config> Pallet<T> {
 
         // TODO: weight benchmark
 
+        // 1. check deadline of slots
         for (kol, ad, deadline) in <DeadlineOf<T>>::iter() {
             if deadline > now {
                 continue;
             }
 
-            let slot = <SlotOf<T>>::get(&kol).ok_or(Error::<T>::NotExists)?;
+            let slot = <SlotOf<T>>::get(kol).ok_or(Error::<T>::NotExists)?;
 
             if slot.ad != ad {
                 continue;
             }
 
-            Self::drawback(&kol, slot)?;
+            Self::drawback(&kol, &slot)?;
+
+            Self::deposit_event(Event::End(kol, slot.ad));
         }
+
+        // TODO: check deadline of ads
 
         Ok(weight)
     }
 
-    fn drawback(kol: &T::DecentralizedId, slot: SlotMetaOf<T>) -> DispatchResult {
-        let mut meta = <Metadata<T>>::get(&slot.ad).ok_or(Error::<T>::NotExists)?;
+    fn drawback(kol: &T::DecentralizedId, slot: &SlotMetaOf<T>) -> DispatchResult {
+        let mut meta = <Metadata<T>>::get(slot.ad).ok_or(Error::<T>::NotExists)?;
 
         let (_, amount) = T::Swaps::token_in(&meta.pot, slot.nft, slot.remain, One::one(), false)?;
 
         meta.remain.saturating_accrue(amount);
 
-        <Metadata<T>>::insert(&slot.ad, meta);
+        <Metadata<T>>::insert(slot.ad, meta);
 
         <SlotOf<T>>::remove(kol);
-        <DeadlineOf<T>>::remove(&kol, &slot.ad);
+
+        <DeadlineOf<T>>::remove(kol, slot.ad);
 
         Ok(())
     }

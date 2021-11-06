@@ -215,11 +215,11 @@ impl<T: Config> Pallet<T> {
 
         let hash = Self::key(&tag);
 
-        <PersonasOf<T>>::mutate(&did, hash, |maybe_score| {
-            if let Some(score) = maybe_score {
+        <PersonasOf<T>>::mutate(&did, hash, |maybe| {
+            if let Some(score) = maybe {
                 *score += delta;
             } else {
-                *maybe_score = Some(delta);
+                *maybe = Some(delta);
             }
         });
 
@@ -232,11 +232,11 @@ impl<T: Config> Pallet<T> {
 
         let hash = Self::key(&tag);
 
-        <InfluencesOf<T>>::mutate(&did, hash, |maybe_score| {
-            if let Some(score) = maybe_score {
+        <InfluencesOf<T>>::mutate(&did, hash, |maybe| {
+            if let Some(score) = maybe {
                 *score += delta;
             } else {
-                *maybe_score = Some(delta);
+                *maybe = Some(delta);
             }
         });
 

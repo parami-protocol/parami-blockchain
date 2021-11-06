@@ -1,7 +1,7 @@
 #![cfg(feature = "runtime-benchmarks")]
 
 use super::*;
-use crate::Pallet as AccountLinker;
+use crate::Pallet as Linker;
 use frame_benchmarking::{account, benchmarks, impl_benchmark_test_suite};
 use frame_system::RawOrigin;
 
@@ -38,12 +38,8 @@ benchmarks! {
         let caller: T::AccountId = account("caller", 0, 0);
         let linked_account: T::AccountId = account("Alice", 0, SEED);
         let index: u32 = 0;
-        crate::Pallet::<T>::link_polkadot(RawOrigin::Signed(caller.clone()).into(), linked_account.clone(), index)?;
+        Linker::<T>::link_polkadot(RawOrigin::Signed(caller.clone()).into(), linked_account.clone(), index)?;
     }: _(RawOrigin::Signed(linked_account), caller)
 }
 
-impl_benchmark_test_suite!(
-    AccountLinker,
-    crate::mock::new_test_ext(),
-    crate::mock::Test,
-);
+impl_benchmark_test_suite!(Linker, crate::mock::new_test_ext(), crate::mock::Test,);

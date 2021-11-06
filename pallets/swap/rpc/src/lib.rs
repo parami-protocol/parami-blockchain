@@ -17,8 +17,8 @@ where
     Balance: MaybeDisplay + MaybeFromStr,
 {
     /// Get dry-run result of mint
-    #[rpc(name = "swaps_drylyMint")]
-    fn dryly_mint(
+    #[rpc(name = "swap_drylyAddLiquidity")]
+    fn dryly_add_liquidity(
         &self,
         token_id: AssetId,
         currency: BalanceWrapper<Balance>,
@@ -32,8 +32,8 @@ where
     )>;
 
     /// Get dry-run result of burn
-    #[rpc(name = "swaps_drylyBurn")]
-    fn dryly_burn(
+    #[rpc(name = "swap_drylyRemoveLiquidity")]
+    fn dryly_remove_liquidity(
         &self,
         token_id: AssetId,
         liquidity: BalanceWrapper<Balance>,
@@ -46,8 +46,8 @@ where
     )>;
 
     /// Get dry-run result of token_out
-    #[rpc(name = "swaps_drylyTokenOut")]
-    fn dryly_token_out(
+    #[rpc(name = "swap_drylyBuyTokens")]
+    fn dryly_buy_tokens(
         &self,
         token_id: AssetId,
         tokens: BalanceWrapper<Balance>,
@@ -55,8 +55,8 @@ where
     ) -> Result<BalanceWrapper<Balance>>;
 
     /// Get dry-run result of token_in
-    #[rpc(name = "swaps_drylyTokenIn")]
-    fn dryly_token_in(
+    #[rpc(name = "swap_drylySellTokens")]
+    fn dryly_sell_tokens(
         &self,
         token_id: AssetId,
         tokens: BalanceWrapper<Balance>,
@@ -64,8 +64,8 @@ where
     ) -> Result<BalanceWrapper<Balance>>;
 
     /// Get dry-run result of quote_in
-    #[rpc(name = "swaps_drylyQuoteIn")]
-    fn dryly_quote_in(
+    #[rpc(name = "swap_drylySellCurrency")]
+    fn dryly_sell_currency(
         &self,
         token_id: AssetId,
         currency: BalanceWrapper<Balance>,
@@ -73,8 +73,8 @@ where
     ) -> Result<BalanceWrapper<Balance>>;
 
     /// Get dry-run result of quote_out
-    #[rpc(name = "swaps_drylyQuoteOut")]
-    fn dryly_quote_out(
+    #[rpc(name = "swap_drylyBuyCurrency")]
+    fn dryly_buy_currency(
         &self,
         token_id: AssetId,
         currency: BalanceWrapper<Balance>,
@@ -105,7 +105,7 @@ where
     AssetId: Codec + Send + Sync + 'static,
     Balance: Codec + MaybeDisplay + MaybeFromStr + Send + Sync + 'static,
 {
-    fn dryly_mint(
+    fn dryly_add_liquidity(
         &self,
         token_id: AssetId,
         currency: BalanceWrapper<Balance>,
@@ -121,7 +121,7 @@ where
         let at = BlockId::hash(at.unwrap_or_else(|| self.client.info().best_hash));
 
         let res = api
-            .dryly_mint(&at, token_id, currency, tokens)
+            .dryly_add_liquidity(&at, token_id, currency, tokens)
             .map_err(|e| RpcError {
                 code: ErrorCode::InternalError,
                 message: "Unable to dry-run mint.".into(),
@@ -135,7 +135,7 @@ where
         })
     }
 
-    fn dryly_burn(
+    fn dryly_remove_liquidity(
         &self,
         token_id: AssetId,
         liquidity: BalanceWrapper<Balance>,
@@ -150,7 +150,7 @@ where
         let at = BlockId::hash(at.unwrap_or_else(|| self.client.info().best_hash));
 
         let res = api
-            .dryly_burn(&at, token_id, liquidity)
+            .dryly_remove_liquidity(&at, token_id, liquidity)
             .map_err(|e| RpcError {
                 code: ErrorCode::InternalError,
                 message: "Unable to dry-run burn.".into(),
@@ -164,7 +164,7 @@ where
         })
     }
 
-    fn dryly_token_out(
+    fn dryly_buy_tokens(
         &self,
         token_id: AssetId,
         tokens: BalanceWrapper<Balance>,
@@ -174,7 +174,7 @@ where
         let at = BlockId::hash(at.unwrap_or_else(|| self.client.info().best_hash));
 
         let res = api
-            .dryly_token_out(&at, token_id, tokens)
+            .dryly_buy_tokens(&at, token_id, tokens)
             .map_err(|e| RpcError {
                 code: ErrorCode::InternalError,
                 message: "Unable to dry-run token_out.".into(),
@@ -188,7 +188,7 @@ where
         })
     }
 
-    fn dryly_token_in(
+    fn dryly_sell_tokens(
         &self,
         token_id: AssetId,
         tokens: BalanceWrapper<Balance>,
@@ -198,7 +198,7 @@ where
         let at = BlockId::hash(at.unwrap_or_else(|| self.client.info().best_hash));
 
         let res = api
-            .dryly_token_in(&at, token_id, tokens)
+            .dryly_sell_tokens(&at, token_id, tokens)
             .map_err(|e| RpcError {
                 code: ErrorCode::InternalError,
                 message: "Unable to dry-run token_in.".into(),
@@ -212,7 +212,7 @@ where
         })
     }
 
-    fn dryly_quote_in(
+    fn dryly_sell_currency(
         &self,
         token_id: AssetId,
         currency: BalanceWrapper<Balance>,
@@ -222,7 +222,7 @@ where
         let at = BlockId::hash(at.unwrap_or_else(|| self.client.info().best_hash));
 
         let res = api
-            .dryly_quote_in(&at, token_id, currency)
+            .dryly_sell_currency(&at, token_id, currency)
             .map_err(|e| RpcError {
                 code: ErrorCode::InternalError,
                 message: "Unable to dry-run quote_in.".into(),
@@ -236,7 +236,7 @@ where
         })
     }
 
-    fn dryly_quote_out(
+    fn dryly_buy_currency(
         &self,
         token_id: AssetId,
         currency: BalanceWrapper<Balance>,
@@ -246,7 +246,7 @@ where
         let at = BlockId::hash(at.unwrap_or_else(|| self.client.info().best_hash));
 
         let res = api
-            .dryly_quote_out(&at, token_id, currency)
+            .dryly_buy_currency(&at, token_id, currency)
             .map_err(|e| RpcError {
                 code: ErrorCode::InternalError,
                 message: "Unable to dry-run quote_out.".into(),

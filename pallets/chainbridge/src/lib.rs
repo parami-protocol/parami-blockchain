@@ -204,7 +204,7 @@ pub mod pallet {
         /// # <weight>
         /// - O(1) lookup and insert
         /// # </weight>
-        #[pallet::weight(<T as pallet::Config>::WeightInfo::set_threshold())]
+        #[pallet::weight(<T as Config>::WeightInfo::set_threshold())]
         pub fn set_threshold(origin: OriginFor<T>, threshold: u32) -> DispatchResult {
             Self::ensure_admin(origin)?;
             Self::set_relayer_threshold(threshold)
@@ -215,7 +215,7 @@ pub mod pallet {
         /// # <weight>
         /// - O(1) write
         /// # </weight>
-        #[pallet::weight(<T as pallet::Config>::WeightInfo::set_resource())]
+        #[pallet::weight(<T as Config>::WeightInfo::set_resource())]
         pub fn set_resource(
             origin: OriginFor<T>,
             id: ResourceId,
@@ -244,7 +244,7 @@ pub mod pallet {
         /// # <weight>
         /// - O(1) lookup and insert
         /// # </weight>
-        #[pallet::weight(<T as pallet::Config>::WeightInfo::whitelist_chain())]
+        #[pallet::weight(<T as Config>::WeightInfo::whitelist_chain())]
         pub fn whitelist_chain(origin: OriginFor<T>, id: ChainId) -> DispatchResult {
             Self::ensure_admin(origin)?;
             Self::whitelist(id)
@@ -266,7 +266,7 @@ pub mod pallet {
         /// # <weight>
         /// - O(1) lookup and removal
         /// # </weight>
-        #[pallet::weight(<T as pallet::Config>::WeightInfo::remove_relayer())]
+        #[pallet::weight(<T as Config>::WeightInfo::remove_relayer())]
         pub fn remove_relayer(origin: OriginFor<T>, account_id: T::AccountId) -> DispatchResult {
             Self::ensure_admin(origin)?;
             Self::unregister_relayer(account_id)
@@ -280,7 +280,7 @@ pub mod pallet {
         /// # <weight>
         /// - weight of proposed call, regardless of whether execution is performed
         /// # </weight>
-        #[pallet::weight(<T as pallet::Config>::WeightInfo::acknowledge_proposal(call.get_dispatch_info().weight))]
+        #[pallet::weight(<T as Config>::WeightInfo::acknowledge_proposal(call.get_dispatch_info().weight))]
         pub fn acknowledge_proposal(
             origin: OriginFor<T>,
             nonce: DepositNonce,
@@ -307,7 +307,7 @@ pub mod pallet {
         /// # <weight>
         /// - Fixed, since execution of proposal should not be included
         /// # </weight>
-        #[pallet::weight(<T as pallet::Config>::WeightInfo::reject_proposal())]
+        #[pallet::weight(<T as Config>::WeightInfo::reject_proposal())]
         pub fn reject_proposal(
             origin: OriginFor<T>,
             nonce: DepositNonce,
@@ -337,7 +337,7 @@ pub mod pallet {
         /// # <weight>
         /// - weight of proposed call, regardless of whether execution is performed
         /// # </weight>
-        #[pallet::weight(<T as pallet::Config>::WeightInfo::eval_vote_state(proposal.get_dispatch_info().weight))]
+        #[pallet::weight(<T as Config>::WeightInfo::eval_vote_state(proposal.get_dispatch_info().weight))]
         pub fn eval_vote_state(
             origin: OriginFor<T>,
             nonce: DepositNonce,
@@ -657,6 +657,13 @@ impl<T: pallet::Config> EnsureOrigin<T::Origin> for EnsureBridge<T> {
             frame_system::RawOrigin::Signed(who) if who == bridge_id => Ok(bridge_id),
             r => Err(T::Origin::from(r)),
         })
+    }
+
+    #[cfg(feature = "runtime-benchmarks")]
+    fn successful_origin() -> T::Origin {
+        use frame_system::RawOrigin;
+
+        T::Origin::from(RawOrigin::Root)
     }
 }
 

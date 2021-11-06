@@ -79,7 +79,7 @@ pub mod pallet {
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {
-        #[pallet::weight(<T as pallet::Config>::WeightInfo::transfer_hash())]
+        #[pallet::weight(<T as Config>::WeightInfo::transfer_hash())]
         pub fn transfer_hash(
             origin: OriginFor<T>,
             hash: <T as frame_system::Config>::Hash,
@@ -93,7 +93,7 @@ pub mod pallet {
             Ok(().into())
         }
 
-        #[pallet::weight(<T as pallet::Config>::WeightInfo::transfer_native())]
+        #[pallet::weight(<T as Config>::WeightInfo::transfer_native())]
         pub fn transfer_native(
             origin: OriginFor<T>,
             amount: BalanceOf<T>,
@@ -119,7 +119,7 @@ pub mod pallet {
             Ok(().into())
         }
 
-        #[pallet::weight(<T as pallet::Config>::WeightInfo::transfer())]
+        #[pallet::weight(<T as Config>::WeightInfo::transfer())]
         pub fn transfer(
             origin: OriginFor<T>,
             to: <T as frame_system::Config>::AccountId,
@@ -131,7 +131,7 @@ pub mod pallet {
             Ok(().into())
         }
 
-        #[pallet::weight(<T as pallet::Config>::WeightInfo::remark())]
+        #[pallet::weight(<T as Config>::WeightInfo::remark())]
         pub fn remark(
             origin: OriginFor<T>,
             hash: <T as frame_system::Config>::Hash,
