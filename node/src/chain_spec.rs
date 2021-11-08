@@ -1,10 +1,9 @@
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use parami_runtime::{
     opaque::SessionKeys, AccountId, AuthorityDiscoveryConfig, BabeConfig, Balance, BalancesConfig,
-    Block, CouncilConfig, DemocracyConfig, ElectionsConfig, GenesisConfig, GrandpaConfig,
-    ImOnlineConfig, SessionConfig, Signature, SocietyConfig, StakerStatus, StakingConfig,
-    SudoConfig, SystemConfig, TechnicalCommitteeConfig, BABE_GENESIS_EPOCH_CONFIG, DOLLARS,
-    MAX_NOMINATIONS, WASM_BINARY,
+    Block, ElectionsConfig, GenesisConfig, GrandpaConfig, ImOnlineConfig, SessionConfig, Signature,
+    SocietyConfig, StakerStatus, StakingConfig, SudoConfig, SystemConfig, TechnicalCommitteeConfig,
+    BABE_GENESIS_EPOCH_CONFIG, DOLLARS, MAX_NOMINATIONS, WASM_BINARY,
 };
 use sc_chain_spec::ChainSpecExtension;
 use sc_service::ChainType;
@@ -367,6 +366,12 @@ pub fn testnet_genesis(
             code: wasm_binary.to_vec(),
             changes_trie_config: Default::default(),
         },
+
+        authority_discovery: AuthorityDiscoveryConfig { keys: vec![] },
+        babe: BabeConfig {
+            authorities: vec![],
+            epoch_config: Some(BABE_GENESIS_EPOCH_CONFIG),
+        },
         balances: BalancesConfig {
             balances: endowed_accounts
                 .iter()
@@ -374,6 +379,18 @@ pub fn testnet_genesis(
                 .map(|x| (x, ENDOWMENT))
                 .collect(),
         },
+        elections: ElectionsConfig {
+            members: endowed_accounts
+                .iter()
+                .take((num_endowed_accounts + 1) / 2)
+                .cloned()
+                .map(|member| (member, STASH))
+                .collect(),
+        },
+        grandpa: GrandpaConfig {
+            authorities: vec![],
+        },
+        im_online: ImOnlineConfig { keys: vec![] },
         session: SessionConfig {
             keys: initial_authorities
                 .iter()
@@ -386,44 +403,6 @@ pub fn testnet_genesis(
                 })
                 .collect::<Vec<_>>(),
         },
-        staking: StakingConfig {
-            validator_count: initial_authorities.len() as u32,
-            minimum_validator_count: initial_authorities.len() as u32,
-            invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
-            slash_reward_fraction: Perbill::from_percent(10),
-            stakers,
-            ..Default::default()
-        },
-        democracy: DemocracyConfig::default(),
-        elections: ElectionsConfig {
-            members: endowed_accounts
-                .iter()
-                .take((num_endowed_accounts + 1) / 2)
-                .cloned()
-                .map(|member| (member, STASH))
-                .collect(),
-        },
-        council: CouncilConfig::default(),
-        technical_committee: TechnicalCommitteeConfig {
-            members: endowed_accounts
-                .iter()
-                .take((num_endowed_accounts + 1) / 2)
-                .cloned()
-                .collect(),
-            phantom: Default::default(),
-        },
-        sudo: SudoConfig { key: root_key },
-        babe: BabeConfig {
-            authorities: vec![],
-            epoch_config: Some(BABE_GENESIS_EPOCH_CONFIG),
-        },
-        im_online: ImOnlineConfig { keys: vec![] },
-        authority_discovery: AuthorityDiscoveryConfig { keys: vec![] },
-        grandpa: GrandpaConfig {
-            authorities: vec![],
-        },
-        technical_membership: Default::default(),
-        treasury: Default::default(),
         society: SocietyConfig {
             members: endowed_accounts
                 .iter()
@@ -433,10 +412,35 @@ pub fn testnet_genesis(
             pot: 0,
             max_members: 999,
         },
+        staking: StakingConfig {
+            validator_count: initial_authorities.len() as u32,
+            minimum_validator_count: initial_authorities.len() as u32,
+            invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
+            slash_reward_fraction: Perbill::from_percent(10),
+            stakers,
+            ..Default::default()
+        },
+        sudo: SudoConfig { key: root_key },
+        technical_committee: TechnicalCommitteeConfig {
+            members: endowed_accounts
+                .iter()
+                .take((num_endowed_accounts + 1) / 2)
+                .cloned()
+                .collect(),
+            phantom: Default::default(),
+        },
+
+        assets: Default::default(),
+        council: Default::default(),
+        democracy: Default::default(),
+        technical_membership: Default::default(),
+        treasury: Default::default(),
         vesting: Default::default(),
 
         orml_nft: Default::default(),
 
+        // airdrop: Default::default(),
+        // ad: Default::default(),
         advertiser: Default::default(),
         did: Default::default(),
         magic: Default::default(),

@@ -1196,7 +1196,7 @@ construct_runtime!(
     {
         System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 
-        Assets: pallet_assets::{Pallet, Call, Storage, Event<T>},
+        Assets: pallet_assets::{Pallet, Call, Storage, Config<T>, Event<T>},
         AuthorityDiscovery: pallet_authority_discovery::{Pallet, Config},
         Authorship: pallet_authorship::{Pallet, Call, Storage, Inherent},
         Babe: pallet_babe::{Pallet, Call, Storage, Config, ValidateUnsigned},
