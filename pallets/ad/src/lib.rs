@@ -335,6 +335,14 @@ pub mod pallet {
                 },
             );
 
+            <SlotsOf<T>>::mutate(&ad, |maybe| {
+                if let Some(slots) = maybe {
+                    slots.push(kol);
+                } else {
+                    *maybe = Some(vec![kol]);
+                }
+            });
+
             meta.remain.saturating_reduce(value);
 
             <Metadata<T>>::insert(&ad, meta);
@@ -463,6 +471,12 @@ impl<T: Config> Pallet<T> {
         <Metadata<T>>::insert(slot.ad, meta);
 
         <SlotOf<T>>::remove(kol);
+
+        <SlotsOf<T>>::mutate(slot.ad, |maybe| {
+            if let Some(slots) = maybe {
+                slots.retain(|x| *x != *kol);
+            }
+        });
 
         <DeadlineOf<T>>::remove(kol, slot.ad);
 
