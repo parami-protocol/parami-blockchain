@@ -29,7 +29,7 @@ use frame_support::{
 use orml_nft::Pallet as Nft;
 use parami_did::{EnsureDid, Pallet as Did};
 use parami_traits::Swaps;
-use sp_runtime::traits::Saturating;
+use sp_runtime::traits::{One, Saturating};
 use sp_std::prelude::*;
 
 use weights::WeightInfo;
@@ -212,7 +212,6 @@ pub mod pallet {
             ensure!(meta.nft.is_none(), Error::<T>::Minted);
 
             let deposit = <T as parami_did::Config>::Currency::free_balance(&meta.pot);
-            let minimal = <T as parami_did::Config>::Currency::minimum_balance();
 
             ensure!(
                 deposit >= T::InitialMintingDeposit::get(),
@@ -229,7 +228,7 @@ pub mod pallet {
 
             let initial = T::InitialMintingValueBase::get();
 
-            T::Assets::create(cid, meta.pot.clone(), true, minimal)?;
+            T::Assets::create(cid, meta.pot.clone(), true, One::one())?;
             T::Assets::set(cid, &meta.pot, name, symbol, 18)?;
             T::Assets::mint_into(cid, &meta.pot, initial.saturating_mul(3u32.into()))?;
 

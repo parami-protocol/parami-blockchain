@@ -16,13 +16,28 @@ pub trait SwapApi<BlockHash, AssetId, Balance>
 where
     Balance: MaybeDisplay + MaybeFromStr,
 {
-    /// Get dry-run result of mint
+    /// Get dry-run result of add_liquidity
+    ///
+    /// # Arguments
+    ///
+    /// * `token_id` - The Asset ID
+    /// * `currency` - The currency to be involved in the swap
+    /// * `max_tokens` - The maximum amount of tokens to be involved in the swap
+    ///
+    /// # Results
+    ///
+    /// tuple of (token_id, tokens, lp_token_id, liquidity)
+    ///
+    /// * `token_id` - The Asset ID
+    /// * `tokens` - The amount of tokens to be involved in the swap
+    /// * `lp_token_id` - The Asset ID of the liquidity provider token
+    /// * `liquidity` - The amount of liquidity to be minted
     #[rpc(name = "swap_drylyAddLiquidity")]
     fn dryly_add_liquidity(
         &self,
         token_id: AssetId,
         currency: BalanceWrapper<Balance>,
-        tokens: BalanceWrapper<Balance>,
+        max_tokens: BalanceWrapper<Balance>,
         at: Option<BlockHash>,
     ) -> Result<(
         AssetId,
@@ -31,7 +46,21 @@ where
         BalanceWrapper<Balance>,
     )>;
 
-    /// Get dry-run result of burn
+    /// Get dry-run result of remove_liquidity
+    ///
+    /// # Arguments
+    ///
+    /// * `token_id` - The Asset ID
+    /// * `liquidity` - The amount of liquidity to be removed
+    ///
+    /// # Results
+    ///
+    /// tuple of (token_id, tokens, lp_token_id, currency)
+    ///
+    /// * `token_id` - The Asset ID
+    /// * `tokens` - The amount of tokens to be returned
+    /// * `lp_token_id` - The Asset ID of the liquidity provider token
+    /// * `currency` - The currency to be returned
     #[rpc(name = "swap_drylyRemoveLiquidity")]
     fn dryly_remove_liquidity(
         &self,
@@ -45,7 +74,16 @@ where
         BalanceWrapper<Balance>,
     )>;
 
-    /// Get dry-run result of token_out
+    /// Get dry-run result of buy_tokens
+    ///
+    /// # Arguments
+    ///
+    /// * `token_id` - The Asset ID
+    /// * `tokens` - The amount of tokens to be bought
+    ///
+    /// # Results
+    ///
+    /// The currency needed
     #[rpc(name = "swap_drylyBuyTokens")]
     fn dryly_buy_tokens(
         &self,
@@ -54,7 +92,16 @@ where
         at: Option<BlockHash>,
     ) -> Result<BalanceWrapper<Balance>>;
 
-    /// Get dry-run result of token_in
+    /// Get dry-run result of sell_tokens
+    ///
+    /// # Arguments
+    ///
+    /// * `token_id` - The Asset ID
+    /// * `tokens` - The amount of tokens to be sold
+    ///
+    /// # Results
+    ///
+    /// The currency to be gained
     #[rpc(name = "swap_drylySellTokens")]
     fn dryly_sell_tokens(
         &self,
@@ -63,7 +110,16 @@ where
         at: Option<BlockHash>,
     ) -> Result<BalanceWrapper<Balance>>;
 
-    /// Get dry-run result of quote_in
+    /// Get dry-run result of sell_currency
+    ///
+    /// # Arguments
+    ///
+    /// * `token_id` - The Asset ID
+    /// * `currency` - The currency to be sold
+    ///
+    /// # Results
+    ///
+    /// The amount of tokens to be gained
     #[rpc(name = "swap_drylySellCurrency")]
     fn dryly_sell_currency(
         &self,
@@ -72,7 +128,16 @@ where
         at: Option<BlockHash>,
     ) -> Result<BalanceWrapper<Balance>>;
 
-    /// Get dry-run result of quote_out
+    /// Get dry-run result of buy_currency
+    ///
+    /// # Arguments
+    ///
+    /// * `token_id` - The Asset ID
+    /// * `currency` - The currency to be bought
+    ///
+    /// # Results
+    ///
+    /// The amount of tokens needed
     #[rpc(name = "swap_drylyBuyCurrency")]
     fn dryly_buy_currency(
         &self,
@@ -109,7 +174,7 @@ where
         &self,
         token_id: AssetId,
         currency: BalanceWrapper<Balance>,
-        tokens: BalanceWrapper<Balance>,
+        max_tokens: BalanceWrapper<Balance>,
         at: Option<<Block as BlockT>::Hash>,
     ) -> Result<(
         AssetId,
@@ -121,17 +186,17 @@ where
         let at = BlockId::hash(at.unwrap_or_else(|| self.client.info().best_hash));
 
         let res = api
-            .dryly_add_liquidity(&at, token_id, currency, tokens)
+            .dryly_add_liquidity(&at, token_id, currency, max_tokens)
             .map_err(|e| RpcError {
                 code: ErrorCode::InternalError,
                 message: "Unable to dry-run mint.".into(),
                 data: Some(format!("{:?}", e).into()),
             })?;
 
-        res.ok_or(RpcError {
+        res.map_err(|e| RpcError {
             code: ErrorCode::ServerError(1),
             message: "Unable to dry-run mint.".into(),
-            data: None,
+            data: Some(format!("{:?}", e).into()),
         })
     }
 
@@ -157,10 +222,10 @@ where
                 data: Some(format!("{:?}", e).into()),
             })?;
 
-        res.ok_or(RpcError {
+        res.map_err(|e| RpcError {
             code: ErrorCode::ServerError(1),
-            message: "Unable to dry-run burn.".into(),
-            data: None,
+            message: "Unable to dry-run mint.".into(),
+            data: Some(format!("{:?}", e).into()),
         })
     }
 
@@ -181,10 +246,10 @@ where
                 data: Some(format!("{:?}", e).into()),
             })?;
 
-        res.ok_or(RpcError {
+        res.map_err(|e| RpcError {
             code: ErrorCode::ServerError(1),
-            message: "Unable to dry-run token_out.".into(),
-            data: None,
+            message: "Unable to dry-run mint.".into(),
+            data: Some(format!("{:?}", e).into()),
         })
     }
 
@@ -205,10 +270,10 @@ where
                 data: Some(format!("{:?}", e).into()),
             })?;
 
-        res.ok_or(RpcError {
+        res.map_err(|e| RpcError {
             code: ErrorCode::ServerError(1),
-            message: "Unable to dry-run token_in.".into(),
-            data: None,
+            message: "Unable to dry-run mint.".into(),
+            data: Some(format!("{:?}", e).into()),
         })
     }
 
@@ -229,10 +294,10 @@ where
                 data: Some(format!("{:?}", e).into()),
             })?;
 
-        res.ok_or(RpcError {
+        res.map_err(|e| RpcError {
             code: ErrorCode::ServerError(1),
-            message: "Unable to dry-run quote_in.".into(),
-            data: None,
+            message: "Unable to dry-run mint.".into(),
+            data: Some(format!("{:?}", e).into()),
         })
     }
 
@@ -253,10 +318,10 @@ where
                 data: Some(format!("{:?}", e).into()),
             })?;
 
-        res.ok_or(RpcError {
+        res.map_err(|e| RpcError {
             code: ErrorCode::ServerError(1),
-            message: "Unable to dry-run quote_out.".into(),
-            data: None,
+            message: "Unable to dry-run mint.".into(),
+            data: Some(format!("{:?}", e).into()),
         })
     }
 }

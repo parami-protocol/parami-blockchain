@@ -30,7 +30,25 @@ fn should_create() {
         let meta = maybe_meta.unwrap();
 
         assert_eq!(meta.token_id, token);
-        assert_eq!(meta.lp_token_id, <Test as Config>::AssetId::max_value());
+        assert_eq!(
+            meta.lp_token_id,
+            <Test as Config>::AssetId::max_value() - token
+        );
+
+        let token = 9;
+
+        assert_ok!(Swap::create(Origin::signed(alice), token));
+
+        let maybe_meta = <Metadata<Test>>::get(token);
+        assert_ne!(maybe_meta, None);
+
+        let meta = maybe_meta.unwrap();
+
+        assert_eq!(meta.token_id, token);
+        assert_eq!(
+            meta.lp_token_id,
+            <Test as Config>::AssetId::max_value() - token
+        );
     });
 }
 

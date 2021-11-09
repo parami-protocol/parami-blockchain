@@ -33,7 +33,7 @@ use frame_support::{
 use parami_traits::Swaps;
 use sp_core::U512;
 use sp_runtime::{
-    traits::{AccountIdConversion, AtLeast32BitUnsigned, Bounded, Saturating, Zero},
+    traits::{AccountIdConversion, AtLeast32BitUnsigned, Bounded, One, Saturating, Zero},
     DispatchError,
 };
 use sp_std::{
@@ -47,13 +47,6 @@ type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> = <<T as Config>::Currency as Currency<AccountOf<T>>>::Balance;
 type HeightOf<T> = <T as frame_system::Config>::BlockNumber;
 type SwapOf<T> = types::Swap<AccountOf<T>, BalanceOf<T>, HeightOf<T>, <T as Config>::AssetId>;
-
-pub struct MaxValue {}
-impl<T: Bounded> Get<T> for MaxValue {
-    fn get() -> T {
-        T::max_value()
-    }
-}
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -100,10 +93,6 @@ pub mod pallet {
     #[pallet::getter(fn meta)]
     pub(super) type Metadata<T: Config> = StorageMap<_, Twox128, T::AssetId, SwapOf<T>>;
 
-    #[pallet::storage]
-    #[pallet::getter(fn next_class_id)]
-    pub type NextLpId<T: Config> = StorageValue<_, T::AssetId, ValueQuery, MaxValue>;
-
     #[pallet::event]
     #[pallet::generate_deposit(pub fn deposit_event)]
     pub enum Event<T: Config> {
@@ -126,7 +115,9 @@ pub mod pallet {
     pub enum Error<T> {
         Deadline,
         Exists,
+        InsufficientCurrency,
         InsufficientLiquidity,
+        InsufficientTokens,
         NoLiquidity,
         NotExists,
         Overflow,
@@ -142,6 +133,11 @@ pub mod pallet {
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {
+        /// create new swap pair
+        ///
+        /// # Arguments
+        ///
+        /// * `token_id` - The Asset ID
         #[pallet::weight(T::WeightInfo::create())]
         pub fn create(
             origin: OriginFor<T>,
@@ -156,6 +152,15 @@ pub mod pallet {
             Ok(())
         }
 
+        /// Add Liquidity
+        ///
+        /// # Arguments
+        ///
+        /// * `token_id` - The Asset ID
+        /// * `currency` - The currency to be involved in the swap
+        /// * `min_liquidity` - The minimum amount of liquidity to be minted
+        /// * `max_tokens` - The maximum amount of tokens to be involved in the swap
+        /// * `deadline` - The block number at which the swap should be invalidated
         #[pallet::weight(T::WeightInfo::add_liquidity())]
         pub fn add_liquidity(
             origin: OriginFor<T>,
@@ -184,6 +189,13 @@ pub mod pallet {
             Ok(())
         }
 
+        /// Remove Liquidity
+        ///
+        /// * `token_id` - The Asset ID
+        /// * `liquidity` - The amount of liquidity to be removed
+        /// * `min_currency` - The minimum currency to be returned
+        /// * `min_tokens` - The minimum amount of tokens to be returned
+        /// * `deadline` - The block number at which the swap should be invalidated
         #[pallet::weight(T::WeightInfo::remove_liquidity())]
         pub fn remove_liquidity(
             origin: OriginFor<T>,
@@ -211,6 +223,12 @@ pub mod pallet {
             Ok(())
         }
 
+        /// Buy tokens
+        ///
+        /// * `token_id` - The Asset ID
+        /// * `tokens` - The amount of tokens to be bought
+        /// * `max_currency` - The maximum currency to be spent
+        /// * `deadline` - The block number at which the swap should be invalidated
         #[pallet::weight(T::WeightInfo::buy_tokens())]
         pub fn buy_tokens(
             origin: OriginFor<T>,
@@ -231,6 +249,12 @@ pub mod pallet {
             Ok(())
         }
 
+        /// Sell tokens
+        ///
+        /// * `token_id` - The Asset ID
+        /// * `tokens` - The amount of tokens to be sold
+        /// * `min_currency` - The maximum currency to be gained
+        /// * `deadline` - The block number at which the swap should be invalidated
         #[pallet::weight(T::WeightInfo::sell_tokens())]
         pub fn sell_tokens(
             origin: OriginFor<T>,
@@ -251,6 +275,12 @@ pub mod pallet {
             Ok(())
         }
 
+        /// Sell currency
+        ///
+        /// * `token_id` - The Asset ID
+        /// * `currency` - The currency to be sold
+        /// * `min_tokens` - The minimum amount of tokens to be gained
+        /// * `deadline` - The block number at which the swap should be invalidated
         #[pallet::weight(T::WeightInfo::sell_currency())]
         pub fn sell_currency(
             origin: OriginFor<T>,
@@ -271,6 +301,12 @@ pub mod pallet {
             Ok(())
         }
 
+        /// Buy currency (sell tokens)
+        ///
+        /// * `token_id` - The Asset ID
+        /// * `currency` - The currency to be bought
+        /// * `max_tokens` - The maximum amount of tokens to be spent
+        /// * `deadline` - The block number at which the swap should be invalidated
         #[pallet::weight(T::WeightInfo::buy_currency())]
         pub fn buy_currency(
             origin: OriginFor<T>,
@@ -309,8 +345,6 @@ pub mod pallet {
     #[pallet::genesis_build]
     impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
         fn build(&self) {
-            use sp_runtime::traits::Saturating;
-
             let length = self.swaps.len();
 
             for i in 0..length {
@@ -333,9 +367,6 @@ pub mod pallet {
                     },
                 );
             }
-
-            let length = length as u32;
-            <NextLpId<T>>::put(T::AssetId::max_value().saturating_sub(length.into()));
         }
     }
 }
@@ -462,19 +493,13 @@ impl<T: Config> Swaps for Pallet<T> {
     ) -> Result<Self::AssetId, DispatchError> {
         ensure!(!<Metadata<T>>::contains_key(&token_id), Error::<T>::Exists);
 
-        let minimum = T::Currency::minimum_balance();
-
         let mut name = T::Assets::name(&token_id);
         name.extend_from_slice(b" LP*");
 
         let mut symbol = T::Assets::symbol(&token_id);
         symbol.extend_from_slice(b"/AD3");
 
-        let lp_token_id = <NextLpId<T>>::try_mutate(|id| -> Result<T::AssetId, Error<T>> {
-            let current_id = *id;
-            id.saturating_dec();
-            Ok(current_id)
-        })?;
+        let lp_token_id = T::AssetId::max_value() - token_id;
 
         // 1. create pot
 
@@ -484,7 +509,7 @@ impl<T: Config> Swaps for Pallet<T> {
 
         // 2. create lp token
 
-        T::Assets::create(lp_token_id, pot.clone(), true, minimum)?;
+        T::Assets::create(lp_token_id, pot.clone(), true, One::one())?;
         T::Assets::set(lp_token_id, &pot, name, symbol, 18)?;
 
         // 3. insert metadata
@@ -510,10 +535,10 @@ impl<T: Config> Swaps for Pallet<T> {
         max_tokens: Self::TokenBalance,
     ) -> Result<
         (
-            Self::AssetId,      // token_id
-            Self::TokenBalance, // token
-            Self::AssetId,      // lp_token_id
-            Self::TokenBalance, // liquidity
+            Self::AssetId,
+            Self::TokenBalance,
+            Self::AssetId,
+            Self::TokenBalance,
         ),
         DispatchError,
     > {
@@ -539,13 +564,22 @@ impl<T: Config> Swaps for Pallet<T> {
         ensure!(max_tokens >= tokens, Error::<T>::TooExpensiveCurrency);
         ensure!(lp >= min_liquidity, Error::<T>::TooLowLiquidity);
 
+        ensure!(
+            T::Currency::free_balance(&who) - T::Currency::minimum_balance() >= currency,
+            Error::<T>::InsufficientCurrency
+        );
+        ensure!(
+            T::Assets::balance(token_id, &who) >= tokens,
+            Error::<T>::InsufficientTokens
+        );
+
         T::Currency::transfer(
             &who,
             &meta.pot,
             currency,
             if keep_alive { KeepAlive } else { AllowDeath },
         )?;
-        T::Assets::transfer(token_id, &who, &meta.pot, tokens, keep_alive)?;
+        T::Assets::transfer(token_id, &who, &meta.pot, tokens, false)?;
 
         T::Assets::mint_into(meta.lp_token_id, &who, lp)?;
 
@@ -562,10 +596,10 @@ impl<T: Config> Swaps for Pallet<T> {
         liquidity: Self::TokenBalance,
     ) -> Result<
         (
-            Self::AssetId,      // token_id
-            Self::TokenBalance, // token
-            Self::AssetId,      // lp_token_id
-            Self::QuoteBalance, // currency
+            Self::AssetId,
+            Self::TokenBalance,
+            Self::AssetId,
+            Self::QuoteBalance,
         ),
         DispatchError,
     > {

@@ -28,7 +28,7 @@ use sp_runtime::{
         SaturatedConversion, StaticLookup, Verify,
     },
     transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
-    ApplyExtrinsicResult, FixedPointNumber, Perbill, Percent, Permill, Perquintill,
+    ApplyExtrinsicResult, DispatchError, FixedPointNumber, Perbill, Percent, Permill, Perquintill,
 };
 use sp_std::prelude::*;
 #[cfg(feature = "std")]
@@ -1524,70 +1524,64 @@ impl_runtime_apis! {
         fn dryly_add_liquidity(
             token_id: AssetId,
             currency: BalanceWrapper<Balance>,
-            tokens: BalanceWrapper<Balance>,
-        ) -> Option<(
+            max_tokens: BalanceWrapper<Balance>,
+        ) -> Result<(
             AssetId,
             BalanceWrapper<Balance>,
             AssetId,
             BalanceWrapper<Balance>,
-        )> {
-            Swap::mint_dry(token_id, currency.into(), tokens.into())
+        ), DispatchError> {
+            Swap::mint_dry(token_id, currency.into(), max_tokens.into())
                 .map(|(token_id, tokens, lp_token_id, liquidity)| {
                     (token_id, tokens.into(), lp_token_id, liquidity.into())
                 })
-                .ok()
         }
 
         fn dryly_remove_liquidity(
             token_id: AssetId,
             liquidity: BalanceWrapper<Balance>,
-        ) -> Option<(
+        ) -> Result<(
             AssetId,
             BalanceWrapper<Balance>,
             AssetId,
             BalanceWrapper<Balance>,
-        )> {
+        ), DispatchError> {
             Swap::burn_dry(token_id, liquidity.into())
                 .map(|(token_id, tokens, lp_token_id, currency)| {
                     (token_id, tokens.into(), lp_token_id, currency.into())
                 })
-                .ok()
         }
 
         fn dryly_buy_tokens(
             token_id: AssetId,
             tokens: BalanceWrapper<Balance>,
-        ) -> Option<BalanceWrapper<Balance>> {
+        ) -> Result<BalanceWrapper<Balance>, DispatchError> {
             Swap::token_out_dry(token_id, tokens.into())
                 .map(|currency| currency.into())
-                .ok()
         }
 
         fn dryly_sell_tokens(
             token_id: AssetId,
             tokens: BalanceWrapper<Balance>,
-        ) -> Option<BalanceWrapper<Balance>> {
+        ) -> Result<BalanceWrapper<Balance>, DispatchError> {
             Swap::token_in_dry(token_id, tokens.into())
                 .map(|currency| currency.into())
-                .ok()
         }
 
         fn dryly_sell_currency(
             token_id: AssetId,
             currency: BalanceWrapper<Balance>,
-        ) -> Option<BalanceWrapper<Balance>> {
+        ) -> Result<BalanceWrapper<Balance>, DispatchError> {
             Swap::quote_in_dry(token_id, currency.into())
                 .map(|tokens| tokens.into())
-                .ok()
         }
 
         fn dryly_buy_currency(
             token_id: AssetId,
             currency: BalanceWrapper<Balance>,
-        ) -> Option<BalanceWrapper<Balance>> {
+        ) -> Result<BalanceWrapper<Balance>, DispatchError> {
             Swap::quote_out_dry(token_id, currency.into())
                 .map(|tokens| tokens.into())
-                .ok()
         }
     }
 

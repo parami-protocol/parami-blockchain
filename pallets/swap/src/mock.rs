@@ -140,8 +140,11 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     .unwrap();
 
     pallet_assets::GenesisConfig::<Test> {
-        assets: vec![(1, alice, false, 1)],
-        metadata: vec![(1, b"Test Token".to_vec(), b"XTT".to_vec(), 18)],
+        assets: vec![(1, alice, false, 1), (9, alice, false, 1)],
+        metadata: vec![
+            (1, b"Test Token".to_vec(), b"XTT".to_vec(), 18),
+            (9, b"Mock Token".to_vec(), b"XMT".to_vec(), 18),
+        ],
         accounts: vec![(1, alice, 44)],
     }
     .assimilate_storage(&mut t)
