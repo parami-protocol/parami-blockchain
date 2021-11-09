@@ -1,8 +1,6 @@
 use crate::{mock::*, AdsOf, Config, DeadlineOf, Error, Metadata, SlotOf};
-use frame_support::{
-    assert_noop, assert_ok,
-    traits::{Hooks, StoredMap},
-};
+use frame_support::{assert_noop, assert_ok, traits::Hooks};
+use parami_traits::Tags;
 use sp_core::sr25519;
 
 macro_rules! ensure_remain {
@@ -23,8 +21,8 @@ fn should_create() {
         assert_eq!(Balances::free_balance(alice), 100);
 
         let tags = vec![
-            vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8],
             vec![5u8, 4u8, 3u8, 2u8, 1u8, 0u8],
+            vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8],
         ];
 
         let mut hashes = vec![];
@@ -38,7 +36,7 @@ fn should_create() {
         assert_ok!(Ad::create(
             Origin::signed(alice),
             50,
-            tags.clone(),
+            tags,
             metadata.clone(),
             1,
             1
@@ -64,7 +62,7 @@ fn should_create() {
 
         let ad = <Metadata<Test>>::iter_keys().next().unwrap();
 
-        assert_eq!(<Test as Config>::TagsStore::get(&ad), hashes);
+        assert_eq!(<Test as Config>::Tags::tags_of(&ad), hashes);
 
         assert_eq!(Balances::free_balance(pool), 50);
     });
@@ -162,8 +160,8 @@ fn should_update_tags() {
         let alice = sr25519::Public([1; 32]);
 
         let tags = vec![
-            vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8],
             vec![5u8, 4u8, 3u8, 2u8, 1u8, 0u8],
+            vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8],
         ];
 
         let mut hashes = vec![];
@@ -185,7 +183,7 @@ fn should_update_tags() {
 
         assert_ok!(Ad::update_tags(Origin::signed(alice), ad, tags));
 
-        assert_eq!(<Test as Config>::TagsStore::get(&ad), hashes);
+        assert_eq!(<Test as Config>::Tags::tags_of(&ad), hashes);
     });
 }
 
@@ -388,6 +386,8 @@ fn should_pay() {
 
         // 1. prepare
 
+        assert_ok!(Tag::create(Origin::signed(alice), b"Test".to_vec()));
+
         assert_ok!(Nft::back(Origin::signed(bob), kol, 2_000_100u128));
 
         assert_ok!(Nft::mint(
@@ -401,7 +401,7 @@ fn should_pay() {
         assert_ok!(Ad::create(
             Origin::signed(bob),
             500,
-            vec![],
+            vec![b"Test".to_vec()],
             [0u8; 64].into(),
             1,
             1
@@ -422,12 +422,21 @@ fn should_pay() {
 
         // 2. pay
 
-        assert_ok!(Ad::pay(Origin::signed(bob), ad, kol, did, vec![], None));
+        assert_ok!(Ad::pay(
+            Origin::signed(bob),
+            ad,
+            kol,
+            did,
+            vec![(b"Test".to_vec(), 5)],
+            None
+        ));
 
         let slot = <SlotOf<Test>>::get(&kol).unwrap();
-        assert_eq!(slot.remain, 198);
-        assert_eq!(Assets::balance(0, &meta.pot), 198);
+        assert_eq!(slot.remain, 194);
+        assert_eq!(Assets::balance(0, &meta.pot), 194);
 
-        assert_eq!(Assets::balance(0, &charlie), 1);
+        assert_eq!(Assets::balance(0, &charlie), 5);
+
+        assert_eq!(Tag::get_score(&did, b"Test".to_vec()), 5);
     });
 }

@@ -19,14 +19,13 @@ mod types;
 use frame_support::{
     dispatch::DispatchResult,
     ensure,
-    traits::{Currency, ExistenceRequirement::KeepAlive, StoredMap, WithdrawReasons},
-    StorageHasher,
+    traits::{Currency, ExistenceRequirement::KeepAlive, WithdrawReasons},
 };
+#[cfg(not(feature = "std"))]
+use num_traits::Float;
+use parami_traits::Tags;
 use scale_info::TypeInfo;
-use sp_runtime::{
-    traits::{Hash, MaybeSerializeDeserialize, Member},
-    DispatchError,
-};
+use sp_runtime::traits::{Hash, MaybeSerializeDeserialize, Member};
 use sp_std::prelude::*;
 
 use weights::WeightInfo;
@@ -63,9 +62,6 @@ pub mod pallet {
             + MaxEncodedLen
             + TypeInfo;
 
-        /// The hashing algorithm being used for hash map to hash tags
-        type Hashing: StorageHasher;
-
         /// Submission fee to create new tags
         #[pallet::constant]
         type SubmissionFee: Get<BalanceOf<Self>>;
@@ -89,24 +85,43 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::getter(fn meta)]
-    pub(super) type Metadata<T: Config> = StorageMap<_, <T as Config>::Hashing, Vec<u8>, MetaOf<T>>;
+    pub(super) type Metadata<T: Config> = StorageMap<_, Blake2_128, Vec<u8>, MetaOf<T>>;
 
     /// Tags of an advertisement
     #[pallet::storage]
-    #[pallet::getter(fn tags_of)]
-    pub(super) type TagsOf<T: Config> = StorageMap<_, Identity, HashOf<T>, Vec<Vec<u8>>>;
+    pub(super) type TagsOf<T: Config> = StorageDoubleMap<
+        _,
+        Identity,
+        HashOf<T>,
+        Blake2_128,
+        Vec<u8>, //
+        bool,
+        ValueQuery,
+    >;
 
     /// Tags and Scores of a DID
     #[pallet::storage]
-    #[pallet::getter(fn personas_of)]
-    pub(super) type PersonasOf<T: Config> =
-        StorageDoubleMap<_, Identity, T::DecentralizedId, Identity, Vec<u8>, i64>;
+    pub(super) type PersonasOf<T: Config> = StorageDoubleMap<
+        _,
+        Identity,
+        T::DecentralizedId,
+        Blake2_128,
+        Vec<u8>, //
+        i32,
+        ValueQuery,
+    >;
 
     /// Tags and Scores of a KOL
     #[pallet::storage]
-    #[pallet::getter(fn influences_of)]
-    pub(super) type InfluencesOf<T: Config> =
-        StorageDoubleMap<_, Identity, T::DecentralizedId, Identity, Vec<u8>, i64>;
+    pub(super) type InfluencesOf<T: Config> = StorageDoubleMap<
+        _,
+        Identity,
+        T::DecentralizedId,
+        Blake2_128,
+        Vec<u8>, //
+        i32,
+        ValueQuery,
+    >;
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -122,7 +137,6 @@ pub mod pallet {
     pub enum Error<T> {
         Exists,
         InsufficientBalance,
-        NotExists,
     }
 
     #[pallet::call]
@@ -197,10 +211,6 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-    pub fn key<K: AsRef<Vec<u8>>>(tag: K) -> Vec<u8> {
-        <Metadata<T>>::hashed_key_for(tag.as_ref())
-    }
-
     fn inner_create(creator: T::DecentralizedId, tag: Vec<u8>) -> Vec<u8> {
         let created = <frame_system::Pallet<T>>::block_number();
 
@@ -209,71 +219,138 @@ impl<T: Config> Pallet<T> {
         Self::key(&tag)
     }
 
-    /// update score of a tag for a DID
-    pub fn influence(did: T::DecentralizedId, tag: Vec<u8>, delta: i64) -> DispatchResult {
-        ensure!(<Metadata<T>>::contains_key(&tag), Error::<T>::NotExists);
+    fn accrue(score: i32, delta: i32) -> i32 {
+        // f[x] := nLog[102, 102-Abs[x]] when n * x >= 0
+        // f[x] := nLog[102, Abs[x] + 2] when n * x < 0
 
-        let hash = Self::key(&tag);
+        let s = score as f32;
+        let d = delta as f32;
 
-        <PersonasOf<T>>::mutate(&did, hash, |maybe| {
-            if let Some(score) = maybe {
-                *score += delta;
-            } else {
-                *maybe = Some(delta);
-            }
-        });
-
-        Ok(())
-    }
-
-    /// update score of a tag for a KOL
-    pub fn impact(did: T::DecentralizedId, tag: Vec<u8>, delta: i64) -> DispatchResult {
-        ensure!(<Metadata<T>>::contains_key(&tag), Error::<T>::NotExists);
-
-        let hash = Self::key(&tag);
-
-        <InfluencesOf<T>>::mutate(&did, hash, |maybe| {
-            if let Some(score) = maybe {
-                *score += delta;
-            } else {
-                *maybe = Some(delta);
-            }
-        });
-
-        Ok(())
-    }
-}
-
-impl<T: Config> StoredMap<Vec<u8>, Vec<u8>> for Pallet<T> {
-    fn get(k: &Vec<u8>) -> Vec<u8> {
-        if <Metadata<T>>::contains_key(k) {
-            Self::key(k)
+        let b = if s.signum() == d.signum() {
+            102f32 - s.abs()
         } else {
-            Default::default()
-        }
-    }
+            s.abs() + 2f32
+        };
 
-    fn try_mutate_exists<R, E: From<DispatchError>>(
-        _k: &Vec<u8>,
-        f: impl FnOnce(&mut Option<Vec<u8>>) -> Result<R, E>,
-    ) -> Result<R, E> {
-        let mut some = None;
-        f(&mut some)
+        let d = b.log(102f32) * d;
+        let s = (s + d) * 10f32;
+
+        // MARK: due to rounding, the score won't exceed 100 or -100
+        s.round() as i32 / 10
     }
 }
 
-impl<T: Config> StoredMap<HashOf<T>, Vec<Vec<u8>>> for Pallet<T> {
-    fn get(k: &HashOf<T>) -> Vec<Vec<u8>> {
-        match <TagsOf<T>>::get(k) {
-            Some(tags) => tags,
-            None => Default::default(),
-        }
+impl<T: Config> Tags for Pallet<T> {
+    type DecentralizedId = T::DecentralizedId;
+    type Hash = HashOf<T>;
+
+    fn key<K: AsRef<Vec<u8>>>(tag: K) -> Vec<u8> {
+        use codec::Encode;
+        use frame_support::{Blake2_128, StorageHasher};
+
+        tag.as_ref().using_encoded(Blake2_128::hash).to_vec()
     }
 
-    fn try_mutate_exists<R, E: From<DispatchError>>(
-        k: &HashOf<T>,
-        f: impl FnOnce(&mut Option<Vec<Vec<u8>>>) -> Result<R, E>,
-    ) -> Result<R, E> {
-        <TagsOf<T>>::mutate(k, f)
+    fn exists<K: AsRef<Vec<u8>>>(tag: K) -> bool {
+        <Metadata<T>>::contains_key(tag.as_ref())
+    }
+
+    fn tags_of(id: &Self::Hash) -> Vec<Vec<u8>> {
+        let mut iter = <TagsOf<T>>::iter_prefix_values(id);
+
+        let mut hashes = vec![];
+        while let Some(_) = iter.next() {
+            let prefix = iter.prefix();
+            let raw = iter.last_raw_key();
+            let hash = raw[prefix.len()..].to_vec();
+
+            hashes.push(hash);
+        }
+
+        hashes
+    }
+
+    fn add_tag(id: &Self::Hash, tag: Vec<u8>) -> DispatchResult {
+        <TagsOf<T>>::insert(id, &tag, true);
+
+        Ok(())
+    }
+
+    fn del_tag<K: AsRef<Vec<u8>>>(id: &Self::Hash, tag: K) -> DispatchResult {
+        <TagsOf<T>>::remove(id, tag.as_ref());
+
+        Ok(())
+    }
+
+    fn clr_tag(id: &Self::Hash) -> DispatchResult {
+        <TagsOf<T>>::remove_prefix(id, None);
+
+        Ok(())
+    }
+
+    fn has_tag<K: AsRef<Vec<u8>>>(id: &Self::Hash, tag: K) -> bool {
+        <TagsOf<T>>::contains_key(id, tag.as_ref())
+    }
+
+    fn personas_of(did: &Self::DecentralizedId) -> Vec<(Vec<u8>, i32)> {
+        let mut iter = <PersonasOf<T>>::iter_prefix_values(did);
+
+        let mut tags = vec![];
+        while let Some(score) = iter.next() {
+            let prefix = iter.prefix();
+            let raw = iter.last_raw_key();
+            let hash = raw[prefix.len()..].to_vec();
+
+            tags.push((hash, score));
+        }
+
+        tags
+    }
+
+    fn get_score<K: AsRef<Vec<u8>>>(did: &Self::DecentralizedId, tag: K) -> i32 {
+        <PersonasOf<T>>::get(did, tag.as_ref())
+    }
+
+    fn influence<K: AsRef<Vec<u8>>>(
+        did: &Self::DecentralizedId,
+        tag: K,
+        delta: i32,
+    ) -> DispatchResult {
+        <PersonasOf<T>>::mutate(&did, tag.as_ref(), |score| {
+            *score = Self::accrue(*score, delta);
+        });
+
+        Ok(())
+    }
+
+    fn influences_of(kol: &Self::DecentralizedId) -> Vec<(Vec<u8>, i32)> {
+        let mut iter = <InfluencesOf<T>>::iter_prefix_values(kol);
+
+        let mut tags = vec![];
+        while let Some(score) = iter.next() {
+            let prefix = iter.prefix();
+            let raw = iter.last_raw_key();
+            let hash = raw[prefix.len()..].to_vec();
+
+            tags.push((hash, score));
+        }
+
+        tags
+    }
+
+    fn get_influence<K: AsRef<Vec<u8>>>(kol: &Self::DecentralizedId, tag: K) -> i32 {
+        <InfluencesOf<T>>::get(kol, tag.as_ref())
+    }
+
+    fn impact<K: AsRef<Vec<u8>>>(
+        kol: &Self::DecentralizedId,
+        tag: K,
+        delta: i32,
+    ) -> DispatchResult {
+        <InfluencesOf<T>>::mutate(&kol, tag.as_ref(), |score| {
+            *score = Self::accrue(*score, delta);
+        });
+
+        Ok(())
     }
 }

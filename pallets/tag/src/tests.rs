@@ -1,4 +1,4 @@
-use crate::{mock::*, Error, InfluencesOf, Metadata, PersonasOf};
+use crate::{mock::*, Error, HashOf, Metadata};
 use frame_support::{assert_noop, assert_ok, traits::Currency};
 use sp_core::sr25519;
 use sp_runtime::DispatchError;
@@ -79,34 +79,41 @@ fn should_force_create() {
 }
 
 #[test]
-fn should_scoring() {
+fn tags_trait() {
+    use parami_traits::Tags;
+
     new_test_ext().execute_with(|| {
         let tag1 = vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8];
         let tag2 = vec![5u8, 4u8, 3u8, 2u8, 1u8, 0u8];
 
-        assert_ok!(Tag::force_create(Origin::root(), tag1.clone()));
+        let hash1 = Tag::key(&tag1);
+        let hash2 = Tag::key(&tag2);
 
-        let hash1 = <Metadata<Test>>::hashed_key_for(&tag1);
-        let hash2 = <Metadata<Test>>::hashed_key_for(&tag2);
+        let ad = HashOf::<Test>::default();
+
+        assert_ok!(Tag::add_tag(&ad, tag1.clone()));
+        assert_eq!(Tag::tags_of(&ad), vec![hash1.clone()]);
+        assert_eq!(Tag::has_tag(&ad, &tag1), true);
+
+        assert_ok!(Tag::add_tag(&ad, tag2.clone()));
+        assert_eq!(Tag::tags_of(&ad), vec![hash2.clone(), hash1.clone()]);
+
+        assert_ok!(Tag::del_tag(&ad, &tag2));
+        assert_eq!(Tag::tags_of(&ad), vec![hash1.clone()]);
+
+        assert_ok!(Tag::clr_tag(&ad));
+        assert_eq!(Tag::tags_of(&ad), Vec::<Vec<u8>>::new());
 
         let did = DID::from_slice(&[0xff; 20]);
 
-        assert_ok!(Tag::influence(did, tag1.clone(), 5));
-        assert_eq!(<PersonasOf<Test>>::get(&did, &hash1), Some(5));
-        assert_ok!(Tag::influence(did, tag1.clone(), 3));
-        assert_eq!(<PersonasOf<Test>>::get(&did, &hash1), Some(8));
+        assert_ok!(Tag::influence(&did, &tag1, 5));
+        assert_eq!(Tag::personas_of(&did), vec![(hash1.clone(), 5)]);
+        assert_eq!(Tag::get_score(&did, &tag1), 5);
 
-        assert_noop!(
-            Tag::influence(did, tag2.clone(), 5),
-            Error::<Test>::NotExists
-        );
-        assert_eq!(<PersonasOf<Test>>::get(&did, &hash2), None);
+        let did = DID::from_slice(&[0xff; 20]);
 
-        assert_ok!(Tag::impact(did, tag1.clone(), 5));
-        assert_eq!(<InfluencesOf<Test>>::get(&did, &hash1), Some(5));
-        assert_ok!(Tag::impact(did, tag1.clone(), 3));
-        assert_eq!(<InfluencesOf<Test>>::get(&did, &hash1), Some(8));
-        assert_noop!(Tag::impact(did, tag2.clone(), 5), Error::<Test>::NotExists);
-        assert_eq!(<InfluencesOf<Test>>::get(&did, &hash2), None);
+        assert_ok!(Tag::impact(&did, &tag1, 3));
+        assert_eq!(Tag::influences_of(&did), vec![(hash1.clone(), 3)]);
+        assert_eq!(Tag::get_influence(&did, &tag1), 3);
     });
 }

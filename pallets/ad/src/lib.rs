@@ -19,12 +19,12 @@ mod types;
 use frame_support::{
     dispatch::DispatchResult,
     ensure,
-    traits::{fungibles::Transfer, Currency, ExistenceRequirement::KeepAlive, StoredMap},
+    traits::{fungibles::Transfer, Currency, ExistenceRequirement::KeepAlive},
     weights::Weight,
     PalletId,
 };
 use parami_did::Pallet as Did;
-use parami_traits::Swaps;
+use parami_traits::{Swaps, Tags};
 use sp_runtime::{
     traits::{AccountIdConversion, Hash, One, Saturating, Zero},
     DispatchError,
@@ -69,7 +69,7 @@ pub mod pallet {
         >;
 
         /// The means of storing the tags and tags of advertisement
-        type TagsStore: StoredMap<Vec<u8>, Vec<u8>> + StoredMap<HashOf<Self>, Vec<Vec<u8>>>;
+        type Tags: Tags<DecentralizedId = Self::DecentralizedId, Hash = HashOf<Self>>;
 
         /// The origin which may do calls
         type CallOrigin: EnsureOrigin<
@@ -142,10 +142,12 @@ pub mod pallet {
     pub enum Error<T> {
         Deadline,
         DidNotExists,
-        InsufficientBalance,
+        EmptyTags,
+        InsufficientTokens,
         NotExists,
         NotMinted,
         NotOwned,
+        ScoreOutOfRange,
         TagNotExists,
         Underbid,
     }
@@ -167,11 +169,8 @@ pub mod pallet {
 
             let (creator, who) = T::CallOrigin::ensure_origin(origin)?;
 
-            let mut hashes = vec![];
             for tag in &tags {
-                let hash = T::TagsStore::get(tag);
-                ensure!(hash.len() > 0, Error::<T>::TagNotExists);
-                hashes.push(hash);
+                ensure!(T::Tags::exists(tag), Error::<T>::TagNotExists);
             }
 
             // 1. derive deposit poll account and advertisement ID
@@ -214,7 +213,9 @@ pub mod pallet {
                 }
             });
 
-            let _ = T::TagsStore::mutate(&id, |maybe| *maybe = hashes);
+            for tag in tags {
+                T::Tags::add_tag(&id, tag)?;
+            }
 
             Self::deposit_event(Event::Created(id));
 
@@ -253,24 +254,24 @@ pub mod pallet {
 
             let meta = Self::ensure_owned(did, id)?;
 
+            for tag in &tags {
+                ensure!(T::Tags::exists(tag), Error::<T>::TagNotExists);
+            }
+
             let height = <frame_system::Pallet<T>>::block_number();
             ensure!(meta.deadline > height, Error::<T>::Deadline);
 
-            let mut hashes = vec![];
-            for tag in &tags {
-                let hash = T::TagsStore::get(tag);
-                ensure!(hash.len() > 0, Error::<T>::TagNotExists);
-                hashes.push(hash);
+            T::Tags::clr_tag(&id)?;
+            for tag in tags {
+                T::Tags::add_tag(&id, tag)?;
             }
-
-            let _ = T::TagsStore::mutate(&id, |maybe| *maybe = hashes);
 
             Self::deposit_event(Event::Updated(id));
 
             Ok(())
         }
 
-        #[pallet::weight(1_000_000_000)]
+        #[pallet::weight(<T as Config>::WeightInfo::bid())]
         pub fn bid(
             origin: OriginFor<T>,
             ad: HashOf<T>,
@@ -352,7 +353,7 @@ pub mod pallet {
             Ok(())
         }
 
-        #[pallet::weight(1_000_000_000)]
+        #[pallet::weight(<T as Config>::WeightInfo::deposit())]
         pub fn deposit(
             origin: OriginFor<T>,
             id: HashOf<T>,
@@ -377,15 +378,17 @@ pub mod pallet {
             Ok(())
         }
 
-        #[pallet::weight(1_000_000_000)]
+        #[pallet::weight(<T as Config>::WeightInfo::pay(scores.len() as u32))]
         pub fn pay(
             origin: OriginFor<T>,
             id: HashOf<T>,
             kol: T::DecentralizedId,
             visitor: T::DecentralizedId,
-            tags: Vec<(Vec<u8>, i8)>,
+            scores: Vec<(Vec<u8>, i8)>,
             referer: Option<T::DecentralizedId>,
         ) -> DispatchResult {
+            ensure!(!scores.is_empty(), Error::<T>::EmptyTags);
+
             let (did, _) = T::CallOrigin::ensure_origin(origin)?;
 
             let meta = Self::ensure_owned(did, id)?;
@@ -399,11 +402,38 @@ pub mod pallet {
 
             // 2. scoring visitor
 
-            // TODO: todo!()
+            let mut socring = 5i32;
 
-            let amount = T::Currency::minimum_balance();
+            let personas = T::Tags::personas_of(&visitor);
+            let length = personas.len();
+            for (_, score) in personas {
+                socring += score;
+            }
 
-            // 3. payout assets
+            socring /= (length + 1) as i32;
+
+            if socring < 0 {
+                socring = 0;
+            }
+
+            let socring = socring as u32;
+
+            // TODO: find a perfect balance
+
+            let amount = T::Currency::minimum_balance().saturating_mul(socring.into());
+
+            ensure!(slot.remain >= amount, Error::<T>::InsufficientTokens);
+
+            // 3. influence visitor
+
+            for (tag, score) in scores {
+                ensure!(T::Tags::has_tag(&id, &tag), Error::<T>::TagNotExists);
+                ensure!(score >= -5 && score <= 5, Error::<T>::ScoreOutOfRange);
+
+                T::Tags::influence(&visitor, &tag, score as i32)?;
+            }
+
+            // 4. payout assets
 
             let visitor = Did::<T>::lookup_did(visitor).ok_or(Error::<T>::DidNotExists)?;
 

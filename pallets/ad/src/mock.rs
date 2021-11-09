@@ -1,5 +1,5 @@
 use crate as parami_ad;
-use frame_support::{parameter_types, traits::GenesisBuild, Blake2_256, PalletId};
+use frame_support::{parameter_types, traits::GenesisBuild, PalletId};
 use frame_system::{self as system, EnsureRoot};
 use sp_core::{sr25519, H256};
 use sp_runtime::{
@@ -186,7 +186,6 @@ impl parami_tag::Config for Test {
     type Event = Event;
     type Currency = Balances;
     type DecentralizedId = DID;
-    type Hashing = Blake2_256;
     type SubmissionFee = SubmissionFee;
     type CallOrigin = parami_did::EnsureDid<Self>;
     type ForceOrigin = EnsureRoot<Self::AccountId>;
@@ -202,7 +201,7 @@ impl parami_ad::Config for Test {
     type Assets = Assets;
     type PalletId = AdPalletId;
     type Swaps = Swap;
-    type TagsStore = parami_tag::Pallet<Self>;
+    type Tags = Tag;
     type CallOrigin = parami_did::EnsureDid<Self>;
     type ForceOrigin = EnsureRoot<Self::AccountId>;
     type WeightInfo = ();

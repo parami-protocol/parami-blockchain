@@ -55,15 +55,15 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
     // Storage: Balances Reserves (r:1 w:0)
     // Storage: Tag Metadata (r:1 w:1)
     fn create(n: u32, ) -> Weight {
-        (36_622_000 as Weight)
+        (37_096_000 as Weight)
             // Standard Error: 0
-            .saturating_add((4_000 as Weight).saturating_mul(n as Weight))
+            .saturating_add((3_000 as Weight).saturating_mul(n as Weight))
             .saturating_add(T::DbWeight::get().reads(3 as Weight))
             .saturating_add(T::DbWeight::get().writes(1 as Weight))
     }
     // Storage: Tag Metadata (r:1 w:1)
     fn force_create(n: u32, ) -> Weight {
-        (15_000_000 as Weight)
+        (14_833_000 as Weight)
             // Standard Error: 0
             .saturating_add((4_000 as Weight).saturating_mul(n as Weight))
             .saturating_add(T::DbWeight::get().reads(1 as Weight))
@@ -77,15 +77,15 @@ impl WeightInfo for () {
     // Storage: Balances Reserves (r:1 w:0)
     // Storage: Tag Metadata (r:1 w:1)
     fn create(n: u32, ) -> Weight {
-        (36_622_000 as Weight)
+        (37_096_000 as Weight)
             // Standard Error: 0
-            .saturating_add((4_000 as Weight).saturating_mul(n as Weight))
+            .saturating_add((3_000 as Weight).saturating_mul(n as Weight))
             .saturating_add(RocksDbWeight::get().reads(3 as Weight))
             .saturating_add(RocksDbWeight::get().writes(1 as Weight))
     }
     // Storage: Tag Metadata (r:1 w:1)
     fn force_create(n: u32, ) -> Weight {
-        (15_000_000 as Weight)
+        (14_833_000 as Weight)
             // Standard Error: 0
             .saturating_add((4_000 as Weight).saturating_mul(n as Weight))
             .saturating_add(RocksDbWeight::get().reads(1 as Weight))

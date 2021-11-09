@@ -46,7 +46,7 @@ use frame_support::{
         constants::{BlockExecutionWeight, RocksDbWeight, WEIGHT_PER_SECOND},
         DispatchClass, IdentityFee, Weight,
     },
-    Blake2_256, PalletId,
+    PalletId,
 };
 use frame_system::{EnsureOneOf, EnsureRoot};
 use pallet_contracts::weights::WeightInfo;
@@ -1050,7 +1050,7 @@ impl parami_ad::Config for Runtime {
     type Assets = Assets;
     type PalletId = AdPalletId;
     type Swaps = Swap;
-    type TagsStore = parami_tag::Pallet<Self>;
+    type Tags = Tag;
     type CallOrigin = parami_advertiser::EnsureAdvertiser<Self>;
     type ForceOrigin = EnsureRootOrHalfCouncil;
     type WeightInfo = ();
@@ -1189,7 +1189,6 @@ impl parami_tag::Config for Runtime {
     type Event = Event;
     type Currency = Balances;
     type DecentralizedId = <Self as parami_did::Config>::DecentralizedId;
-    type Hashing = Blake2_256;
     type SubmissionFee = SubmissionFee;
     type CallOrigin = parami_advertiser::EnsureAdvertiser<Self>;
     type ForceOrigin = EnsureRootOrHalfCouncil;
