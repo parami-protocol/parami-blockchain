@@ -443,6 +443,7 @@ pub fn testnet_genesis(
         // ad: Default::default(),
         advertiser: Default::default(),
         did: Default::default(),
+        linker: Default::default(),
         magic: Default::default(),
         nft: Default::default(),
         swap: Default::default(),

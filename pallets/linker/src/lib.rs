@@ -2,31 +2,36 @@
 
 pub use pallet::*;
 
-#[rustfmt::skip]
-pub mod weights;
-
 #[cfg(test)]
 mod mock;
 
 #[cfg(test)]
 mod tests;
 
-#[cfg(feature = "runtime-benchmarks")]
-mod benchmarking;
+mod ocw;
 
-mod btc;
-mod eth;
+mod types;
 
-use btc::{base58::ToBase58, witness::WitnessProgram};
 use codec::Encode;
-use frame_support::dispatch::DispatchResultWithPostInfo;
-use frame_system::ensure_signed;
-use sp_io::crypto::secp256k1_ecdsa_recover_compressed;
+use frame_support::{
+    dispatch::{DispatchResult, DispatchResultWithPostInfo},
+    ensure,
+};
+use frame_system::offchain::CreateSignedTransaction;
+use scale_info::TypeInfo;
+use sp_core::crypto::KeyTypeId;
+use sp_runtime::traits::{MaybeSerializeDeserialize, Member};
 use sp_std::prelude::*;
 
-use weights::WeightInfo;
+const OFFCHAIN_KEY_TYPE: KeyTypeId = KeyTypeId(*b"lnk!");
 
-type Signature = [u8; 65];
+macro_rules! is_stask {
+    ($profile:expr, $prefix:expr) => {
+        $profile.starts_with($prefix) && $profile.last() != Some(&b'/')
+    };
+}
+
+pub(crate) use is_stask;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -34,240 +39,295 @@ pub mod pallet {
     use frame_support::pallet_prelude::*;
     use frame_system::pallet_prelude::*;
 
-    pub const EXPIRING_BLOCK_NUMBER_MAX: u32 = 10 * 60 * 24 * 30; // 30 days for 6s per block
-    pub const MAX_ETH_LINKS: usize = 3;
-    pub const MAX_BTC_LINKS: usize = 3;
-
-    enum BTCAddressType {
-        Legacy,
-        SegWit,
-    }
-
     #[pallet::config]
-    pub trait Config: frame_system::Config {
+    pub trait Config: frame_system::Config + CreateSignedTransaction<Call<Self>> {
+        /// The overarching event type
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
-        type WeightInfo: WeightInfo;
+
+        /// The DID type
+        type DecentralizedId: Parameter
+            + Member
+            + MaybeSerializeDeserialize
+            + Ord
+            + Default
+            + Copy
+            + sp_std::hash::Hash
+            + AsRef<[u8]>
+            + AsMut<[u8]>
+            + MaxEncodedLen
+            + TypeInfo;
+
+        /// Unsigned Call Priority
+        #[pallet::constant]
+        type UnsignedPriority: Get<TransactionPriority>;
+
+        /// The origin which may do calls
+        type CallOrigin: EnsureOrigin<
+            Self::Origin,
+            Success = (Self::DecentralizedId, Self::AccountId),
+        >;
     }
 
     #[pallet::pallet]
     #[pallet::generate_store(pub(super) trait Store)]
-    pub struct Pallet<T>(PhantomData<T>);
+    pub struct Pallet<T>(_);
 
+    /// Accounts pending to be checked with the offchain worker
     #[pallet::storage]
-    #[pallet::getter(fn eth_addresses)]
-    pub(super) type EthereumLink<T: Config> =
-        StorageMap<_, Blake2_128Concat, T::AccountId, Vec<Vec<u8>>, ValueQuery>;
+    #[pallet::getter(fn pendings_of)]
+    pub(super) type PendingOf<T: Config> = StorageDoubleMap<
+        _,
+        Identity,
+        T::DecentralizedId,
+        Twox64Concat,
+        types::AccountType,
+        types::Pending<T::BlockNumber>,
+    >;
 
+    /// Linked accounts of a DID
     #[pallet::storage]
-    #[pallet::getter(fn btc_addresses)]
-    pub(super) type BitcoinLink<T: Config> =
-        StorageMap<_, Blake2_128Concat, T::AccountId, Vec<Vec<u8>>, ValueQuery>;
+    #[pallet::getter(fn links_of)]
+    pub(super) type LinksOf<T: Config> = StorageDoubleMap<
+        _,
+        Identity,
+        T::DecentralizedId,
+        Twox64Concat,
+        types::AccountType,
+        Vec<u8>,
+    >;
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
-        EthAddressLinked(T::AccountId, Vec<u8>),
-        BtcAddressLinked(T::AccountId, Vec<u8>),
+        /// Account linked \[did, type, account\]
+        AccountLinked(T::DecentralizedId, types::AccountType, Vec<u8>),
+        /// Pending link failed \[did, type, account\]
+        ValidationFailed(T::DecentralizedId, types::AccountType, Vec<u8>),
     }
 
     #[pallet::hooks]
-    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+        fn offchain_worker(block_number: T::BlockNumber) {
+            match Self::ocw_begin_block(block_number) {
+                Ok(_) => {}
+                Err(e) => {
+                    log::error!("An error occurred in OCW: {:?}", e);
+                }
+            }
+        }
+    }
 
     #[pallet::error]
     pub enum Error<T> {
-        // Cannot recover the signature
-        EcdsaRecoverFailure,
-        // Link request expired
-        LinkRequestExpired,
-        // Provided address mismatch the address recovered from signature recovery
+        Deadline,
+        HttpFetchingError,
+        InvalidETHAddress,
+        InvalidSignature,
+        TaskNotExists,
         UnexpectedAddress,
-        // Unexpected ethereum message length error
-        UnexpectedEthMsgLength,
-        // Invalid BTC address to link
-        InvalidBTCAddress,
-        // Expiration block number is too far away from now
-        InvalidExpiringBlockNumber,
+        UnsupportedSite,
     }
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {
-        /// Link an Ethereum address.
-        /// providing a proof signature from the private key of that Ethereum address.
-        ///
-        /// The runtime needs to ensure that a malicious index can be handled correctly.
-        /// Currently, when vec.len > MAX_ETH_LINKS, replacement will always happen at the final index.
-        /// Otherwise it will use the next new slot unless index is valid against a currently available slot.
-        ///
-        /// Parameters:
-        /// - `account`: The address that is to be linked
-        /// - `index`: The index of the linked Ethereum address that the user wants to replace with
-        /// - `address`: The intended Ethereum address to link
-        /// - `expiring_block_number`: The block number after which this link request will expire
-        /// - `sig`: The rsv-signature generated by the private key of the address
-        ///
-        /// Emits `EthAddressLinked` event when successful.
-        #[pallet::weight(T::WeightInfo::link_eth())]
+        #[pallet::weight(1_000_000_000)]
+        pub fn link_sociality(
+            origin: OriginFor<T>,
+            site: types::AccountType,
+            profile: Vec<u8>,
+        ) -> DispatchResult {
+            use sp_runtime::traits::Saturating;
+            use types::AccountType::*;
+
+            let (did, _) = T::CallOrigin::ensure_origin(origin)?;
+
+            match site {
+                Telegram if is_stask!(profile, b"https://t.me/") => {}
+                _ => Err(Error::<T>::UnsupportedSite)?,
+            };
+
+            let height = <frame_system::Pallet<T>>::block_number();
+            let deadline = height.saturating_add(5u32.into());
+
+            <PendingOf<T>>::insert(&did, site, types::Pending { profile, deadline });
+
+            Ok(())
+        }
+
+        #[pallet::weight(1_000_000_000)]
         pub fn link_eth(
             origin: OriginFor<T>,
-            account: T::AccountId,
-            index: u32,
             address: Vec<u8>,
-            expiring_block_number: T::BlockNumber,
-            sig: Signature,
+            signature: types::Signature,
+        ) -> DispatchResult {
+            let (did, _) = T::CallOrigin::ensure_origin(origin)?;
+
+            ensure!(address.len() >= 2, Error::<T>::InvalidETHAddress);
+
+            let mut bytes = Self::generate_message(&did);
+
+            let mut length = Self::usize_to_u8_array(bytes.len())?;
+            let mut data = b"\x19Ethereum Signed Message:\n".encode();
+            data.append(&mut length);
+            data.append(&mut bytes);
+            let hash = sp_io::hashing::keccak_256(&data);
+
+            let pubkey = sp_io::crypto::secp256k1_ecdsa_recover(&signature, &hash)
+                .map_err(|_| Error::<T>::InvalidSignature)?;
+            let pk = sp_io::hashing::keccak_256(&pubkey);
+
+            ensure!(&pk[12..32] == &address, Error::<T>::UnexpectedAddress);
+
+            <LinksOf<T>>::insert(&did, types::AccountType::Ethereum, address.clone());
+
+            Self::deposit_event(Event::<T>::AccountLinked(
+                did,
+                types::AccountType::Bitcoin,
+                address,
+            ));
+
+            Ok(())
+        }
+
+        #[pallet::weight(10000)]
+        pub fn submit_link_unsigned(
+            origin: OriginFor<T>,
+            did: T::DecentralizedId,
+            site: types::AccountType,
+            profile: Vec<u8>,
+            ok: bool,
         ) -> DispatchResultWithPostInfo {
-            let _ = ensure_signed(origin)?;
+            let _ = ensure_none(origin)?;
 
-            let current_block_number = <frame_system::Pallet<T>>::block_number();
-            ensure!(
-                expiring_block_number > current_block_number,
-                Error::<T>::LinkRequestExpired
-            );
-            ensure!(
-                (expiring_block_number - current_block_number)
-                    < T::BlockNumber::from(EXPIRING_BLOCK_NUMBER_MAX),
-                Error::<T>::InvalidExpiringBlockNumber
-            );
+            let task = <PendingOf<T>>::get(&did, &site).ok_or(Error::<T>::TaskNotExists)?;
 
-            let bytes = Self::generate_raw_message(&account, expiring_block_number);
+            if ok {
+                ensure!(task.profile == profile, Error::<T>::UnexpectedAddress);
 
-            let hash = eth::eth_data_hash(bytes).map_err(|_| Error::<T>::UnexpectedEthMsgLength)?;
+                <LinksOf<T>>::insert(&did, &site, task.profile.clone());
 
-            let mut msg = [0u8; 32];
-            msg[..32].copy_from_slice(&hash[..32]);
+                Self::deposit_event(Event::<T>::AccountLinked(did, site.clone(), task.profile));
+            } else {
+                Self::deposit_event(Event::<T>::ValidationFailed(
+                    did,
+                    site.clone(),
+                    task.profile,
+                ));
+            }
 
-            let addr =
-                eth::address_from_sig(msg, sig).map_err(|_| Error::<T>::EcdsaRecoverFailure)?;
-            ensure!(addr == address, Error::<T>::UnexpectedAddress);
-
-            <EthereumLink<T>>::mutate(&account, |addrs| {
-                let index = index as usize;
-                // NOTE: allow linking `MAX_ETH_LINKS` eth addresses.
-                if (index >= addrs.len()) && (addrs.len() != MAX_ETH_LINKS) {
-                    addrs.push(addr.clone());
-                } else if (index >= addrs.len()) && (addrs.len() == MAX_ETH_LINKS) {
-                    addrs[MAX_ETH_LINKS - 1] = addr.clone();
-                } else {
-                    addrs[index] = addr.clone();
-                }
-            });
-
-            Self::deposit_event(Event::EthAddressLinked(account, addr.to_vec()));
+            <PendingOf<T>>::remove(&did, &site);
 
             Ok(().into())
         }
+    }
 
-        /// Link a BTC address.
-        /// providing a proof signature from the private key of that BTC address.
-        /// The BTC address may either be a legacy P2PK one (started with b'1') or a SegWit P2PK one (started with b'bc').
-        ///
-        /// The runtime needs to ensure that a malicious index can be handled correctly.
-        /// Currently, when vec.len > MAX_ETH_LINKS, replacement will always happen at the final index.
-        /// Otherwise it will use the next new slot unless index is valid against a currently available slot.
-        ///
-        /// Parameters:
-        /// - `account`: The address that is to be linked
-        /// - `index`: The index of the linked BTC address that the user wants to replace with
-        /// - `address`: The intended BTC address to link
-        /// - `expiring_block_number`: The block number after which this link request will expire
-        /// - `sig`: The rsv-signature generated by the private key of the address
-        ///
-        /// Emits `BtcAddressLinked` event when successful.
-        #[pallet::weight(T::WeightInfo::link_btc())]
-        pub fn link_btc(
-            origin: OriginFor<T>,
-            account: T::AccountId,
-            index: u32,
-            address: Vec<u8>,
-            expiring_block_number: T::BlockNumber,
-            sig: Signature,
-        ) -> DispatchResultWithPostInfo {
-            let _ = ensure_signed(origin)?;
+    #[pallet::genesis_config]
+    pub struct GenesisConfig<T>
+    where
+        T: Config,
+    {
+        pub links: Vec<(T::DecentralizedId, types::AccountType, Vec<u8>)>,
+    }
 
-            let current_block_number = <frame_system::Pallet<T>>::block_number();
-            ensure!(
-                expiring_block_number > current_block_number,
-                Error::<T>::LinkRequestExpired
-            );
-            ensure!(
-                (expiring_block_number - current_block_number)
-                    < T::BlockNumber::from(EXPIRING_BLOCK_NUMBER_MAX),
-                Error::<T>::InvalidExpiringBlockNumber
-            );
-
-            if address.len() < 2 {
-                Err(Error::<T>::InvalidBTCAddress)?
+    #[cfg(feature = "std")]
+    impl<T: Config> Default for GenesisConfig<T> {
+        fn default() -> Self {
+            Self {
+                links: Default::default(),
             }
+        }
+    }
 
-            let address_type = if address[0] == b'1' {
-                BTCAddressType::Legacy
-            } else if address[0] == b'b' && address[1] == b'c' {
-                BTCAddressType::SegWit
-            } else {
-                Err(Error::<T>::InvalidBTCAddress)?
+    #[pallet::genesis_build]
+    impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
+        fn build(&self) {
+            for (did, typ, dat) in &self.links {
+                <LinksOf<T>>::insert(did, typ, dat);
+            }
+        }
+    }
+
+    #[pallet::validate_unsigned]
+    impl<T: Config> ValidateUnsigned for Pallet<T> {
+        type Call = Call<T>;
+
+        fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+            let valid_tx = |provide| {
+                ValidTransaction::with_tag_prefix("linker")
+                    .priority(T::UnsignedPriority::get())
+                    .and_provides([&provide])
+                    .longevity(3)
+                    .propagate(true)
+                    .build()
             };
 
-            let bytes = Self::generate_raw_message(&account, expiring_block_number);
-
-            let hash = sp_io::hashing::keccak_256(&bytes);
-
-            let mut msg = [0u8; 32];
-            msg[..32].copy_from_slice(&hash[..32]);
-
-            let pk = secp256k1_ecdsa_recover_compressed(&sig, &msg)
-                .map_err(|_| Error::<T>::EcdsaRecoverFailure)?;
-
-            let addr = match address_type {
-                BTCAddressType::Legacy => btc::legacy::btc_address_from_pk(&pk).to_base58(),
-                // Native P2WPKH is 22 bytes, starts with a OP_0, followed by a canonical push of the keyhash (i.e. 0x0014{20-byte keyhash})
-                // keyhash is RIPEMD160(SHA256) of a compressed public key
-                // https://bitcoincore.org/en/SegWit_wallet_dev/
-                BTCAddressType::SegWit => {
-                    let pk_hash = btc::legacy::hash160(&pk);
-                    let mut pk = [0u8; 22];
-                    pk[0] = 0;
-                    pk[1] = 20;
-                    pk[2..].copy_from_slice(&pk_hash);
-                    let wp = WitnessProgram::from_scriptpubkey(&pk.to_vec())
-                        .map_err(|_| Error::<T>::InvalidBTCAddress)?;
-                    wp.to_address(b"bc".to_vec())
-                        .map_err(|_| Error::<T>::InvalidBTCAddress)?
-                }
-            };
-
-            ensure!(addr == address, Error::<T>::UnexpectedAddress);
-
-            <BitcoinLink<T>>::mutate(&account, |addrs| {
-                let index = index as usize;
-                // NOTE: allow linking `MAX_BTC_LINKS` btc addresses.
-                if (index >= addrs.len()) && (addrs.len() != MAX_BTC_LINKS) {
-                    addrs.push(addr.clone());
-                } else if (index >= addrs.len()) && (addrs.len() == MAX_BTC_LINKS) {
-                    addrs[MAX_BTC_LINKS - 1] = addr.clone();
-                } else {
-                    addrs[index] = addr.clone();
-                }
-            });
-
-            Self::deposit_event(Event::BtcAddressLinked(account, addr));
-
-            Ok(().into())
+            match call {
+                Call::submit_link_unsigned { .. } => valid_tx(b"submit_link_unsigned".to_vec()),
+                _ => InvalidTransaction::Call.into(),
+            }
         }
     }
 }
 
 impl<T: Config> Pallet<T> {
-    /// Assemble the message that the user has signed
-    /// Format: "Link Parami: " + Parami account + expiring block number
-    fn generate_raw_message(
-        account: &T::AccountId,
-        expiring_block_number: T::BlockNumber,
-    ) -> Vec<u8> {
-        let mut bytes = b"Link Parami: ".encode();
-        let mut account_vec = account.encode();
-        let mut expiring_block_number_vec = expiring_block_number.encode();
+    fn usize_to_u8_array(length: usize) -> Result<Vec<u8>, &'static str> {
+        if length >= 100 {
+            Err("Unexpected message length!")?;
+        }
 
-        bytes.append(&mut account_vec);
-        bytes.append(&mut expiring_block_number_vec);
+        let digits = b"0123456789".encode();
+        let tens = length / 10;
+        let ones = length % 10;
+
+        let mut vec_res: Vec<u8> = Vec::new();
+        if tens != 0 {
+            vec_res.push(digits[tens]);
+        }
+        vec_res.push(digits[ones]);
+        Ok(vec_res)
+    }
+
+    pub fn generate_message(did: &T::DecentralizedId) -> Vec<u8> {
+        use base58::ToBase58;
+
+        let mut bytes = b"Link: ".to_vec();
+
+        let did = did.as_ref();
+        let did = did.to_base58();
+        let mut did = did.as_bytes().to_vec();
+
+        let mut prefix = b"did:ad3:".to_vec();
+
+        bytes.append(&mut prefix);
+        bytes.append(&mut did);
         bytes
+    }
+}
+
+pub mod crypto {
+    use crate::OFFCHAIN_KEY_TYPE;
+    use sp_core::sr25519::{Public as Sr25519Public, Signature as Sr25519Signature};
+    use sp_runtime::{
+        app_crypto::{app_crypto, sr25519},
+        traits::Verify,
+        MultiSignature, MultiSigner,
+    };
+
+    app_crypto!(sr25519, OFFCHAIN_KEY_TYPE);
+
+    pub struct LinkerAuthId;
+
+    impl frame_system::offchain::AppCrypto<MultiSigner, MultiSignature> for LinkerAuthId {
+        type RuntimeAppPublic = Public;
+        type GenericSignature = Sr25519Signature;
+        type GenericPublic = Sr25519Public;
+    }
+
+    impl frame_system::offchain::AppCrypto<<Sr25519Signature as Verify>::Signer, Sr25519Signature>
+        for LinkerAuthId
+    {
+        type RuntimeAppPublic = Public;
+        type GenericSignature = Sr25519Signature;
+        type GenericPublic = Sr25519Public;
     }
 }

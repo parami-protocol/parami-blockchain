@@ -1120,9 +1120,15 @@ impl parami_did::Config for Runtime {
     type WeightInfo = parami_did::weights::SubstrateWeight<Runtime>;
 }
 
+parameter_types! {
+    pub const UnsignedPriority: BlockNumber = 3;
+}
+
 impl parami_linker::Config for Runtime {
     type Event = Event;
-    type WeightInfo = parami_linker::weights::SubstrateWeight<Runtime>;
+    type DecentralizedId = sp_core::H160;
+    type UnsignedPriority = UnsignedPriority;
+    type CallOrigin = parami_did::EnsureDid<Self>;
 }
 
 parameter_types! {
@@ -1244,7 +1250,7 @@ construct_runtime!(
         ChainBridge: parami_chainbridge::{Pallet, Call, Storage, Event<T>},
         XAssets: parami_xassets::{Pallet, Call, Event<T>},
         Did: parami_did::{Pallet, Call, Storage, Config<T>, Event<T>},
-        Linker: parami_linker::{Pallet, Call, Storage, Event<T>},
+        Linker: parami_linker::{Pallet, Call, Storage, Config<T>, Event<T>, ValidateUnsigned},
         Magic: parami_magic::{Pallet, Call, Storage, Config<T>, Event<T>},
         Nft: parami_nft::{Pallet, Call, Storage, Config<T>, Event<T>},
         Swap: parami_swap::{Pallet, Call, Storage, Config<T>, Event<T>},

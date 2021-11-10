@@ -1,52 +1,60 @@
-use crate as linker;
-use frame_support::{
-    parameter_types,
-    traits::{OnFinalize, OnInitialize},
+use crate as parami_linker;
+use frame_support::{parameter_types, traits::EnsureOrigin};
+use frame_system::{self as system};
+use sp_core::{
+    sr25519::{self, Signature},
+    H160, H256,
 };
-use frame_system as system;
-use sp_core::H256;
 use sp_runtime::{
-    generic,
-    traits::{BlakeTwo256, IdentityLookup},
-    AccountId32,
+    testing::{Header, TestXt},
+    traits::{BlakeTwo256, Extrinsic as ExtrinsicT, IdentifyAccount, IdentityLookup, Verify},
 };
+use sp_std::{marker::PhantomData, num::ParseIntError};
 
-pub use crate::MAX_ETH_LINKS;
+type UncheckedExtrinsic = system::mocking::MockUncheckedExtrinsic<Test>;
+type Block = system::mocking::MockBlock<Test>;
 
-type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
-type Block = frame_system::mocking::MockBlock<Test>;
+type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::AccountId;
+type Extrinsic = TestXt<Call, ()>;
 
-// Configure a mock runtime to test the pallet.
+pub fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
+    (0..s.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&s[i..i + 2], 16))
+        .collect()
+}
+
 frame_support::construct_runtime!(
     pub enum Test where
         Block = Block,
         NodeBlock = Block,
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
-        System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
-        Linker: linker::{Pallet, Call, Storage, Event<T>},
+        System: system::{Pallet, Call, Config, Storage, Event<T>},
+
+        Linker: parami_linker::{Pallet, Call, Storage, Config<T>, Event<T>},
     }
 );
 
 parameter_types! {
-    pub const BlockHashCount: u32 = 250;
+    pub const BlockHashCount: u64 = 250;
     pub const SS58Prefix: u8 = 42;
 }
 
 impl system::Config for Test {
-    type BaseCallFilter = ();
-    type Origin = Origin;
+    type BaseCallFilter = frame_support::traits::Everything;
     type BlockWeights = ();
     type BlockLength = ();
     type DbWeight = ();
+    type Origin = Origin;
     type Call = Call;
-    type Index = u32;
-    type BlockNumber = u32;
+    type Index = u64;
+    type BlockNumber = u64;
     type Hash = H256;
     type Hashing = BlakeTwo256;
-    type AccountId = AccountId32;
+    type AccountId = sr25519::Public;
     type Lookup = IdentityLookup<Self::AccountId>;
-    type Header = generic::Header<Self::BlockNumber, BlakeTwo256>;
+    type Header = Header;
     type Event = Event;
     type BlockHashCount = BlockHashCount;
     type Version = ();
@@ -59,38 +67,63 @@ impl system::Config for Test {
     type OnSetCode = ();
 }
 
-impl linker::Config for Test {
-    type Event = Event;
-    type WeightInfo = ();
+impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Test
+where
+    Call: From<LocalCall>,
+{
+    fn create_transaction<C: frame_system::offchain::AppCrypto<Self::Public, Self::Signature>>(
+        call: Call,
+        _public: <Signature as Verify>::Signer,
+        _account: AccountId,
+        nonce: u64,
+    ) -> Option<(Call, <Extrinsic as ExtrinsicT>::SignaturePayload)> {
+        Some((call, (nonce, ())))
+    }
 }
 
-pub type AccountLinkerError = linker::Error<Test>;
+impl<LocalCall> frame_system::offchain::SendTransactionTypes<LocalCall> for Test
+where
+    Call: From<LocalCall>,
+{
+    type OverarchingCall = Call;
+    type Extrinsic = Extrinsic;
+}
 
-// Build genesis storage according to the mock runtime.
+impl frame_system::offchain::SigningTypes for Test {
+    type Public = <Signature as Verify>::Signer;
+    type Signature = Signature;
+}
+
+pub struct EnsureDid<T>(PhantomData<T>);
+impl<T: parami_linker::Config> EnsureOrigin<T::Origin> for EnsureDid<T> {
+    type Success = (H160, T::AccountId);
+
+    fn try_origin(o: T::Origin) -> Result<Self::Success, T::Origin> {
+        use frame_system::RawOrigin;
+
+        let did = "32ac799d35de72a2ae57a46ca975319fbbb125a9";
+
+        o.into().and_then(|o| match o {
+            RawOrigin::Signed(who) => Ok((H160::from_slice(&decode_hex(did).unwrap()), who)),
+            r => Err(T::Origin::from(r)),
+        })
+    }
+}
+
+parameter_types! {
+    pub const UnsignedPriority: u64 = 3;
+}
+
+impl parami_linker::Config for Test {
+    type Event = Event;
+    type DecentralizedId = H160;
+    type UnsignedPriority = UnsignedPriority;
+    type CallOrigin = EnsureDid<Self>;
+}
+
 pub fn new_test_ext() -> sp_io::TestExternalities {
     system::GenesisConfig::default()
         .build_storage::<Test>()
         .unwrap()
         .into()
-}
-
-pub fn run_to_block(n: u32) {
-    while System::block_number() < n {
-        Linker::on_finalize(System::block_number());
-        System::on_finalize(System::block_number());
-        System::set_block_number(System::block_number() + 1);
-        System::on_initialize(System::block_number());
-        Linker::on_initialize(System::block_number());
-    }
-}
-
-pub fn events() -> Vec<Event> {
-    let evt = System::events()
-        .into_iter()
-        .map(|evt| evt.event)
-        .collect::<Vec<_>>();
-
-    System::reset_events();
-
-    evt
 }
