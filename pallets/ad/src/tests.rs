@@ -347,7 +347,7 @@ fn should_drawback() {
 }
 
 #[test]
-fn should_deposit() {
+fn should_add_budget() {
     new_test_ext().execute_with(|| {
         let alice = sr25519::Public([1; 32]);
 
@@ -362,7 +362,7 @@ fn should_deposit() {
 
         let ad = <Metadata<Test>>::iter_keys().next().unwrap();
 
-        assert_ok!(Ad::deposit(Origin::signed(alice), ad, 20));
+        assert_ok!(Ad::add_budget(Origin::signed(alice), ad, 20));
 
         let meta = <Metadata<Test>>::get(&ad).unwrap();
 

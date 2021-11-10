@@ -25,7 +25,7 @@ benchmarks! {
         Did::<T>::register(RawOrigin::Signed(kol.clone()).into(), None)?;
 
         let kol = Did::<T>::did_of(&kol).unwrap();
-    }: _(RawOrigin::Signed(caller.clone()), kol, pot)
+    }: _(RawOrigin::Signed(caller), kol, pot)
     verify {
         let meta = Did::<T>::meta(&kol).unwrap();
         assert_eq!(T::Currency::free_balance(&meta.pot), pot);
@@ -55,7 +55,7 @@ benchmarks! {
         let kol = Did::<T>::did_of(&caller).unwrap();
 
         Nft::<T>::back(RawOrigin::Signed(supporter).into(), kol, pot)?;
-    }: _(RawOrigin::Signed(caller.clone()), name, symbol)
+    }: _(RawOrigin::Signed(caller), name, symbol)
     verify {
         let meta = Did::<T>::meta(&kol).unwrap();
         assert_ne!(meta.nft, None);

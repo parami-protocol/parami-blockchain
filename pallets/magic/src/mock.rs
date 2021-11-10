@@ -18,14 +18,12 @@ frame_support::construct_runtime!(
     {
         System: system::{Pallet, Call, Config, Storage, Event<T>},
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-        Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
 
         Magic: parami_magic::{Pallet, Call, Storage, Event<T>},
     }
 );
 
 type Balance = u128;
-type Moment = u64;
 
 parameter_types! {
     pub const BlockHashCount: u64 = 250;
@@ -77,18 +75,6 @@ impl pallet_balances::Config for Test {
 }
 
 parameter_types! {
-    pub const MinimumPeriod: Moment = 1;
-}
-
-impl pallet_timestamp::Config for Test {
-    type Moment = Moment;
-    type OnTimestampSet = ();
-    type MinimumPeriod = MinimumPeriod;
-    type WeightInfo = ();
-}
-
-parameter_types! {
-    pub const CreationFee: Balance = 1;
     pub const MagicPalletId: PalletId = PalletId(*b"prm/stab");
 }
 
@@ -96,7 +82,6 @@ impl parami_magic::Config for Test {
     type Event = Event;
     type Currency = Balances;
     type Call = Call;
-    type CreationFee = CreationFee;
     type PalletId = MagicPalletId;
     type WeightInfo = ();
 }

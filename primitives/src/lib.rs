@@ -51,8 +51,8 @@ pub mod constants {
     pub const DAYS: BlockNumber = HOURS * 24;
 }
 
-pub const fn deposit(items: Balance, bytes: Balance) -> Balance {
+pub const fn deposit(items: u32, bytes: u32) -> Balance {
     use constants::CENTS;
 
-    items * 15 * CENTS + bytes * 6 * CENTS
+    (items as Balance) * 15 * CENTS + (bytes as Balance) * 6 * CENTS
 }

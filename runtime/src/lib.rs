@@ -6,6 +6,8 @@
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
+mod filter;
+
 use codec::{Decode, Encode};
 use parami_swap_rpc_runtime_api::BalanceWrapper;
 use parami_traits::Swaps;
@@ -39,16 +41,19 @@ use frame_election_provider_support::{onchain, ElectionProvider, Supports};
 use frame_support::{
     construct_runtime, parameter_types,
     traits::{
-        Contains, Currency, Imbalance, KeyOwnerProofSystem, LockIdentifier, OnUnbalanced,
-        U128CurrencyToVote,
+        Currency, Everything, Imbalance, KeyOwnerProofSystem, LockIdentifier, Nothing,
+        OnUnbalanced, U128CurrencyToVote,
     },
     weights::{
-        constants::{BlockExecutionWeight, RocksDbWeight, WEIGHT_PER_SECOND},
+        constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
         DispatchClass, IdentityFee, Weight,
     },
     PalletId,
 };
-use frame_system::{EnsureOneOf, EnsureRoot};
+use frame_system::{
+    limits::{BlockLength, BlockWeights},
+    EnsureOneOf, EnsureRoot,
+};
 use pallet_contracts::weights::WeightInfo;
 use pallet_grandpa::{
     fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
@@ -149,33 +154,48 @@ impl frame_election_provider_support::onchain::Config for Runtime {
     type DataProvider = Staking;
 }
 
+/// We assume that ~10% of the block weight is consumed by `on_initialize` handlers.
+/// This is used to limit the maximal weight of a single extrinsic.
+const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(10);
+/// We allow `Normal` extrinsics to fill up the block up to 75%, the rest can be used
+/// by  Operational  extrinsics.
 const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
+/// We allow for 2 seconds of compute with a 6 second average block time.
+const MAXIMUM_BLOCK_WEIGHT: Weight = 2 * WEIGHT_PER_SECOND;
 
 parameter_types! {
     pub const BlockHashCount: BlockNumber = 2400;
-    pub BlockLength: frame_system::limits::BlockLength = frame_system::limits::BlockLength::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_RATIO);
-    pub BlockWeights: frame_system::limits::BlockWeights = frame_system::limits::BlockWeights::with_sensible_defaults(2 * WEIGHT_PER_SECOND, NORMAL_DISPATCH_RATIO);
-    pub const SS58Prefix: u8 = 42;
     pub const Version: RuntimeVersion = VERSION;
-}
-
-pub struct ParamiBaseCallFilter;
-impl Contains<Call> for ParamiBaseCallFilter {
-    fn contains(c: &Call) -> bool {
-        match c {
-            Call::Assets(pallet_assets::Call::create { .. }) => false,
-            _ => true,
-        }
-    }
+    pub RuntimeBlockLength: BlockLength =
+        BlockLength::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_RATIO);
+    pub RuntimeBlockWeights: BlockWeights = BlockWeights::builder()
+        .base_block(BlockExecutionWeight::get())
+        .for_class(DispatchClass::all(), |weights| {
+            weights.base_extrinsic = ExtrinsicBaseWeight::get();
+        })
+        .for_class(DispatchClass::Normal, |weights| {
+            weights.max_total = Some(NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT);
+        })
+        .for_class(DispatchClass::Operational, |weights| {
+            weights.max_total = Some(MAXIMUM_BLOCK_WEIGHT);
+            // Operational transactions have some extra reserved space, so that they
+            // are included even if block reached `MAXIMUM_BLOCK_WEIGHT`.
+            weights.reserved = Some(
+                MAXIMUM_BLOCK_WEIGHT - NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT
+            );
+        })
+        .avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
+        .build_or_panic();
+    pub const SS58Prefix: u16 = 42;
 }
 
 impl frame_system::Config for Runtime {
     /// The basic call filter to use in dispatchable.
-    type BaseCallFilter = ParamiBaseCallFilter;
+    type BaseCallFilter = Everything;
     /// Block & extrinsics weights: base values and limits.
-    type BlockWeights = BlockWeights;
+    type BlockWeights = RuntimeBlockWeights;
     /// The maximum length of a block (in bytes).
-    type BlockLength = BlockLength;
+    type BlockLength = RuntimeBlockLength;
     /// The ubiquitous origin type.
     type Origin = Origin;
     /// The aggregated dispatch type that is available for extrinsics.
@@ -255,6 +275,7 @@ where
             frame_system::CheckEra::<Runtime>::from(era),
             frame_system::CheckNonce::<Runtime>::from(nonce),
             frame_system::CheckWeight::<Runtime>::new(),
+            filter::ExtrinsicFilter::<Runtime>::new(),
             pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
         );
         let raw_payload = SignedPayload::new(call, extra).ok()?;
@@ -364,7 +385,7 @@ impl pallet_babe::Config for Runtime {
 
 parameter_types! {
     // NOTE: minimum balance is 1 cent, 0.01 dollar
-    pub const ExistentialDeposit: Balance = CENTS;
+    pub const ExistentialDeposit: Balance = 1 * CENTS;
     // For weight estimation, we assume that the most locks on an individual account will be 50.
     // This number may need to be adjusted in the future if this assumption no longer holds true.
     pub const MaxLocks: u32 = 50;
@@ -440,22 +461,14 @@ impl pallet_collective::Config<TechnicalCollective> for Runtime {
     type WeightInfo = pallet_collective::weights::SubstrateWeight<Runtime>;
 }
 
-const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(10);
-
 parameter_types! {
-    pub TombstoneDeposit: Balance = deposit(
+    pub ContractDeposit: Balance = deposit(
         1,
-        <pallet_contracts::Pallet<Runtime>>::contract_info_size().into(),
+        <pallet_contracts::Pallet<Runtime>>::contract_info_size(),
     );
-    pub DepositPerContract: Balance = TombstoneDeposit::get();
-    pub const DepositPerStorageByte: Balance = deposit(0, 1);
-    pub const DepositPerStorageItem: Balance = deposit(1, 0);
-    pub RentFraction: Perbill = Perbill::from_rational(1u32, 30 * DAYS);
-    pub const SurchargeReward: Balance = 150 * MILLICENTS;
-    pub const SignedClaimHandicap: u32 = 2;
-    pub const MaxValueSize: u32 = 16 * 1024;
     // The lazy deletion runs inside on_initialize.
-    pub DeletionWeightLimit: Weight = AVERAGE_ON_INITIALIZE_RATIO * BlockWeights::get().max_block;
+    pub DeletionWeightLimit: Weight = AVERAGE_ON_INITIALIZE_RATIO *
+        RuntimeBlockWeights::get().max_block;
     // The weight needed for decoding the queue should be less or equal than a fifth
     // of the overall weight dedicated to the lazy deletion.
     pub DeletionQueueDepth: u32 = ((DeletionWeightLimit::get() / (
@@ -477,12 +490,12 @@ impl pallet_contracts::Config for Runtime {
     /// and make sure they are stable. Dispatchables exposed to contracts are not allowed to
     /// change because that would break already deployed contracts. The `Call` structure itself
     /// is not allowed to change the indices of existing pallets, too.
-    type CallFilter = frame_support::traits::Nothing;
+    type CallFilter = Nothing;
     type WeightPrice = pallet_transaction_payment::Pallet<Self>;
     type WeightInfo = pallet_contracts::weights::SubstrateWeight<Self>;
     type ChainExtension = ();
     type Schedule = Schedule;
-    type ContractDeposit = DepositPerContract;
+    type ContractDeposit = ContractDeposit;
     type CallStack = [pallet_contracts::Frame<Self>; 31];
     type DeletionQueueDepth = DeletionQueueDepth;
     type DeletionWeightLimit = DeletionWeightLimit;
@@ -598,13 +611,13 @@ parameter_types! {
     // miner configs
     pub const MultiPhaseUnsignedPriority: TransactionPriority = StakingUnsignedPriority::get() - 1u64;
     pub const MinerMaxIterations: u32 = 10;
-    pub MinerMaxWeight: Weight = BlockWeights::get()
+    pub MinerMaxWeight: Weight = RuntimeBlockWeights::get()
         .get(DispatchClass::Normal)
         .max_extrinsic.expect("Normal extrinsics have a weight limit configured; qed")
         .saturating_sub(BlockExecutionWeight::get());
     // Solution can occupy 90% of normal block size
     pub MinerMaxLength: u32 = Perbill::from_rational(9u32, 10) *
-        *BlockLength::get()
+        *RuntimeBlockLength::get()
         .max
         .get(DispatchClass::Normal);
 }
@@ -811,7 +824,8 @@ impl pallet_recovery::Config for Runtime {
 }
 
 parameter_types! {
-    pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) * BlockWeights::get().max_block;
+    pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
+        RuntimeBlockWeights::get().max_block;
     pub const MaxScheduledPerBlock: u32 = 50;
 }
 
@@ -1022,6 +1036,29 @@ impl pallet_treasury::Config for Runtime {
     type MaxApprovals = MaxApprovals;
 }
 
+parameter_types! {
+    pub const ClassDeposit: Balance = 0;
+    pub const InstanceDeposit: Balance = 0;
+    pub const AttributeDepositBase: Balance = 0;
+}
+
+impl pallet_uniques::Config for Runtime {
+    type Event = Event;
+    type ClassId = AssetId;
+    type InstanceId = AssetId;
+    type Currency = Balances;
+    type ForceOrigin = frame_system::EnsureRoot<Self::AccountId>;
+    type ClassDeposit = ClassDeposit;
+    type InstanceDeposit = InstanceDeposit;
+    type MetadataDepositBase = MetadataDepositBase;
+    type AttributeDepositBase = AttributeDepositBase;
+    type DepositPerByte = MetadataDepositPerByte;
+    type StringLimit = StringLimit;
+    type KeyLimit = StringLimit;
+    type ValueLimit = StringLimit;
+    type WeightInfo = pallet_uniques::weights::SubstrateWeight<Runtime>;
+}
+
 impl pallet_utility::Config for Runtime {
     type Event = Event;
     type Call = Call;
@@ -1088,10 +1125,12 @@ impl parami_chainbridge::Config for Runtime {
 
 parameter_types! {
     // &blake2_128(b"hash")
+    // 0x000000000000000000000000000000f44be64d2de895454c3467021928e55e00
     pub HashId: parami_chainbridge::ResourceId = parami_chainbridge::derive_resource_id(233, &blake2_128(b"hash"));
 
     // &blake2_128(b"AD3")
     // Note: Chain ID is 0 indicating this is native to another chain
+    // 0x000000000000000000000000000000a56889c89dddcbb363cbd6a8d11de9e100
     pub NativeTokenId: parami_chainbridge::ResourceId = parami_chainbridge::derive_resource_id(0, &blake2_128(b"AD3"));
 }
 
@@ -1105,14 +1144,12 @@ impl parami_xassets::Config for Runtime {
 }
 
 parameter_types! {
-    pub const CreationDeposit: Balance = 1 * DOLLARS;
     pub const DidPalletId: PalletId = PalletId(*b"prm/did ");
 }
 
 impl parami_did::Config for Runtime {
     type Event = Event;
     type AssetId = AssetId;
-    type CreationDeposit = CreationDeposit;
     type Currency = Balances;
     type DecentralizedId = sp_core::H160;
     type Hashing = Keccak256;
@@ -1132,7 +1169,6 @@ impl parami_linker::Config for Runtime {
 }
 
 parameter_types! {
-    pub const CreationFee: Balance = 50 * CENTS;
     pub const MagicPalletId: PalletId = PalletId(*b"prm/stab");
 }
 
@@ -1140,23 +1176,8 @@ impl parami_magic::Config for Runtime {
     type Event = Event;
     type Currency = Balances;
     type Call = Call;
-    type CreationFee = CreationFee;
     type PalletId = MagicPalletId;
     type WeightInfo = parami_magic::weights::SubstrateWeight<Runtime>;
-}
-
-parameter_types! {
-    pub const MaxClassMetadata: u32 = 256;
-    pub const MaxTokenMetadata: u32 = 256;
-}
-
-impl orml_nft::Config for Runtime {
-    type ClassId = AssetId;
-    type TokenId = AssetId;
-    type ClassData = ();
-    type TokenData = ();
-    type MaxClassMetadata = MaxClassMetadata;
-    type MaxTokenMetadata = MaxTokenMetadata;
 }
 
 parameter_types! {
@@ -1167,8 +1188,9 @@ parameter_types! {
 impl parami_nft::Config for Runtime {
     type Event = Event;
     type Assets = Assets;
-    type InitialMintingValueBase = InitialMintingValueBase;
     type InitialMintingDeposit = InitialMintingDeposit;
+    type InitialMintingValueBase = InitialMintingValueBase;
+    type Nft = Uniques;
     type StringLimit = StringLimit;
     type Swaps = Swap;
     type WeightInfo = parami_nft::weights::SubstrateWeight<Runtime>;
@@ -1240,10 +1262,9 @@ construct_runtime!(
         Tips: pallet_tips::{Pallet, Call, Storage, Event<T>},
         TransactionPayment: pallet_transaction_payment::{Pallet, Storage},
         Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>},
+        Uniques: pallet_uniques::{Pallet, Storage, Event<T>},
         Utility: pallet_utility::{Pallet, Call, Event},
         Vesting: pallet_vesting::{Pallet, Call, Storage, Event<T>, Config<T>},
-
-        OrmlNft: orml_nft::{Pallet, Storage, Config<T>} = 100,
 
         Ad: parami_ad::{Pallet, Call, Storage, Event<T>},
         Advertiser: parami_advertiser::{Pallet, Call, Storage, Config<T>, Event<T>},
@@ -1274,6 +1295,7 @@ pub type SignedExtra = (
     frame_system::CheckEra<Runtime>,
     frame_system::CheckNonce<Runtime>,
     frame_system::CheckWeight<Runtime>,
+    filter::ExtrinsicFilter<Runtime>,
     pallet_transaction_payment::ChargeTransactionPayment<Runtime>,
 );
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;

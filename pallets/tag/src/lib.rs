@@ -44,6 +44,7 @@ pub mod pallet {
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
+        /// The overarching event type
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
         /// The currency trait
@@ -81,11 +82,12 @@ pub mod pallet {
 
     #[pallet::pallet]
     #[pallet::generate_store(pub(super) trait Store)]
-    pub struct Pallet<T>(PhantomData<T>);
+    pub struct Pallet<T>(_);
 
+    /// Metadata of a tag
     #[pallet::storage]
     #[pallet::getter(fn meta)]
-    pub(super) type Metadata<T: Config> = StorageMap<_, Blake2_128, Vec<u8>, MetaOf<T>>;
+    pub(super) type Metadata<T: Config> = StorageMap<_, Blake2_256, Vec<u8>, MetaOf<T>>;
 
     /// Tags of an advertisement
     #[pallet::storage]
@@ -93,7 +95,7 @@ pub mod pallet {
         _,
         Identity,
         HashOf<T>,
-        Blake2_128,
+        Blake2_256,
         Vec<u8>, //
         bool,
         ValueQuery,
@@ -105,7 +107,7 @@ pub mod pallet {
         _,
         Identity,
         T::DecentralizedId,
-        Blake2_128,
+        Blake2_256,
         Vec<u8>, //
         i32,
         ValueQuery,
@@ -117,7 +119,7 @@ pub mod pallet {
         _,
         Identity,
         T::DecentralizedId,
-        Blake2_128,
+        Blake2_256,
         Vec<u8>, //
         i32,
         ValueQuery,
@@ -246,9 +248,9 @@ impl<T: Config> Tags for Pallet<T> {
 
     fn key<K: AsRef<Vec<u8>>>(tag: K) -> Vec<u8> {
         use codec::Encode;
-        use frame_support::{Blake2_128, StorageHasher};
+        use frame_support::{Blake2_256, StorageHasher};
 
-        tag.as_ref().using_encoded(Blake2_128::hash).to_vec()
+        tag.as_ref().using_encoded(Blake2_256::hash).to_vec()
     }
 
     fn exists<K: AsRef<Vec<u8>>>(tag: K) -> bool {

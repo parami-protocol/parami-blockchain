@@ -60,8 +60,9 @@ pub mod pallet {
 
     #[pallet::pallet]
     #[pallet::generate_store(pub(super) trait Store)]
-    pub struct Pallet<T>(PhantomData<T>);
+    pub struct Pallet<T>(_);
 
+    /// Blocked DIDs
     #[pallet::storage]
     #[pallet::getter(fn blocked)]
     pub(super) type Blocked<T: Config> = StorageMap<_, Identity, T::DecentralizedId, bool>;

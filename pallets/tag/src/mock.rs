@@ -18,7 +18,6 @@ frame_support::construct_runtime!(
     {
         System: system::{Pallet, Call, Config, Storage, Event<T>},
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-        Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
 
         Did: parami_did::{Pallet, Call, Storage, Config<T>, Event<T>},
         Tag: parami_tag::{Pallet, Call, Storage, Config<T>, Event<T>},
@@ -28,7 +27,6 @@ frame_support::construct_runtime!(
 pub type DID = <Test as parami_did::Config>::DecentralizedId;
 type AssetId = u64;
 type Balance = u128;
-type Moment = u64;
 
 parameter_types! {
     pub const BlockHashCount: u64 = 250;
@@ -80,25 +78,12 @@ impl pallet_balances::Config for Test {
 }
 
 parameter_types! {
-    pub const MinimumPeriod: Moment = 1;
-}
-
-impl pallet_timestamp::Config for Test {
-    type Moment = Moment;
-    type OnTimestampSet = ();
-    type MinimumPeriod = MinimumPeriod;
-    type WeightInfo = ();
-}
-
-parameter_types! {
-    pub const CreationDeposit: Balance = 1;
     pub const DidPalletId: PalletId = PalletId(*b"prm/did ");
 }
 
 impl parami_did::Config for Test {
     type Event = Event;
     type AssetId = AssetId;
-    type CreationDeposit = CreationDeposit;
     type Currency = Balances;
     type DecentralizedId = sp_core::H160;
     type Hashing = Keccak256;
@@ -136,8 +121,8 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 
     parami_did::GenesisConfig::<Test> {
         ids: vec![
-            (alice, DID::from_slice(&[0xff; 20])),
-            (bob, DID::from_slice(&[0xee; 20])),
+            (alice, DID::from_slice(&[0xff; 20]), None),
+            (bob, DID::from_slice(&[0xee; 20]), None),
         ],
     }
     .assimilate_storage(&mut t)

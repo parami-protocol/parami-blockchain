@@ -18,18 +18,20 @@ use frame_support::{
     dispatch::DispatchResult,
     ensure,
     traits::{
-        tokens::fungibles::{
-            metadata::Mutate as FungMetaMutate, Create as FungCreate, Mutate as FungMutate,
-            Transfer as FungTransfer,
+        tokens::{
+            fungibles::{
+                metadata::Mutate as FungMetaMutate, Create as FungCreate, Mutate as FungMutate,
+                Transfer as FungTransfer,
+            },
+            nonfungibles::{Create as NftCreate, Mutate as NftMutate},
         },
         Currency, EnsureOrigin,
         ExistenceRequirement::KeepAlive,
     },
 };
-use orml_nft::Pallet as Nft;
 use parami_did::{EnsureDid, Pallet as Did};
 use parami_traits::Swaps;
-use sp_runtime::traits::{One, Saturating};
+use sp_runtime::traits::{Bounded, CheckedAdd, One, Saturating};
 use sp_std::prelude::*;
 
 use weights::WeightInfo;
@@ -44,16 +46,7 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
 
     #[pallet::config]
-    pub trait Config:
-        frame_system::Config
-        + parami_did::Config
-        + orml_nft::Config<
-            ClassId = <Self as parami_did::Config>::AssetId,
-            TokenId = <Self as parami_did::Config>::AssetId,
-            ClassData = (),
-            TokenData = (),
-        >
-    {
+    pub trait Config: frame_system::Config + parami_did::Config {
         /// The overarching event type
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
@@ -73,6 +66,11 @@ pub mod pallet {
         #[pallet::constant]
         type InitialMintingDeposit: Get<BalanceOf<Self>>;
 
+        /// The NFT trait to create, mint non-fungible token
+        /// it uses parami_did::Config::AssetId as InstanceId and ClassId
+        type Nft: NftCreate<Self::AccountId, InstanceId = Self::AssetId, ClassId = Self::AssetId>
+            + NftMutate<Self::AccountId, InstanceId = Self::AssetId, ClassId = Self::AssetId>;
+
         /// The maximum length of a name or symbol stored on-chain.
         #[pallet::constant]
         type StringLimit: Get<u32>;
@@ -91,7 +89,7 @@ pub mod pallet {
 
     #[pallet::pallet]
     #[pallet::generate_store(pub(super) trait Store)]
-    pub struct Pallet<T>(PhantomData<T>);
+    pub struct Pallet<T>(_);
 
     /// Total deposit in pot
     #[pallet::storage]
@@ -115,6 +113,11 @@ pub mod pallet {
         BalanceOf<T>,
     >;
 
+    /// Next available class ID.
+    #[pallet::storage]
+    #[pallet::getter(fn next_cid)]
+    pub(super) type NextClassId<T: Config> = StorageValue<_, T::AssetId, ValueQuery>;
+
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
@@ -123,7 +126,7 @@ pub mod pallet {
         /// NFT fragments Claimed \[did, kol, value\]
         Claimed(T::DecentralizedId, T::DecentralizedId, BalanceOf<T>),
         /// NFT fragments Minted \[kol, class, token, tokens\]
-        Minted(T::DecentralizedId, T::ClassId, T::TokenId, BalanceOf<T>),
+        Minted(T::DecentralizedId, T::AssetId, T::AssetId, BalanceOf<T>),
     }
 
     #[pallet::hooks]
@@ -134,6 +137,7 @@ pub mod pallet {
         BadMetadata,
         InsufficientBalance,
         Minted,
+        NoAvailableClassId,
         NotExists,
         NoTokens,
         YourSelf,
@@ -203,7 +207,7 @@ pub mod pallet {
                 Error::<T>::BadMetadata
             );
 
-            let (did, who) = EnsureDid::<T>::ensure_origin(origin)?;
+            let (did, _) = EnsureDid::<T>::ensure_origin(origin)?;
 
             // 1. ensure funded
 
@@ -220,9 +224,18 @@ pub mod pallet {
 
             // 2. create NFT token
 
-            let raw = T::DecentralizedId::encode(&did);
-            let cid = Nft::<T>::create_class(&who, raw, ())?;
-            let tid = Nft::<T>::mint(&who, cid, vec![], ())?;
+            let cid = NextClassId::<T>::try_mutate(|id| -> Result<T::AssetId, DispatchError> {
+                let current_id = *id;
+                *id = id
+                    .checked_add(&One::one())
+                    .ok_or(Error::<T>::NoAvailableClassId)?;
+                Ok(current_id)
+            })?;
+
+            let tid = T::AssetId::min_value();
+
+            T::Nft::create_class(&cid, &meta.pot, &meta.pot)?;
+            T::Nft::mint_into(&cid, &tid, &meta.pot)?;
 
             // 3. initial minting
 

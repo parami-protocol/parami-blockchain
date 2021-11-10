@@ -130,7 +130,7 @@ fn should_transfer() {
         let alice = sr25519::Public([1; 32]);
         let bob = sr25519::Public([2; 32]);
 
-        Timestamp::set_timestamp(2);
+        System::set_block_number(2);
 
         assert_ok!(Did::transfer(Origin::signed(alice), bob));
 
@@ -144,7 +144,7 @@ fn should_transfer() {
 
         let meta = maybe_meta.unwrap();
         assert_eq!(meta.account, bob);
-        assert_eq!(meta.created, 0);
+        assert_eq!(meta.created, 2);
         assert_eq!(meta.revoked, false);
     });
 }

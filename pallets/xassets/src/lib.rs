@@ -38,7 +38,7 @@ pub mod pallet {
 
     #[pallet::config]
     pub trait Config: frame_system::Config + parami_chainbridge::Config {
-        /// Associated type for Event enum
+        /// The overarching event type
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
         /// Specifies the origin check provided by the bridge for calls that can only be called by the bridge pallet
@@ -61,7 +61,7 @@ pub mod pallet {
 
     #[pallet::pallet]
     #[pallet::generate_store(pub(super) trait Store)]
-    pub struct Pallet<T>(PhantomData<T>);
+    pub struct Pallet<T>(_);
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]

@@ -12,7 +12,7 @@ use sp_runtime::{
 
 use parami_chainbridge::{ChainId, ResourceId};
 
-use crate::{self as parami_xassets, traits::WeightInfo};
+use crate::{self as parami_xassets, weights::WeightInfo};
 
 type Balance = u64;
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<MockRuntime>;

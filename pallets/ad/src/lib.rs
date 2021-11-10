@@ -86,7 +86,7 @@ pub mod pallet {
 
     #[pallet::pallet]
     #[pallet::generate_store(pub(super) trait Store)]
-    pub struct Pallet<T>(PhantomData<T>);
+    pub struct Pallet<T>(_);
 
     /// Metadata of an advertisement
     #[pallet::storage]
@@ -353,8 +353,8 @@ pub mod pallet {
             Ok(())
         }
 
-        #[pallet::weight(<T as Config>::WeightInfo::deposit())]
-        pub fn deposit(
+        #[pallet::weight(<T as Config>::WeightInfo::add_budget())]
+        pub fn add_budget(
             origin: OriginFor<T>,
             id: HashOf<T>,
             #[pallet::compact] value: BalanceOf<T>,

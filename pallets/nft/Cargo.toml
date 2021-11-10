@@ -50,11 +50,6 @@ default-features = false
 git = 'https://github.com/paritytech/substrate.git'
 branch = 'polkadot-v0.9.12'
 
-[dependencies.orml-nft]
-default-features = false
-git = 'https://github.com/open-web3-stack/open-runtime-module-library.git'
-rev = 'd473d40eb1dbf927990d04ef1b0373326e7007ce'
-
 [dependencies.scale-info]
 default-features = false
 features = ['derive']
@@ -78,7 +73,7 @@ branch = 'polkadot-v0.9.12'
 git = 'https://github.com/paritytech/substrate.git'
 branch = 'polkadot-v0.9.12'
 
-[dev-dependencies.pallet-timestamp]
+[dev-dependencies.pallet-uniques]
 git = 'https://github.com/paritytech/substrate.git'
 branch = 'polkadot-v0.9.12'
 
@@ -103,7 +98,6 @@ std = [
     'frame-benchmarking/std',
     'frame-support/std',
     'frame-system/std',
-    'orml-nft/std',
     'parami-did/std',
     'parami-swap/std',
     'parami-traits/std',

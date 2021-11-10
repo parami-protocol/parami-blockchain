@@ -35,7 +35,6 @@ use sp_std::prelude::*;
 use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
-type BalanceOf<T> = <<T as Config>::Currency as Currency<AccountOf<T>>>::Balance;
 type HeightOf<T> = <T as frame_system::Config>::BlockNumber;
 type MetaOf<T> = types::Metadata<AccountOf<T>, HeightOf<T>, <T as Config>::AssetId>;
 
@@ -58,10 +57,6 @@ pub mod pallet {
             + Default
             + Bounded
             + Copy;
-
-        /// Deposit to create a new DID
-        #[pallet::constant]
-        type CreationDeposit: Get<BalanceOf<Self>>;
 
         /// The reservable currency trait
         type Currency: NamedReservableCurrency<Self::AccountId, ReserveIdentifier = [u8; 8]>;
@@ -99,19 +94,19 @@ pub mod pallet {
 
     #[pallet::pallet]
     #[pallet::generate_store(pub(super) trait Store)]
-    pub struct Pallet<T>(PhantomData<T>);
+    pub struct Pallet<T>(_);
 
-    /// The metadata of a did.
+    /// The metadata of a DID.
     #[pallet::storage]
     #[pallet::getter(fn meta)]
     pub(super) type Metadata<T: Config> = StorageMap<_, Identity, T::DecentralizedId, MetaOf<T>>;
 
-    /// The did of an account id.
+    /// The DID of an account id.
     #[pallet::storage]
     #[pallet::getter(fn did_of)]
-    pub(super) type DidOf<T: Config> = StorageMap<_, Twox128, T::AccountId, T::DecentralizedId>;
+    pub(super) type DidOf<T: Config> = StorageMap<_, Blake2_256, T::AccountId, T::DecentralizedId>;
 
-    /// The inviter did of a did.
+    /// The inviter's DID of a DID.
     #[pallet::storage]
     #[pallet::getter(fn referrer_of)]
     pub(super) type ReferrerOf<T: Config> =
@@ -175,7 +170,7 @@ pub mod pallet {
 
             let id = T::PalletId::get();
 
-            let deposit = T::CreationDeposit::get();
+            let deposit = T::Currency::minimum_balance();
 
             T::Currency::reserve_named(&id.0, &who, deposit)?;
 
@@ -215,6 +210,7 @@ pub mod pallet {
             let mut meta = <Metadata<T>>::get(&did).ok_or(Error::<T>::NotExists)?;
 
             meta.account = account.clone();
+            meta.created = <frame_system::Pallet<T>>::block_number();
 
             <Metadata<T>>::insert(&did, meta);
 
@@ -259,7 +255,7 @@ pub mod pallet {
 
             let mut meta = <Metadata<T>>::get(&did).ok_or(Error::<T>::NotExists)?;
 
-            meta.avatar = avatar.clone();
+            meta.avatar = avatar;
 
             <Metadata<T>>::insert(&did, meta);
 
@@ -275,7 +271,7 @@ pub mod pallet {
 
             let mut meta = <Metadata<T>>::get(&did).ok_or(Error::<T>::NotExists)?;
 
-            meta.nickname = nickname.clone();
+            meta.nickname = nickname;
 
             <Metadata<T>>::insert(&did, meta);
 
@@ -287,7 +283,7 @@ pub mod pallet {
 
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
-        pub ids: Vec<(T::AccountId, T::DecentralizedId)>,
+        pub ids: Vec<(T::AccountId, T::DecentralizedId, Option<T::AssetId>)>,
     }
 
     #[cfg(feature = "std")]
@@ -302,12 +298,13 @@ pub mod pallet {
     #[pallet::genesis_build]
     impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
         fn build(&self) {
-            for (id, did) in &self.ids {
+            for (id, did, nft) in &self.ids {
                 <Metadata<T>>::insert(
                     did,
                     types::Metadata {
                         account: id.clone(),
                         pot: T::PalletId::get().into_sub_account(&did),
+                        nft: *nft,
                         revoked: false,
                         ..Default::default()
                     },

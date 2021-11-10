@@ -437,8 +437,6 @@ pub fn testnet_genesis(
         treasury: Default::default(),
         vesting: Default::default(),
 
-        orml_nft: Default::default(),
-
         // airdrop: Default::default(),
         // ad: Default::default(),
         advertiser: Default::default(),

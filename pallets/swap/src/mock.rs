@@ -19,7 +19,6 @@ frame_support::construct_runtime!(
         System: system::{Pallet, Call, Config, Storage, Event<T>},
         Assets: pallet_assets::{Pallet, Call, Storage, Event<T>},
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-        Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
 
         Swap: parami_swap::{Pallet, Call, Storage, Event<T>},
     }
@@ -27,7 +26,6 @@ frame_support::construct_runtime!(
 
 type AssetId = u64;
 type Balance = u128;
-type Moment = u64;
 
 parameter_types! {
     pub const BlockHashCount: u64 = 250;
@@ -100,17 +98,6 @@ impl pallet_balances::Config for Test {
     type MaxLocks = MaxLocks;
     type MaxReserves = MaxReserves;
     type ReserveIdentifier = [u8; 8];
-}
-
-parameter_types! {
-    pub const MinimumPeriod: Moment = 1;
-}
-
-impl pallet_timestamp::Config for Test {
-    type Moment = Moment;
-    type OnTimestampSet = ();
-    type MinimumPeriod = MinimumPeriod;
-    type WeightInfo = ();
 }
 
 parameter_types! {

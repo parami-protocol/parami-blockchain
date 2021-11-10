@@ -58,10 +58,6 @@ pub mod pallet {
             + IsSubType<Call<Self>>
             + IsType<<Self as frame_system::Config>::Call>;
 
-        /// The value to transfer to magic account when create new stash account
-        #[pallet::constant]
-        type CreationFee: Get<BalanceOf<Self>>;
-
         /// The pallet id, used for deriving stash accounts
         #[pallet::constant]
         type PalletId: Get<PalletId>;
@@ -72,18 +68,18 @@ pub mod pallet {
 
     #[pallet::pallet]
     #[pallet::generate_store(pub(super) trait Store)]
-    pub struct Pallet<T>(PhantomData<T>);
+    pub struct Pallet<T>(_);
 
     /// map from controller account to `StableAccount`
     #[pallet::storage]
     #[pallet::getter(fn stable_of)]
-    pub(super) type StableAccountOf<T: Config> = StorageMap<_, Twox128, T::AccountId, MetaOf<T>>;
+    pub(super) type StableAccountOf<T: Config> = StorageMap<_, Blake2_256, T::AccountId, MetaOf<T>>;
 
     /// map from magic account to controller account
     #[pallet::storage]
     #[pallet::getter(fn controller_of)]
     pub(super) type ControllerAccountOf<T: Config> =
-        StorageMap<_, Twox128, T::AccountId, T::AccountId>;
+        StorageMap<_, Blake2_256, T::AccountId, T::AccountId>;
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -141,6 +137,13 @@ pub mod pallet {
                 Error::<T>::MagicAccountUsed
             );
 
+            let minimum = T::Currency::minimum_balance();
+
+            ensure!(
+                T::Currency::free_balance(&controller_account) - minimum >= minimum + deposit,
+                Error::<T>::InsufficientBalance
+            );
+
             let created = <frame_system::Pallet<T>>::block_number();
 
             // TODO: use a HMAC-based algorithm.
@@ -157,14 +160,12 @@ pub mod pallet {
                 created,
             };
 
-            let fee = T::CreationFee::get();
-
-            ensure!(
-                T::Currency::free_balance(&sa.controller_account) >= fee + deposit,
-                Error::<T>::InsufficientBalance
-            );
-
-            T::Currency::transfer(&sa.controller_account, &sa.magic_account, fee, KeepAlive)?;
+            T::Currency::transfer(
+                &sa.controller_account,
+                &sa.magic_account,
+                minimum,
+                KeepAlive,
+            )?;
             T::Currency::transfer(
                 &sa.controller_account,
                 &sa.stash_account,

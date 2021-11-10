@@ -56,6 +56,7 @@ pub mod pallet {
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
+        /// The overarching event type
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
         /// Fungible token ID type
@@ -87,11 +88,12 @@ pub mod pallet {
 
     #[pallet::pallet]
     #[pallet::generate_store(pub(super) trait Store)]
-    pub struct Pallet<T>(PhantomData<T>);
+    pub struct Pallet<T>(_);
 
+    /// Metadata of a swap
     #[pallet::storage]
     #[pallet::getter(fn meta)]
-    pub(super) type Metadata<T: Config> = StorageMap<_, Twox128, T::AssetId, SwapOf<T>>;
+    pub(super) type Metadata<T: Config> = StorageMap<_, Twox64Concat, T::AssetId, SwapOf<T>>;
 
     #[pallet::event]
     #[pallet::generate_deposit(pub fn deposit_event)]
@@ -564,10 +566,17 @@ impl<T: Config> Swaps for Pallet<T> {
         ensure!(max_tokens >= tokens, Error::<T>::TooExpensiveCurrency);
         ensure!(lp >= min_liquidity, Error::<T>::TooLowLiquidity);
 
-        ensure!(
-            T::Currency::free_balance(&who) - T::Currency::minimum_balance() >= currency,
-            Error::<T>::InsufficientCurrency
-        );
+        if keep_alive {
+            ensure!(
+                T::Currency::free_balance(&who) - T::Currency::minimum_balance() >= currency,
+                Error::<T>::InsufficientCurrency
+            );
+        } else {
+            ensure!(
+                T::Currency::free_balance(&who) >= currency,
+                Error::<T>::InsufficientCurrency
+            );
+        }
         ensure!(
             T::Assets::balance(token_id, &who) >= tokens,
             Error::<T>::InsufficientTokens

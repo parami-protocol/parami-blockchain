@@ -135,7 +135,7 @@ benchmarks! {
         assert_ne!(SlotOf::<T>::get(&did), None);
     }
 
-    deposit {
+    add_budget {
         let caller: T::AccountId = whitelisted_caller();
 
         let max = BalanceOf::<T>::max_value();

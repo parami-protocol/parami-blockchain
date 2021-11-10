@@ -54,7 +54,7 @@ benchmarks! {
         T::Currency::make_free_balance_be(&caller, pot);
         T::Currency::make_free_balance_be(&magic, min);
 
-        Magic::<T>::create_stable_account(RawOrigin::Signed(caller.clone()).into(), magic.clone(), min)?;
+        Magic::<T>::create_stable_account(RawOrigin::Signed(caller.clone()).into(), magic, min)?;
 
         let call: <T as Config>::Call = frame_system::Call::<T>::remark { remark: vec![] }.into();
     }: _(RawOrigin::Signed(caller), Box::new(call))

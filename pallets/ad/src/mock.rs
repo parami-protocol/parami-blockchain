@@ -19,9 +19,7 @@ frame_support::construct_runtime!(
         System: system::{Pallet, Call, Config, Storage, Event<T>},
         Assets: pallet_assets::{Pallet, Call, Storage, Event<T>},
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-        Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
-
-        OrmlNft: orml_nft::{Pallet, Storage} = 100,
+        Uniques: pallet_uniques::{Pallet, Storage, Event<T>},
 
         Ad: parami_ad::{Pallet, Call, Storage, Event<T>},
         Did: parami_did::{Pallet, Call, Storage, Config<T>, Event<T>},
@@ -34,7 +32,6 @@ frame_support::construct_runtime!(
 pub type DID = <Test as parami_did::Config>::DecentralizedId;
 type AssetId = u64;
 type Balance = u128;
-type Moment = u64;
 
 parameter_types! {
     pub const BlockHashCount: u64 = 250;
@@ -110,39 +107,35 @@ impl pallet_balances::Config for Test {
 }
 
 parameter_types! {
-    pub const MinimumPeriod: Moment = 1;
+    pub const ClassDeposit: Balance = 0;
+    pub const InstanceDeposit: Balance = 0;
+    pub const AttributeDepositBase: Balance = 0;
 }
 
-impl pallet_timestamp::Config for Test {
-    type Moment = Moment;
-    type OnTimestampSet = ();
-    type MinimumPeriod = MinimumPeriod;
+impl pallet_uniques::Config for Test {
+    type Event = Event;
+    type ClassId = AssetId;
+    type InstanceId = AssetId;
+    type Currency = Balances;
+    type ForceOrigin = frame_system::EnsureRoot<Self::AccountId>;
+    type ClassDeposit = ClassDeposit;
+    type InstanceDeposit = InstanceDeposit;
+    type MetadataDepositBase = MetadataDepositBase;
+    type AttributeDepositBase = AttributeDepositBase;
+    type DepositPerByte = MetadataDepositPerByte;
+    type StringLimit = StringLimit;
+    type KeyLimit = StringLimit;
+    type ValueLimit = StringLimit;
     type WeightInfo = ();
 }
 
 parameter_types! {
-    pub const MaxClassMetadata: u32 = 256;
-    pub const MaxTokenMetadata: u32 = 256;
-}
-
-impl orml_nft::Config for Test {
-    type ClassId = AssetId;
-    type TokenId = AssetId;
-    type ClassData = ();
-    type TokenData = ();
-    type MaxClassMetadata = MaxClassMetadata;
-    type MaxTokenMetadata = MaxTokenMetadata;
-}
-
-parameter_types! {
-    pub const CreationDeposit: Balance = 1;
     pub const DidPalletId: PalletId = PalletId(*b"prm/did ");
 }
 
 impl parami_did::Config for Test {
     type Event = Event;
     type AssetId = AssetId;
-    type CreationDeposit = CreationDeposit;
     type Currency = Balances;
     type DecentralizedId = sp_core::H160;
     type Hashing = Keccak256;
@@ -158,8 +151,9 @@ parameter_types! {
 impl parami_nft::Config for Test {
     type Event = Event;
     type Assets = Assets;
-    type InitialMintingValueBase = InitialMintingValueBase;
     type InitialMintingDeposit = InitialMintingDeposit;
+    type InitialMintingValueBase = InitialMintingValueBase;
+    type Nft = Uniques;
     type StringLimit = StringLimit;
     type Swaps = Swap;
     type WeightInfo = ();
@@ -224,9 +218,9 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 
     parami_did::GenesisConfig::<Test> {
         ids: vec![
-            (alice, DID::from_slice(&[0xff; 20])),
-            (bob, DID::from_slice(&[0xee; 20])),
-            (charlie, DID::from_slice(&[0xdd; 20])),
+            (alice, DID::from_slice(&[0xff; 20]), None),
+            (bob, DID::from_slice(&[0xee; 20]), None),
+            (charlie, DID::from_slice(&[0xdd; 20]), None),
         ],
     }
     .assimilate_storage(&mut t)
