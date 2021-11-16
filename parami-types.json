@@ -1,10 +1,8 @@
 {
-    "DidMethodSpecId": "[u8; 20]",
     "Public": "MultiSigner",
     "LookupSource": "MultiAddress",
     "Address": "MultiAddress",
     "ChainId": "u32",
-    "ResourceId": "[u8; 32]",
     "DepositNonce": "u64",
     "ClassId": "()",
     "TokenId": "()",
@@ -37,5 +35,13 @@
         "mediaRewardRate": "Compact<PerU16>"
     },
     "AdvertiserOf": "Advertiser",
-    "AdvertisementOf": "Advertisement"
+    "AdvertisementOf": "Advertisement",
+    "StableAccountOf": "StableAccount",
+    "StableAccount": {
+        "createdTime": "Compact<Moment>",
+        "stashAccount": "AccountId",
+        "controllerAccount": "AccountId",
+        "magicAccount": "AccountId",
+        "newControllerAccount": "Option<AccountId>"
+    }
 }

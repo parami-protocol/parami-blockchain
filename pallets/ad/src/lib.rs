@@ -1,553 +1,522 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use frame_support::{
-	pallet_prelude::*,
-	traits::{Currency, EnsureOrigin, ExistenceRequirement::KeepAlive, ReservableCurrency},
-	transactional,
-	weights::PostDispatchInfo,
-	PalletId,
-};
-use frame_system::pallet_prelude::*;
-use sp_runtime::{
-	traits::{AccountIdConversion, One, Saturating, Verify},
-	DispatchErrorWithPostInfo, FixedPointNumber, PerU16,
-};
-use sp_std::vec::Vec;
-use frame_support::traits::tokens::fungibles::{Transfer};
+pub use pallet::*;
 
+#[rustfmt::skip]
+pub mod weights;
+
+#[cfg(test)]
 mod mock;
+
+#[cfg(test)]
 mod tests;
 
-pub use parami_did::DidMethodSpecId;
-pub use parami_primitives::Balance;
-mod utils;
-pub use utils::*;
-mod types;
-pub use types::*;
-mod constants;
-pub use constants::*;
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
 
-pub use self::pallet::*;
-type AccountIdOf<T>=<T as frame_system::Config>::AccountId;
+mod types;
+
+use frame_support::{
+    dispatch::DispatchResult,
+    ensure,
+    traits::{fungibles::Transfer, Currency, ExistenceRequirement::KeepAlive},
+    weights::Weight,
+    PalletId,
+};
+use parami_did::Pallet as Did;
+use parami_traits::{Swaps, Tags};
+use sp_runtime::{
+    traits::{AccountIdConversion, Hash, One, Saturating, Zero},
+    DispatchError,
+};
+use sp_std::prelude::*;
+
+use weights::WeightInfo;
+
+type AccountOf<T> = <T as frame_system::Config>::AccountId;
+type AssetOf<T> = <T as parami_did::Config>::AssetId;
+type BalanceOf<T> = <<T as parami_did::Config>::Currency as Currency<AccountOf<T>>>::Balance;
+type DidOf<T> = <T as parami_did::Config>::DecentralizedId;
+type HashOf<T> = <<T as frame_system::Config>::Hashing as Hash>::Output;
+type HeightOf<T> = <T as frame_system::Config>::BlockNumber;
+type MetaOf<T> = types::Metadata<AccountOf<T>, BalanceOf<T>, DidOf<T>, HashOf<T>, HeightOf<T>>;
+type SlotMetaOf<T> = types::Slot<BalanceOf<T>, HashOf<T>, HeightOf<T>, AssetOf<T>>;
 
 #[frame_support::pallet]
 pub mod pallet {
-	use super::*;
-	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
-	pub struct Pallet<T>(PhantomData<T>);
+    use super::*;
+    use frame_support::pallet_prelude::*;
+    use frame_system::pallet_prelude::*;
 
-	#[pallet::config]
-	#[pallet::disable_frame_system_supertrait_check]
-	pub trait Config:
-		pallet_timestamp::Config<AccountId=parami_primitives::AccountId>
-		+ pallet_staking::Config
-		+ parami_did::Config
-		+ parami_assets::Config
-	{
-		/// The overarching event type.
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+    #[pallet::config]
+    pub trait Config: frame_system::Config + parami_did::Config {
+        /// The overarching event type
+        type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
-		/// The currency mechanism.
-		type Currency: ReservableCurrency<<Self as frame_system::Config>::AccountId>;
+        /// The assets trait to pay rewards
+        type Assets: Transfer<Self::AccountId, AssetId = Self::AssetId, Balance = BalanceOf<Self>>;
 
-		/// Required `origin` for updating configuration
-		type ConfigOrigin: EnsureOrigin<<Self as frame_system::Config>::Origin>;
-	}
+        /// The pallet id, used for deriving "pot" accounts of budgets
+        #[pallet::constant]
+        type PalletId: Get<PalletId>;
 
-	#[pallet::event]
-	#[pallet::metadata(T::AccountId = "AccountId")]
-	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	pub enum Event<T: Config> {
-		/// an advertiser was created. \[who, did, advertiserId\]
-		CreatedAdvertiser(AccountIdOf<T>, DidMethodSpecId, AdvertiserId),
-		/// an advertisement was created. \[did, advertiserId, adId\]
-		CreatedAd(DidMethodSpecId, AdvertiserId, AdId),
-		AdReward(AdvertiserId, AdId, Balance),
-	}
+        /// The swaps trait
+        type Swaps: Swaps<
+            AccountId = Self::AccountId,
+            AssetId = Self::AssetId,
+            QuoteBalance = BalanceOf<Self>,
+            TokenBalance = BalanceOf<Self>,
+        >;
 
-	#[pallet::error]
-	pub enum Error<T> {
-		SomethingTerribleHappened,
-		/// The DID does not exist.
-		DIDNotExists,
-		/// Id overflow.
-		NoAvailableId,
-		/// Cannot find the advertiser.
-		AdvertiserNotExists,
-		/// Invalid Tag Coefficient Count
-		InvalidTagCoefficientCount,
-		/// Invalid Tag Type
-		InvalidTagType,
-		/// Duplicated Tag Type
-		DuplicatedTagType,
-		AdvertisementNotExists,
-		NoPermission,
-		ObsoletedDID,
-		InvalidTagScoreDeltaLen,
-		AdPaymentExpired,
-		TagScoreDeltaOutOfRange,
-		DuplicatedReward,
-		TooEarlyToRedeem,
-		AdvertiserExists,
-		VecTooLong,
-	}
+        /// The means of storing the tags and tags of advertisement
+        type Tags: Tags<DecentralizedId = Self::DecentralizedId, Hash = HashOf<Self>>;
 
-	#[pallet::hooks]
-	impl<T: Config> Hooks<<T as frame_system::Config>::BlockNumber> for Pallet<T> {
-		fn on_runtime_upgrade() -> Weight {
-			0
-		}
-		fn integrity_test() {}
-	}
+        /// The origin which may do calls
+        type CallOrigin: EnsureOrigin<
+            Self::Origin,
+            Success = (Self::DecentralizedId, Self::AccountId),
+        >;
 
-	#[pallet::genesis_config]
-	pub struct GenesisConfig<T: Config> {
-		pub advertiser_deposit: Balance,
-		pub ad_deposit: Balance,
-		pub extra_reward: Balance,
-		pub time_decay_coefficient: PerU16,
-		pub staking_reward_rate: PerU16,
-		pub tag_names: Vec<(TagType, Vec<u8>)>,
-		pub _phantom: PhantomData<T>,
-	}
+        /// The origin which may forcibly drawback or destroy an advertisement or otherwise alter privileged attributes
+        type ForceOrigin: EnsureOrigin<Self::Origin>;
 
-	#[cfg(feature = "std")]
-	impl<T: Config> Default for GenesisConfig<T> {
-		fn default() -> Self {
-			let mut tag_names = Vec::new();
-			tag_names.push((0, b"type01".as_ref().into()));
-			tag_names.push((1, b"type02".as_ref().into()));
-			tag_names.push((3, b"type03".as_ref().into()));
-			tag_names.push((4, b"type04".as_ref().into()));
-			Self {
-				advertiser_deposit: UNIT.saturating_mul(100),
-				ad_deposit: UNIT.saturating_mul(100),
-				extra_reward: UNIT.saturating_mul(3),
-				staking_reward_rate: PerU16::from_percent(2),
-				time_decay_coefficient: PerU16::from_percent(1),
-				tag_names,
-				_phantom: Default::default(),
-			}
-		}
-	}
+        /// Weight information for extrinsics in this pallet.
+        type WeightInfo: WeightInfo;
+    }
 
-	#[pallet::genesis_build]
-	impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
-		fn build(&self) {
-			AdvertiserDeposit::<T>::put(self.advertiser_deposit);
-			AdDeposit::<T>::put(self.ad_deposit);
-			ExtraReward::<T>::put(self.extra_reward);
-			StakingRewardRate::<T>::put(self.staking_reward_rate);
-			TimeDecayCoefficient::<T>::put(self.time_decay_coefficient);
-			for (tag, name) in &self.tag_names {
-				Tags::<T>::insert(tag, name);
-			}
-		}
-	}
+    #[pallet::pallet]
+    #[pallet::generate_store(pub(super) trait Store)]
+    pub struct Pallet<T>(_);
 
-	/// Name of tag
-	#[pallet::storage]
-	pub type Tags<T: Config> = StorageMap<_, Identity, TagType, Vec<u8>>;
+    /// Metadata of an advertisement
+    #[pallet::storage]
+    #[pallet::getter(fn meta)]
+    pub(super) type Metadata<T: Config> = StorageMap<_, Identity, HashOf<T>, MetaOf<T>>;
 
-	/// A Coefficient to calculate the decay of an user score
-	#[pallet::storage]
-	pub type TimeDecayCoefficient<T: Config> = StorageValue<_, PerU16, ValueQuery>;
+    /// Advertisement of an advertiser
+    #[pallet::storage]
+    #[pallet::getter(fn ads_of)]
+    pub(super) type AdsOf<T: Config> = StorageMap<_, Identity, T::DecentralizedId, Vec<HashOf<T>>>;
 
-	/// The rate of extra rewards according to staking.
-	#[pallet::storage]
-	pub type StakingRewardRate<T: Config> = StorageValue<_, PerU16, ValueQuery>;
+    /// Deadline of an advertisement in slot
+    #[pallet::storage]
+    #[pallet::getter(fn deadline_of)]
+    pub(super) type DeadlineOf<T: Config> =
+        StorageDoubleMap<_, Identity, T::DecentralizedId, Identity, HashOf<T>, HeightOf<T>>;
 
-	/// the sender of `payout` will take an extra reward
-	#[pallet::storage]
-	pub type ExtraReward<T: Config> = StorageValue<_, Balance, ValueQuery>;
+    /// Slot of a KOL
+    #[pallet::storage]
+    #[pallet::getter(fn slot_of)]
+    pub(super) type SlotOf<T: Config> = StorageMap<_, Identity, T::DecentralizedId, SlotMetaOf<T>>;
 
-	/// ad deposit
-	#[pallet::storage]
-	pub type AdDeposit<T: Config> = StorageValue<_, Balance, ValueQuery>;
+    /// Slots of an advertisement
+    #[pallet::storage]
+    #[pallet::getter(fn slots_of)]
+    pub(super) type SlotsOf<T: Config> =
+        StorageMap<_, Identity, HashOf<T>, Vec<T::DecentralizedId>>;
 
-	/// advertiser deposit
-	#[pallet::storage]
-	pub type AdvertiserDeposit<T: Config> = StorageValue<_, Balance, ValueQuery>;
+    #[pallet::event]
+    #[pallet::generate_deposit(pub(super) fn deposit_event)]
+    pub enum Event<T: Config> {
+        /// New advertisement created \[id\]
+        Created(HashOf<T>),
+        /// Advertisement updated \[id\]
+        Updated(HashOf<T>),
+        /// Advertiser bid for slot \[kol, id\]
+        Bid(T::DecentralizedId, HashOf<T>),
+        /// Advertisement (in slot) deadline reached
+        End(T::DecentralizedId, HashOf<T>),
+    }
 
-	/// Next available ID.
-	#[pallet::storage]
-	pub type NextId<T: Config> = StorageValue<_, GlobalId, ValueQuery>;
+    #[pallet::hooks]
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+        fn on_initialize(n: HeightOf<T>) -> Weight {
+            Self::begin_block(n).unwrap_or_else(|e| {
+                sp_runtime::print(e);
+                0
+            })
+        }
+    }
 
-	/// an index for advertisers
-	#[pallet::storage]
-	pub type Advertisers<T: Config> =
-		StorageMap<_, Blake2_128Concat, DidMethodSpecId, AdvertiserOf<T>>;
+    #[pallet::error]
+    pub enum Error<T> {
+        Deadline,
+        DidNotExists,
+        EmptyTags,
+        InsufficientTokens,
+        NotExists,
+        NotMinted,
+        NotOwned,
+        ScoreOutOfRange,
+        TagNotExists,
+        Underbid,
+    }
 
-	/// an index for querying did by AdvertiserId
-	#[pallet::storage]
-	pub type AdvertiserById<T: Config> = StorageMap<_, Twox64Concat, AdvertiserId, DidMethodSpecId>;
+    #[pallet::call]
+    impl<T: Config> Pallet<T> {
+        #[pallet::weight(<T as Config>::WeightInfo::create(tags.len() as u32))]
+        pub fn create(
+            origin: OriginFor<T>,
+            #[pallet::compact] budget: BalanceOf<T>,
+            tags: Vec<Vec<u8>>,
+            metadata: Vec<u8>,
+            reward_rate: u16,
+            deadline: HeightOf<T>,
+        ) -> DispatchResult {
+            let created = <frame_system::Pallet<T>>::block_number();
 
-	/// an index for advertisements
-	#[pallet::storage]
-	pub type Advertisements<T: Config> =
-		StorageDoubleMap<_, Twox64Concat, AdvertiserId, Twox64Concat, AdId, AdvertisementOf<T>>;
+            ensure!(deadline > created, Error::<T>::Deadline);
 
-	/// an index to tag score by tag type for every user.
-	#[pallet::storage]
-	pub type UserTagScores<T: Config> = StorageDoubleMap<
-		_,
-		Blake2_128Concat,
-		DidMethodSpecId,
-		Identity,
-		TagType,
-		(TagScore, T::Moment),
-		ValueQuery,
-		TagScoreDefault<T>,
-	>;
+            let (creator, who) = T::CallOrigin::ensure_origin(origin)?;
 
-	/// an index for rewards. The secondary key: `(user_did, media_did)`
-	#[pallet::storage]
-	pub type Rewards<T: Config> = StorageDoubleMap<
-		_,
-		Twox64Concat,
-		AdId,
-		Blake2_128Concat,
-		(DidMethodSpecId, DidMethodSpecId),
-		(),
-	>;
+            for tag in &tags {
+                ensure!(T::Tags::exists(tag), Error::<T>::TagNotExists);
+            }
 
-	#[pallet::call]
-	impl<T: Config> Pallet<T> {
-		#[pallet::weight((1_000, DispatchClass::Operational))]
-		#[transactional]
-		pub fn update_tag_name(
-			origin: OriginFor<T>,
-			tag_type: TagType,
-			name: Vec<u8>,
-		) -> DispatchResultWithPostInfo {
-			T::ConfigOrigin::ensure_origin(origin)?;
-			ensure!((tag_type as usize) < MAX_TAG_COUNT, Error::<T>::InvalidTagType);
-			ensure!(name.len() > 1000, Error::<T>::VecTooLong);
-			Tags::<T>::insert(tag_type, name);
-			Ok(().into())
-		}
+            // 1. derive deposit poll account and advertisement ID
 
-		#[pallet::weight((1_000, DispatchClass::Operational))]
-		#[transactional]
-		pub fn update_time_decay_coefficient(
-			origin: OriginFor<T>,
-			#[pallet::compact] coefficient: PerU16,
-		) -> DispatchResultWithPostInfo {
-			T::ConfigOrigin::ensure_origin(origin)?;
-			TimeDecayCoefficient::<T>::put(coefficient);
-			Ok(().into())
-		}
+            // TODO: use a HMAC-based algorithm.
+            let mut raw = T::AccountId::encode(&who);
+            let mut ord = T::BlockNumber::encode(&created);
+            raw.append(&mut ord);
 
-		#[pallet::weight((1_000, DispatchClass::Operational))]
-		#[transactional]
-		pub fn update_extra_reward(
-			origin: OriginFor<T>,
-			#[pallet::compact] extra_reward: Balance,
-		) -> DispatchResultWithPostInfo {
-			T::ConfigOrigin::ensure_origin(origin)?;
-			ExtraReward::<T>::put(extra_reward);
-			Ok(().into())
-		}
+            let id = <T as frame_system::Config>::Hashing::hash(&raw);
 
-		#[pallet::weight(1_000_000_000)]
-		#[transactional]
-		pub fn create_advertiser(
-			origin: OriginFor<T>,
-			asset_id: T::AssetId,
-			#[pallet::compact] reward_pool: Balance,
-		) -> DispatchResultWithPostInfo {
-			let who: AccountIdOf<T>= ensure_signed(origin)?;
-			let did: DidMethodSpecId = Self::ensure_did(&who)?;
-			ensure!(Advertisers::<T>::get(&did).is_none(), Error::<T>::AdvertiserExists);
+            let pot = <T as Config>::PalletId::get().into_sub_account(&id);
 
-			let advertiser_id = Self::inc_id()?;
-			let (deposit_account, reward_pool_account) = Self::ad_accounts(advertiser_id);
+            // 2. deposit budget
 
-			// active accounts
-			<T as pallet::Config>::Currency::transfer(
-                &who,
-                &deposit_account,
-                <T as pallet::Config>::Currency::minimum_balance(),
-                KeepAlive,
-            )?;
-			<T as pallet::Config>::Currency::transfer(
-                &who,
-                &reward_pool_account,
-                <T as pallet::Config>::Currency::minimum_balance(),
-                KeepAlive,
-            )?;
+            T::Currency::transfer(&who, &pot, budget, KeepAlive)?;
 
-			let deposit = AdvertiserDeposit::<T>::get();
+            // 3. insert metadata, ads_of, tags_of
 
-			<parami_assets::Pallet<T> as Transfer<AccountIdOf<T>>>::transfer(asset_id, &who, &deposit_account, s!(deposit), true)?;
-			<parami_assets::Pallet<T> as Transfer<AccountIdOf<T>>>::transfer(asset_id, &who, &reward_pool_account, s!(reward_pool), true)?;
-			// <T as Config>::Currency::transfer(&who, &deposit_account, s!(deposit), KeepAlive)?;
-			// <T as Config>::Currency::transfer(
-			// 	&who,
-			// 	&reward_pool_account,
-			// 	s!(reward_pool),
-			// 	KeepAlive,
-			// )?;
+            <Metadata<T>>::insert(
+                &id,
+                types::Metadata {
+                    id,
+                    creator,
+                    pot,
+                    budget,
+                    remain: budget,
+                    metadata,
+                    reward_rate,
+                    deadline,
+                    created,
+                },
+            );
 
-			let a = Advertiser {
-				created_time: now::<T>(),
-				advertiser_id,
-				deposit,
-				deposit_account,
-				reward_pool_account,
-			};
-			Advertisers::<T>::insert(did, a);
-			AdvertiserById::<T>::insert(advertiser_id, did);
-			Self::deposit_event(Event::CreatedAdvertiser(who, did, advertiser_id));
-			Ok(().into())
-		}
+            <AdsOf<T>>::mutate(&creator, |maybe| {
+                if let Some(ads) = maybe {
+                    ads.push(id);
+                } else {
+                    *maybe = Some(vec![id]);
+                }
+            });
 
-		#[pallet::weight(1_000_000_000)]
-		#[transactional]
-		pub fn create_ad(
-			origin: OriginFor<T>,
-			asset_id: T::AssetId,
-			signer: AccountIdOf<T>,
-			tag_coefficients: Vec<(TagType, TagCoefficient)>,
-			media_reward_rate: PerU16,
-			metadata: Vec<u8>,
-		) -> DispatchResultWithPostInfo {
-			let who: AccountIdOf<T> = ensure_signed(origin)?;
+            for tag in tags {
+                T::Tags::add_tag(&id, tag)?;
+            }
 
-			ensure!(
-				tag_coefficients.len() <= MAX_TAG_COUNT,
-				Error::<T>::InvalidTagCoefficientCount
-			);
-			ensure!(!tag_coefficients.is_empty(), Error::<T>::InvalidTagCoefficientCount);
+            Self::deposit_event(Event::Created(id));
 
-			for (tag_type, _) in &tag_coefficients {
-				ensure!(*tag_type < MAX_TAG_TYPE_COUNT, Error::<T>::InvalidTagType);
-				let mut count = 0;
-				tag_coefficients.iter().for_each(|(t, _)| {
-					if tag_type == t {
-						count += 1;
-					}
-				});
-				ensure!(count == 1, Error::<T>::DuplicatedTagType);
-			}
+            Ok(())
+        }
 
-			let did: DidMethodSpecId = Self::ensure_did(&who)?;
-			let ad_id = Self::inc_id()?;
-			let advertiser = Advertisers::<T>::get(&did).ok_or(Error::<T>::AdvertiserNotExists)?;
-			let deposit = AdDeposit::<T>::get();
+        #[pallet::weight(<T as Config>::WeightInfo::update_reward_rate())]
+        pub fn update_reward_rate(
+            origin: OriginFor<T>,
+            id: HashOf<T>,
+            reward_rate: u16,
+        ) -> DispatchResult {
+            let (did, _) = T::CallOrigin::ensure_origin(origin)?;
 
-			<parami_assets::Pallet<T> as Transfer<AccountIdOf<T>>>::transfer(asset_id, &who, &advertiser.deposit_account, s!(deposit), true)?;
-			// <T as Config>::Currency::transfer(
-			// 	&who,
-			// 	&advertiser.deposit_account,
-			// 	s!(deposit),
-			// 	KeepAlive,
-			// )?;
-			// <T as Config>::Currency::reserve(&advertiser.deposit_account, s!(deposit))?;
+            let mut meta = Self::ensure_owned(did, id)?;
 
-			let ad = Advertisement {
-				created_time: now::<T>(),
-				deposit,
-				tag_coefficients,
-				signer,
-				media_reward_rate,
-				metadata,
-			};
-			Advertisements::<T>::insert(advertiser.advertiser_id, ad_id, ad);
-			Self::deposit_event(Event::CreatedAd(did, advertiser.advertiser_id, ad_id));
-			Ok(().into())
-		}
+            let height = <frame_system::Pallet<T>>::block_number();
+            ensure!(meta.deadline > height, Error::<T>::Deadline);
 
-		/// advertiser pays some AD3 to user.
-		#[pallet::weight(1_000_000_000)]
-		#[transactional]
-		pub fn ad_payout(
-			origin: OriginFor<T>,
-			asset_id: T::AssetId,
-			ad_id: AdId,
-			user_did: DidMethodSpecId,
-			media_did: DidMethodSpecId,
-			tag_score_delta: Vec<TagScore>,
-		) -> DispatchResultWithPostInfo {
-			let advertiser = ensure_signed(origin)?;
-			let advertiser_did: DidMethodSpecId = Self::ensure_did(&advertiser)?;
+            meta.reward_rate = reward_rate;
 
-			let advertiser =
-				Advertisers::<T>::get(&advertiser_did).ok_or(Error::<T>::AdvertiserNotExists)?;
-			let ad = Advertisements::<T>::get(advertiser.advertiser_id, ad_id)
-				.ok_or(Error::<T>::AdvertisementNotExists)?;
-			let user = Self::lookup_index(user_did)?;
-			let media = Self::lookup_index(media_did)?;
+            <Metadata<T>>::insert(&id, meta);
 
-			ensure!(
-				tag_score_delta.len() == ad.tag_coefficients.len(),
-				Error::<T>::InvalidTagScoreDeltaLen
-			);
-			ensure!(
-				Rewards::<T>::get(ad_id, (user_did, media_did)).is_none(),
-				Error::<T>::DuplicatedReward
-			);
+            Self::deposit_event(Event::Updated(id));
 
-			let (reward, reward_media, reward_user) =
-				calc_reward::<T>(&ad, &user_did, &user, &media, Some(&tag_score_delta))?;
+            Ok(())
+        }
 
-			<parami_assets::Pallet<T> as Transfer<AccountIdOf<T>>>::transfer(asset_id, &advertiser.reward_pool_account, &user, s!(reward_user), true)?;
-			<parami_assets::Pallet<T> as Transfer<AccountIdOf<T>>>::transfer(asset_id, &advertiser.reward_pool_account, &media, s!(reward_media), true)?;
-			// <T as Config>::Currency::transfer(
-			// 	&advertiser.reward_pool_account,
-			// 	&user,
-			// 	s!(reward_user),
-			// 	KeepAlive,
-			// )?;
-			// <T as Config>::Currency::transfer(
-			// 	&advertiser.reward_pool_account,
-			// 	&media,
-			// 	s!(reward_media),
-			// 	KeepAlive,
-			// )?;
+        #[pallet::weight(<T as Config>::WeightInfo::update_tags(tags.len() as u32))]
+        pub fn update_tags(
+            origin: OriginFor<T>,
+            id: HashOf<T>,
+            tags: Vec<Vec<u8>>,
+        ) -> DispatchResult {
+            let (did, _) = T::CallOrigin::ensure_origin(origin)?;
 
-			Rewards::<T>::insert(ad_id, (user_did, media_did), ());
-			Self::deposit_event(Event::AdReward(advertiser.advertiser_id, ad_id, reward));
-			Ok(().into())
-		}
+            let meta = Self::ensure_owned(did, id)?;
 
-		/// If advertiser fails to pay to user and media, everyone can trigger
-		/// the process of payment.
-		/// For the sake of fairness, the extrinsic sender will gain some extra AD3.
-		#[pallet::weight(1_000_000_000)]
-		#[transactional]
-		pub fn payout(
-			origin: OriginFor<T>,
-			asset_id: T::AssetId,
-			signature: Vec<u8>,
-			advertiser_did: DidMethodSpecId,
-			ad_id: AdId,
-			user_did: DidMethodSpecId,
-			media_did: DidMethodSpecId,
-			timestamp: T::Moment,
-		) -> DispatchResultWithPostInfo {
-			let sender :AccountIdOf<T> = ensure_signed(origin)?;
+            for tag in &tags {
+                ensure!(T::Tags::exists(tag), Error::<T>::TagNotExists);
+            }
 
-			let advertiser =
-				Advertisers::<T>::get(&advertiser_did).ok_or(Error::<T>::AdvertiserNotExists)?;
-			let ad = Advertisements::<T>::get(advertiser.advertiser_id, ad_id)
-				.ok_or(Error::<T>::AdvertisementNotExists)?;
-			let user = Self::lookup_index(user_did)?;
-			let media = Self::lookup_index(media_did)?;
+            let height = <frame_system::Pallet<T>>::block_number();
+            ensure!(meta.deadline > height, Error::<T>::Deadline);
 
-			let signature = sr25519_signature(&signature)?;
-			let deadline =
-				timestamp.saturating_add(s!(ADVERTISER_PAYMENT_WINDOW + USER_PAYMENT_WINDOW));
-			let advertiser_payment_deadline =
-				timestamp.saturating_add(s!(ADVERTISER_PAYMENT_WINDOW));
+            T::Tags::clr_tag(&id)?;
+            for tag in tags {
+                T::Tags::add_tag(&id, tag)?;
+            }
 
-			// check timestamp
-			let now = now::<T>();
-			ensure!(now <= deadline, Error::<T>::AdPaymentExpired);
-			ensure!(now > advertiser_payment_deadline, Error::<T>::TooEarlyToRedeem);
+            Self::deposit_event(Event::Updated(id));
 
-			let data =
-				codec::Encode::encode(&(user_did, media_did, advertiser_did, timestamp, ad_id));
-			ensure!(signature.verify(&data[..], &ad.signer), Error::<T>::NoPermission);
+            Ok(())
+        }
 
-			ensure!(
-				Rewards::<T>::get(ad_id, (user_did, media_did)).is_none(),
-				Error::<T>::DuplicatedReward
-			);
-			let (reward, reward_media, reward_user) =
-				calc_reward::<T>(&ad, &user_did, &user, &media, None)?;
+        #[pallet::weight(<T as Config>::WeightInfo::bid())]
+        pub fn bid(
+            origin: OriginFor<T>,
+            ad: HashOf<T>,
+            kol: T::DecentralizedId,
+            #[pallet::compact] value: BalanceOf<T>,
+        ) -> DispatchResult {
+            let (did, _) = T::CallOrigin::ensure_origin(origin)?;
 
-			let mut free: Balance = s!(free_balance::<T>(asset_id, advertiser.reward_pool_account.clone()));
-			if free > reward_user {
-				<parami_assets::Pallet<T> as Transfer<AccountIdOf<T>>>::transfer(asset_id, &advertiser.reward_pool_account, &user, s!(reward_user), true)?;
-				// <T as Config>::Currency::transfer(
-				// 	&advertiser.reward_pool_account,
-				// 	&user,
-				// 	s!(reward_user),
-				// 	KeepAlive,
-				// )?;
-				free = free.saturating_sub(reward_user);
-			} else {
-				<parami_assets::Pallet<T> as Transfer<AccountIdOf<T>>>::transfer(asset_id, &advertiser.deposit_account, &user, s!(reward_user), true)?;
-				// <T as Config>::Currency::transfer(
-				// 	&advertiser.deposit_account,
-				// 	&user,
-				// 	s!(reward_user),
-				// 	KeepAlive,
-				// )?;
-			}
+            let mut meta = Self::ensure_owned(did, ad)?;
 
-			if free > reward_media {
-				<parami_assets::Pallet<T> as Transfer<AccountIdOf<T>>>::transfer(asset_id, &advertiser.reward_pool_account, &media, s!(reward_media), true)?;
-				// <T as Config>::Currency::transfer(
-				// 	&advertiser.reward_pool_account,
-				// 	&media,
-				// 	s!(reward_media),
-				// 	KeepAlive,
-				// )?;
-				free = free.saturating_sub(reward_media);
-			} else {
-				<parami_assets::Pallet<T> as Transfer<AccountIdOf<T>>>::transfer(asset_id, &advertiser.deposit_account, &media, s!(reward_media), true)?;
-				// <T as Config>::Currency::transfer(
-				// 	&advertiser.deposit_account,
-				// 	&media,
-				// 	s!(reward_media),
-				// 	KeepAlive,
-				// )?;
-			}
+            let kol_meta = Did::<T>::meta(&kol).ok_or(Error::<T>::NotMinted)?;
+            let nft = kol_meta.nft.ok_or(Error::<T>::NotMinted)?;
 
-			let extra_reward = ExtraReward::<T>::get();
-			if free > extra_reward {
-				<parami_assets::Pallet<T> as Transfer<AccountIdOf<T>>>::transfer(asset_id, &advertiser.reward_pool_account, &sender, s!(extra_reward), true)?;
-				// <T as Config>::Currency::transfer(
-				// 	&advertiser.reward_pool_account,
-				// 	&sender,
-				// 	s!(extra_reward),
-				// 	KeepAlive,
-				// )?;
-			} else {
-				<parami_assets::Pallet<T> as Transfer<AccountIdOf<T>>>::transfer(asset_id, &advertiser.deposit_account, &sender, s!(extra_reward), true)?;
-				// <T as Config>::Currency::transfer(
-				// 	&advertiser.deposit_account,
-				// 	&sender,
-				// 	s!(extra_reward),
-				// 	KeepAlive,
-				// )?;
-			}
+            let height = <frame_system::Pallet<T>>::block_number();
 
-			Rewards::<T>::insert(ad_id, (user_did, media_did), ());
-			Self::deposit_event(Event::AdReward(advertiser.advertiser_id, ad_id, reward));
-			Ok(().into())
-		}
-	}
+            ensure!(meta.deadline > height, Error::<T>::Deadline);
+
+            // 1. check slot of kol
+
+            let slot = <SlotOf<T>>::get(&kol);
+
+            // 2. swap AD3 to assets
+
+            let tokens = T::Swaps::quote_in_dry(nft, value)?;
+
+            // 3. if slot is used
+            // require a 20% increase of current budget
+            // and drawback current ad
+
+            if let Some(slot) = slot {
+                ensure!(
+                    tokens >= slot.remain.saturating_mul(120u32.into()) / 100u32.into(),
+                    Error::<T>::Underbid
+                );
+
+                Self::drawback(&kol, &slot)?;
+            }
+
+            // 4. swap AD3 to assets
+
+            let (_, tokens) = T::Swaps::quote_in(&meta.pot, nft, value, One::one(), false)?;
+
+            // 5. update slot
+
+            let deadline = height.saturating_add(43200u32.into()); // 3 Days (3 * 24 * 60 * 60 /6)
+            let deadline = if deadline > meta.deadline {
+                meta.deadline
+            } else {
+                deadline
+            };
+
+            <DeadlineOf<T>>::insert(&kol, &ad, deadline);
+
+            <SlotOf<T>>::insert(
+                &kol,
+                types::Slot {
+                    nft,
+                    budget: tokens,
+                    remain: tokens,
+                    deadline,
+                    ad,
+                },
+            );
+
+            <SlotsOf<T>>::mutate(&ad, |maybe| {
+                if let Some(slots) = maybe {
+                    slots.push(kol);
+                } else {
+                    *maybe = Some(vec![kol]);
+                }
+            });
+
+            meta.remain.saturating_reduce(value);
+
+            <Metadata<T>>::insert(&ad, meta);
+
+            Self::deposit_event(Event::Bid(kol, ad));
+
+            Ok(())
+        }
+
+        #[pallet::weight(<T as Config>::WeightInfo::add_budget())]
+        pub fn add_budget(
+            origin: OriginFor<T>,
+            id: HashOf<T>,
+            #[pallet::compact] value: BalanceOf<T>,
+        ) -> DispatchResult {
+            let (did, who) = T::CallOrigin::ensure_origin(origin)?;
+
+            let mut meta = Self::ensure_owned(did, id)?;
+
+            let height = <frame_system::Pallet<T>>::block_number();
+            ensure!(meta.deadline > height, Error::<T>::Deadline);
+
+            T::Currency::transfer(&who, &meta.pot, value, KeepAlive)?;
+
+            meta.budget.saturating_accrue(value);
+            meta.remain.saturating_accrue(value);
+
+            <Metadata<T>>::insert(&id, meta);
+
+            Self::deposit_event(Event::Updated(id));
+
+            Ok(())
+        }
+
+        #[pallet::weight(<T as Config>::WeightInfo::pay(scores.len() as u32))]
+        pub fn pay(
+            origin: OriginFor<T>,
+            id: HashOf<T>,
+            kol: T::DecentralizedId,
+            visitor: T::DecentralizedId,
+            scores: Vec<(Vec<u8>, i8)>,
+            referer: Option<T::DecentralizedId>,
+        ) -> DispatchResult {
+            ensure!(!scores.is_empty(), Error::<T>::EmptyTags);
+
+            let (did, _) = T::CallOrigin::ensure_origin(origin)?;
+
+            let meta = Self::ensure_owned(did, id)?;
+
+            let height = <frame_system::Pallet<T>>::block_number();
+            ensure!(meta.deadline > height, Error::<T>::Deadline);
+
+            // 1. get slot, check current ad
+            let mut slot = <SlotOf<T>>::get(&kol).ok_or(Error::<T>::NotExists)?;
+            ensure!(slot.ad == id, Error::<T>::Underbid);
+
+            // 2. scoring visitor
+
+            let mut socring = 5i32;
+
+            let personas = T::Tags::personas_of(&visitor);
+            let length = personas.len();
+            for (_, score) in personas {
+                socring += score;
+            }
+
+            socring /= (length + 1) as i32;
+
+            if socring < 0 {
+                socring = 0;
+            }
+
+            let socring = socring as u32;
+
+            // TODO: find a perfect balance
+
+            let amount = T::Currency::minimum_balance().saturating_mul(socring.into());
+
+            ensure!(slot.remain >= amount, Error::<T>::InsufficientTokens);
+
+            // 3. influence visitor
+
+            for (tag, score) in scores {
+                ensure!(T::Tags::has_tag(&id, &tag), Error::<T>::TagNotExists);
+                ensure!(score >= -5 && score <= 5, Error::<T>::ScoreOutOfRange);
+
+                T::Tags::influence(&visitor, &tag, score as i32)?;
+            }
+
+            // 4. payout assets
+
+            let visitor = Did::<T>::lookup_did(visitor).ok_or(Error::<T>::DidNotExists)?;
+
+            let award = if let Some(referer) = referer {
+                let rate = meta.reward_rate.into();
+                let award = amount.saturating_mul(rate) / 100u32.into();
+
+                let referer = Did::<T>::lookup_did(referer).ok_or(Error::<T>::DidNotExists)?;
+
+                T::Assets::transfer(slot.nft, &meta.pot, &referer, award, false)?;
+
+                award
+            } else {
+                Zero::zero()
+            };
+
+            let reward = amount.saturating_sub(award);
+
+            T::Assets::transfer(slot.nft, &meta.pot, &visitor, reward, false)?;
+
+            slot.remain.saturating_reduce(amount);
+
+            <SlotOf<T>>::insert(&kol, slot);
+
+            Ok(())
+        }
+    }
 }
 
 impl<T: Config> Pallet<T> {
-	pub fn ensure_did(who: &AccountIdOf<T>) -> ResultPost<DidMethodSpecId>
-    {
-		let did: Option<DidMethodSpecId> = parami_did::Pallet::<T>::lookup_account(who.clone());
-		ensure!(did.is_some(), Error::<T>::DIDNotExists);
-		Ok(did.expect("Must be Some"))
-	}
+    fn begin_block(now: HeightOf<T>) -> Result<Weight, DispatchError> {
+        let weight = 1_000_000_000;
 
-	fn lookup_index(did: DidMethodSpecId) -> ResultPost<<T as frame_system::Config>::AccountId> {
-		let who: Option<T::AccountId> = parami_did::Pallet::<T>::lookup_index(did);
-		ensure!(who.is_some(), Error::<T>::ObsoletedDID);
-		Ok(who.expect("Must be Some"))
-	}
+        // TODO: weight benchmark
 
-	pub fn ad_accounts(id: AdvertiserId) -> (AccountIdOf<T>, AccountIdOf<T>) {
-		let deposit = PalletId(*b"prm/ad/d");
-		let reward_pool = PalletId(*b"prm/ad/r");
-		(deposit.into_sub_account(id), reward_pool.into_sub_account(id))
-	}
+        // 1. check deadline of slots
+        for (kol, ad, deadline) in <DeadlineOf<T>>::iter() {
+            if deadline > now {
+                continue;
+            }
 
-	fn inc_id() -> Result<GlobalId, DispatchError> {
-		NextId::<T>::try_mutate(|id| -> Result<GlobalId, DispatchError> {
-			let current_id = *id;
-			*id = id.checked_add(GlobalId::one()).ok_or(Error::<T>::NoAvailableId)?;
-			Ok(current_id)
-		})
-	}
+            let slot = <SlotOf<T>>::get(kol).ok_or(Error::<T>::NotExists)?;
+
+            if slot.ad != ad {
+                continue;
+            }
+
+            Self::drawback(&kol, &slot)?;
+
+            Self::deposit_event(Event::End(kol, slot.ad));
+        }
+
+        // TODO: check deadline of ads
+
+        Ok(weight)
+    }
+
+    fn drawback(kol: &T::DecentralizedId, slot: &SlotMetaOf<T>) -> DispatchResult {
+        let mut meta = <Metadata<T>>::get(slot.ad).ok_or(Error::<T>::NotExists)?;
+
+        let (_, amount) = T::Swaps::token_in(&meta.pot, slot.nft, slot.remain, One::one(), false)?;
+
+        meta.remain.saturating_accrue(amount);
+
+        <Metadata<T>>::insert(slot.ad, meta);
+
+        <SlotOf<T>>::remove(kol);
+
+        <SlotsOf<T>>::mutate(slot.ad, |maybe| {
+            if let Some(slots) = maybe {
+                slots.retain(|x| *x != *kol);
+            }
+        });
+
+        <DeadlineOf<T>>::remove(kol, slot.ad);
+
+        Ok(())
+    }
+
+    fn ensure_owned(did: T::DecentralizedId, id: HashOf<T>) -> Result<MetaOf<T>, DispatchError> {
+        let meta = <Metadata<T>>::get(id).ok_or(Error::<T>::NotExists)?;
+        ensure!(meta.creator == did, Error::<T>::NotOwned);
+
+        Ok(meta)
+    }
 }

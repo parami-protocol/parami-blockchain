@@ -1,0 +1,50 @@
+[package]
+authors = ['Parami Devs <info@parami.io>']
+description = 'AD3 Pallet Traits'
+edition = '2018'
+homepage = 'https://parami.io'
+license = 'GPL-3.0-only WITH Classpath-exception-2.0'
+name = 'parami-traits'
+publish = false
+repository = 'https://github.com/parami-protocol/parami-blockchain/'
+version = '3.0.0'
+
+[package.metadata.docs.rs]
+targets = ['x86_64-unknown-linux-gnu']
+
+[dependencies.codec]
+default-features = false
+features = ['derive']
+package = 'parity-scale-codec'
+version = '2.2.0'
+
+[dependencies.frame-support]
+default-features = false
+git = 'https://github.com/paritytech/substrate.git'
+branch = 'polkadot-v0.9.12'
+
+[dependencies.scale-info]
+default-features = false
+features = ['derive']
+version = '1.0'
+
+[dependencies.sp-runtime]
+default-features = false
+git = 'https://github.com/paritytech/substrate.git'
+branch = 'polkadot-v0.9.12'
+
+[dependencies.sp-std]
+default-features = false
+git = 'https://github.com/paritytech/substrate.git'
+branch = 'polkadot-v0.9.12'
+
+[features]
+default = ['std']
+
+std = [
+    'codec/std',
+    'frame-support/std',
+    'scale-info/std',
+    'sp-runtime/std',
+    'sp-std/std',
+]

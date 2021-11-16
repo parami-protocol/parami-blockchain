@@ -1,153 +1,58 @@
-// This file is part of Substrate.
-
-// Copyright (C) 2018-2021 Parity Technologies (UK) Ltd.
-// SPDX-License-Identifier: Apache-2.0
-
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
-//! Low-level types used throughout the Substrate code.
-
 #![cfg_attr(not(feature = "std"), no_std)]
 
-#[cfg(feature = "std")]
-use serde::{Deserialize, Serialize};
-
-use codec::{Decode, Encode,};
+use sp_core::H256;
 use sp_runtime::{
-    generic,
-    traits::{BlakeTwo256, IdentifyAccount, Verify},
-    MultiSignature, OpaqueExtrinsic, RuntimeDebug,
+    traits::{IdentifyAccount, Verify},
+    MultiSignature,
 };
 
-/// An index to a block.
-pub type BlockNumber = u32;
-
-/// Alias to 512-bit hash when used in the context of a transaction signature on the chain.
-pub type Signature = MultiSignature;
-
-// NOTE:
-// - `Signature` is `MultiSignature`
-// - `::Signer` is `MultiSigner`.
-/// Some way of identifying an account on the chain. We intentionally make it equivalent
-/// to the public key of our transaction signing scheme.
 pub type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::AccountId;
 
-// /// The type for looking up accounts. We don't expect more than 4 billion of them.
-// pub type AccountIndex = u32;
-
-/// Balance of an account. Enough for 10 decimals with 100_000_000 total supply.
 pub type Balance = u128;
 
-/// Type used for expressing timestamp.
-pub type Moment = u64;
+pub type AssetId = u32;
 
-/// Index of a transaction in the chain.
+pub type BlockNumber = u32;
+
+pub type Hash = H256;
+
 pub type Index = u32;
 
-/// A hash of some data used by the chain.
-pub type Hash = sp_core::H256;
+pub type Moment = u64;
 
-/// A timestamp: milliseconds since the unix epoch.
-/// `u64` is enough to represent a duration of half a billion years, when the
-/// time scale is milliseconds.
+pub type Signature = MultiSignature;
+
 pub type Timestamp = u64;
 
-/// Digest item type.
-pub type DigestItem = generic::DigestItem<Hash>;
-/// Header type.
-pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
-/// Block type.
-pub type Block = generic::Block<Header, OpaqueExtrinsic>;
-/// Block ID.
-pub type BlockId = generic::BlockId<Block>;
+pub mod constants {
+    use super::{Balance, BlockNumber};
 
-/// Token ID
-pub type TokenId = u64;
+    pub const UNITS: Balance = 1_000_000_000_000_000_000;
 
-/// App-specific crypto used for reporting equivocation/misbehavior in BABE and
-/// GRANDPA. Any rewards for misbehavior reporting will be paid out to this
-/// account.
-#[cfg(feature = "std")]
-pub mod report {
-    use super::{Signature, Verify};
-    use frame_system::offchain::AppCrypto;
-    use sp_core::crypto::{key_types, KeyTypeId};
+    pub const DOLLARS: Balance = UNITS;
+    pub const CENTS: Balance = DOLLARS / 100;
+    pub const MILLICENTS: Balance = CENTS / 1_000;
 
-    /// Key type for the reporting module. Used for reporting BABE and GRANDPA
-    /// equivocations.
-    pub const KEY_TYPE: KeyTypeId = key_types::REPORTING;
+    pub const PRIMARY_PROBABILITY: (u64, u64) = (1, 4);
 
-    mod app {
-        use sp_application_crypto::{app_crypto, sr25519};
-        app_crypto!(sr25519, super::KEY_TYPE);
-    }
+    pub const MILLISECS_PER_BLOCK: u64 = 6000;
 
-    /// Identity of the equivocation/misbehavior reporter.
-    pub type ReporterId = app::Public;
+    pub const SLOT_DURATION: u64 = MILLISECS_PER_BLOCK;
 
-    /// An `AppCrypto` type to allow submitting signed transactions using the reporting
-    /// application key as signer.
-    pub struct ReporterAppCrypto;
+    pub const EPOCH_DURATION_IN_BLOCKS: BlockNumber = 10 * MINUTES;
+    pub const EPOCH_DURATION_IN_SLOTS: u64 = {
+        const SLOT_FILL_RATE: f64 = MILLISECS_PER_BLOCK as f64 / SLOT_DURATION as f64;
 
-    impl AppCrypto<<Signature as Verify>::Signer, Signature> for ReporterAppCrypto {
-        type RuntimeAppPublic = ReporterId;
-        type GenericSignature = sp_core::sr25519::Signature;
-        type GenericPublic = sp_core::sr25519::Public;
-    }
+        (EPOCH_DURATION_IN_BLOCKS as f64 * SLOT_FILL_RATE) as u64
+    };
+
+    pub const MINUTES: BlockNumber = 60_000 / (MILLISECS_PER_BLOCK as BlockNumber);
+    pub const HOURS: BlockNumber = MINUTES * 60;
+    pub const DAYS: BlockNumber = HOURS * 24;
 }
 
-/// Country ID
-pub type CountryId = u64;
-/// Auction ID
-pub type AuctionId = u64;
+pub const fn deposit(items: u32, bytes: u32) -> Balance {
+    use constants::CENTS;
 
-#[derive(Encode, Decode, Copy, Clone, PartialEq, Eq, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-pub enum AuctionType {
-    Auction,
-    BuyNow,
+    (items as Balance) * 15 * CENTS + (bytes as Balance) * 6 * CENTS
 }
-
-#[cfg_attr(feature = "std", derive(PartialEq, Eq))]
-#[derive(Encode, Decode, Clone, RuntimeDebug)]
-pub struct AuctionInfo<AccountId, Balance, BlockNumber> {
-    /// Current bidder and bid price.
-    pub bid: Option<(AccountId, Balance)>,
-    /// Define which block this auction will be started.
-    pub start: BlockNumber,
-    /// Define which block this auction will be ended.
-    pub end: Option<BlockNumber>,
-}
-
-#[cfg_attr(feature = "std", derive(PartialEq, Eq))]
-#[derive(Encode, Decode, Clone, RuntimeDebug)]
-pub struct AuctionItem<AccountId, BlockNumber, Balance, AssetId> {
-    pub item_id: ItemId<AssetId>,
-    pub recipient: AccountId,
-    pub initial_amount: Balance,
-    pub amount: Balance,
-    pub start_time: BlockNumber,
-    pub end_time: BlockNumber,
-    pub auction_type: AuctionType,
-}
-
-/// Public item id for auction
-#[derive(Encode, Decode, Copy, Clone, PartialEq, Eq, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-pub enum ItemId<AssetId> {
-    NFT(AssetId),
-    Block(u64),
-}
-
-/// Asset Id
-pub type AssetId = u64;

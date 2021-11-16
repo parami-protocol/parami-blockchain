@@ -1,103 +1,108 @@
-//! Did pallet benchmarking.
-
-#![cfg(feature = "runtime-benchmarks")]
-
 use super::*;
 
-use frame_benchmarking::{benchmarks, whitelist_account};
+#[allow(unused)]
+use crate::Pallet as Did;
+use frame_benchmarking::{account, benchmarks, impl_benchmark_test_suite, whitelisted_caller};
 use frame_system::RawOrigin;
-use sp_core::sr25519;
-use sp_runtime::traits::Bounded;
-
-use crate::Module as Did;
-
-// const SEED: u32 = 0;
-// existential deposit multiplier
-// const ED_MULTIPLIER: u32 = 10;
+use sp_runtime::traits::Saturating;
 
 benchmarks! {
     register {
-        // referrer setting
-        let public: T::Public = sr25519::Public([1; 32]).into();
-        let caller: T::AccountId = public.clone().into_account();
-        T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
-        whitelist_account!(caller);
-        Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), public, None)?;
-        let ref_id = Did::<T>::did_of(caller).unwrap();
+        let caller: T::AccountId = whitelisted_caller();
 
-        // caller setting
-        let public: T::Public = sr25519::Public([2; 32]).into();
-        let caller: T::AccountId = public.clone().into_account();
-        T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
-        whitelist_account!(caller);
-    }: register(RawOrigin::Signed(caller.clone()), public, Some(ref_id))
+        let referer: T::AccountId = account::<T::AccountId>("referer", 1, 1);
+
+        let min = T::Currency::minimum_balance();
+        let pot = min.saturating_mul(1_000_000_000u32.into());
+
+        T::Currency::make_free_balance_be(&caller, pot);
+        T::Currency::make_free_balance_be(&referer, pot);
+
+        Did::<T>::register(RawOrigin::Signed(referer.clone()).into(), None)?;
+
+        let referer = DidOf::<T>::get(referer);
+    }: _(RawOrigin::Signed(caller), referer)
     verify {
-        assert_eq!(Did::<T>::total_dids(), Some(2), "should create did");
+        let caller: T::AccountId = whitelisted_caller();
+        assert_ne!(DidOf::<T>::get(caller), None);
     }
 
-    register_for {
-        use frame_support::traits::Get;
+    transfer {
+        let caller: T::AccountId = whitelisted_caller();
 
-        let min_deposit = <T as pallet::Config>::Deposit::get();
-        // referrer setting
-        let public: T::Public = sr25519::Public([1; 32]).into();
-        let caller: T::AccountId = public.clone().into_account();
-        T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
-        whitelist_account!(caller);
-        Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), public, None)?;
-        Did::<T>::lock(RawOrigin::Signed(caller.clone()).into(), min_deposit)?;
+        let min = T::Currency::minimum_balance();
+        let pot = min.saturating_mul(1_000_000_000u32.into());
 
-        let public: T::Public = sr25519::Public([2; 32]).into();
-    }: register_for(RawOrigin::Signed(caller.clone()), public)
+        T::Currency::make_free_balance_be(&caller, pot);
+
+        Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), None)?;
+
+        let receiver: T::AccountId = account::<T::AccountId>("receiver", 1, 1);
+    }: _(RawOrigin::Signed(caller), receiver)
     verify {
-        assert_eq!(Did::<T>::total_dids(), Some(2), "should create did");
-    }
+        let caller: T::AccountId = whitelisted_caller();
+        assert_eq!(DidOf::<T>::get(caller), None);
 
-    lock {
-        use frame_support::traits::Get;
-
-        let min_deposit = <T as pallet::Config>::Deposit::get();
-        // referrer setting
-        let public: T::Public = sr25519::Public([1; 32]).into();
-        let caller: T::AccountId = public.clone().into_account();
-        T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
-        whitelist_account!(caller);
-        Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), public, None)?;
-    }: lock(RawOrigin::Signed(caller.clone()), min_deposit)
-    verify {
-        assert_eq!(Did::<T>::total_dids(), Some(1), "should create did");
+        let receiver: T::AccountId = account::<T::AccountId>("receiver", 1, 1);
+        assert_ne!(DidOf::<T>::get(receiver), None);
     }
 
     revoke {
-        use frame_support::traits::Get;
+        let caller: T::AccountId = whitelisted_caller();
 
-        let min_deposit = <T as pallet::Config>::Deposit::get();
-        // referrer setting
-        let public: T::Public = sr25519::Public([1; 32]).into();
-        let caller: T::AccountId = public.clone().into_account();
-        T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
-        whitelist_account!(caller);
-        Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), public, None)?;
-        Did::<T>::lock(RawOrigin::Signed(caller.clone()).into(), min_deposit)?;
-    }: revoke(RawOrigin::Signed(caller.clone()))
+        let min = T::Currency::minimum_balance();
+        let pot = min.saturating_mul(1_000_000_000u32.into());
+
+        T::Currency::make_free_balance_be(&caller, pot);
+
+        Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), None)?;
+    }: _(RawOrigin::Signed(caller))
     verify {
-        assert_eq!(Did::<T>::total_dids(), Some(0), "should revoke did");
+        let caller: T::AccountId = whitelisted_caller();
+        assert_eq!(DidOf::<T>::get(caller), None);
+    }
+
+    set_avatar {
+        let n in 0 .. 1000;
+
+        let avatar = vec![0u8; n as usize];
+
+        let caller: T::AccountId = whitelisted_caller();
+
+        let min = T::Currency::minimum_balance();
+        let pot = min.saturating_mul(1_000_000_000u32.into());
+
+        T::Currency::make_free_balance_be(&caller, pot);
+
+        Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), None)?;
+    }: _(RawOrigin::Signed(caller), avatar.clone())
+    verify {
+        let caller: T::AccountId = whitelisted_caller();
+        let did = DidOf::<T>::get(caller).unwrap();
+        let meta = Metadata::<T>::get(did).unwrap();
+        assert_eq!(meta.avatar, avatar);
+    }
+
+    set_nickname {
+        let n in 0 .. 1000;
+
+        let nickname = vec![0u8; n as usize];
+
+        let caller: T::AccountId = whitelisted_caller();
+
+        let min = T::Currency::minimum_balance();
+        let pot = min.saturating_mul(1_000_000_000u32.into());
+
+        T::Currency::make_free_balance_be(&caller, pot);
+
+        Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), None)?;
+    }: _(RawOrigin::Signed(caller), nickname.clone())
+    verify {
+        let caller: T::AccountId = whitelisted_caller();
+        let did = DidOf::<T>::get(caller).unwrap();
+        let meta = Metadata::<T>::get(did).unwrap();
+        assert_eq!(meta.nickname, nickname);
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::tests::{new_test_ext, Test};
-    use frame_support::assert_ok;
-
-    #[test]
-    fn test_benchmarks() {
-        new_test_ext().execute_with(|| {
-            assert_ok!(test_benchmark_register::<Test>());
-            assert_ok!(test_benchmark_register_for::<Test>());
-            assert_ok!(test_benchmark_lock::<Test>());
-            assert_ok!(test_benchmark_revoke::<Test>());
-        });
-    }
-}
+impl_benchmark_test_suite!(Did, crate::mock::new_test_ext(), crate::mock::Test);

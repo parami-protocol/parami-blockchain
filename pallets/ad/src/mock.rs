@@ -1,166 +1,83 @@
-#![cfg(test)]
-
-use super::*;
 use crate as parami_ad;
-use codec::{Decode, Encode};
-use frame_support::{
-	construct_runtime, parameter_types,
-	traits::{Filter, InstanceFilter},
-	RuntimeDebug,
-};
-pub use parami_primitives::{AccountId, Balance};
-use sp_core::H256;
+use frame_support::{parameter_types, traits::GenesisBuild, PalletId};
+use frame_system::{self as system, EnsureRoot};
+use sp_core::{sr25519, H256};
 use sp_runtime::{
-	testing::Header,
-	traits::{BlakeTwo256, IdentityLookup},
+    testing::Header,
+    traits::{BlakeTwo256, Keccak256},
 };
-use orml_traits::{AssetHandler};
 
-pub struct NftAssetHandler;
+type UncheckedExtrinsic = system::mocking::MockUncheckedExtrinsic<Test>;
+type Block = system::mocking::MockBlock<Test>;
 
-impl AssetHandler<u32> for NftAssetHandler {
-    fn check_item_in_auction(
-        _asset_id: u32,
-    ) -> bool {
-        return false;
+frame_support::construct_runtime!(
+    pub enum Test where
+        Block = Block,
+        NodeBlock = Block,
+        UncheckedExtrinsic = UncheckedExtrinsic,
+    {
+        System: system::{Pallet, Call, Config, Storage, Event<T>},
+        Assets: pallet_assets::{Pallet, Call, Storage, Event<T>},
+        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+        Uniques: pallet_uniques::{Pallet, Storage, Event<T>},
+
+        Ad: parami_ad::{Pallet, Call, Storage, Event<T>},
+        Did: parami_did::{Pallet, Call, Storage, Config<T>, Event<T>},
+        Nft: parami_nft::{Pallet, Call, Storage, Event<T>},
+        Swap: parami_swap::{Pallet, Call, Storage, Event<T>},
+        Tag: parami_tag::{Pallet, Call, Storage, Config<T>, Event<T>},
     }
-}
+);
+
+pub type DID = <Test as parami_did::Config>::DecentralizedId;
+type AssetId = u64;
+type Balance = u128;
 
 parameter_types! {
-	pub const BlockHashCount: u64 = 250;
+    pub const BlockHashCount: u64 = 250;
+    pub const SS58Prefix: u8 = 42;
 }
 
-impl frame_system::Config for Runtime {
-	type BaseCallFilter = BaseFilter;
-	type Origin = Origin;
-	type Index = u64;
-	type BlockNumber = u64;
-	type Hash = H256;
-	type Call = Call;
-	type Hashing = BlakeTwo256;
-	type AccountId = AccountId;
-	type Lookup = IdentityLookup<Self::AccountId>;
-	type Header = Header;
-	type Event = Event;
-	type BlockHashCount = BlockHashCount;
-	type DbWeight = ();
-	type BlockWeights = ();
-	type BlockLength = ();
-	type Version = ();
-	type PalletInfo = PalletInfo;
-	type AccountData = pallet_balances::AccountData<Balance>;
-	type OnNewAccount = ();
-	type OnKilledAccount = ();
-	type SystemWeightInfo = ();
-	type SS58Prefix = ();
-	type OnSetCode = ();
-}
-parameter_types! {
-	pub const ExistentialDeposit: Balance = 1;
-}
-impl pallet_balances::Config for Runtime {
-	type Balance = Balance;
-	type Event = Event;
-	type DustRemoval = ();
-	type ExistentialDeposit = ExistentialDeposit;
-	type AccountStore = frame_system::Pallet<Runtime>;
-	type MaxLocks = ();
-	type WeightInfo = ();
-	type MaxReserves = ();
-	type ReserveIdentifier = ();
-}
-impl pallet_utility::Config for Runtime {
-	type Event = Event;
-	type Call = Call;
-	type WeightInfo = ();
-}
-parameter_types! {
-	pub const ProxyDepositBase: u64 = 1;
-	pub const ProxyDepositFactor: u64 = 1;
-	pub const MaxProxies: u16 = 4;
-	pub const MaxPending: u32 = 2;
-	pub const AnnouncementDepositBase: u64 = 1;
-	pub const AnnouncementDepositFactor: u64 = 1;
-}
-#[derive(
-	Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug, MaxEncodedLen,
-)]
-pub enum ProxyType {
-	Any,
-	JustTransfer,
-	JustUtility,
-}
-impl Default for ProxyType {
-	fn default() -> Self {
-		Self::Any
-	}
-}
-impl InstanceFilter<Call> for ProxyType {
-	fn filter(&self, c: &Call) -> bool {
-		match self {
-			ProxyType::Any => true,
-			ProxyType::JustTransfer => {
-				matches!(c, Call::Balances(pallet_balances::Call::transfer(..)))
-			}
-			ProxyType::JustUtility => matches!(c, Call::Utility(..)),
-		}
-	}
-	fn is_superset(&self, o: &Self) -> bool {
-		self == &ProxyType::Any || self == o
-	}
-}
-pub struct BaseFilter;
-impl Filter<Call> for BaseFilter {
-	fn filter(c: &Call) -> bool {
-		match *c {
-			// Remark is used as a no-op call in the benchmarking
-			Call::System(SystemCall::remark(_)) => true,
-			Call::System(_) => false,
-			_ => true,
-		}
-	}
-}
-
-impl pallet_proxy::Config for Runtime {
-	type Event = Event;
-	type Call = Call;
-	type Currency = Balances;
-	type ProxyType = ProxyType;
-	type ProxyDepositBase = ProxyDepositBase;
-	type ProxyDepositFactor = ProxyDepositFactor;
-	type MaxProxies = MaxProxies;
-	type WeightInfo = ();
-	type CallHasher = BlakeTwo256;
-	type MaxPending = MaxPending;
-	type AnnouncementDepositBase = AnnouncementDepositBase;
-	type AnnouncementDepositFactor = AnnouncementDepositFactor;
-}
-
-parameter_types! {
-	pub const MinimumPeriod: u64 = 5;
-}
-
-impl pallet_timestamp::Config for Runtime {
-	type Moment = u64;
-	type OnTimestampSet = ();
-	type MinimumPeriod = MinimumPeriod;
-	type WeightInfo = ();
+impl system::Config for Test {
+    type BaseCallFilter = frame_support::traits::Everything;
+    type BlockWeights = ();
+    type BlockLength = ();
+    type DbWeight = ();
+    type Origin = Origin;
+    type Call = Call;
+    type Index = u64;
+    type BlockNumber = u64;
+    type Hash = H256;
+    type Hashing = BlakeTwo256;
+    type AccountId = sr25519::Public;
+    type Lookup = Did;
+    type Header = Header;
+    type Event = Event;
+    type BlockHashCount = BlockHashCount;
+    type Version = ();
+    type PalletInfo = PalletInfo;
+    type AccountData = pallet_balances::AccountData<Balance>;
+    type OnNewAccount = ();
+    type OnKilledAccount = ();
+    type SystemWeightInfo = ();
+    type SS58Prefix = SS58Prefix;
+    type OnSetCode = ();
 }
 
 parameter_types! {
     pub const AssetDeposit: Balance = 100;
     pub const ApprovalDeposit: Balance = 1;
     pub const StringLimit: u32 = 50;
-    pub const MetadataDepositBase: Balance = 10;
-    pub const MetadataDepositPerByte: Balance = 1;
+    pub const MetadataDepositBase: Balance = 0;
+    pub const MetadataDepositPerByte: Balance = 0;
 }
 
-impl parami_assets::Config for Runtime {
+impl pallet_assets::Config for Test {
     type Event = Event;
-    type Balance = u128;
-    type AssetId = u32;
+    type Balance = Balance;
+    type AssetId = AssetId;
     type Currency = Balances;
-    type ForceOrigin = frame_system::EnsureRoot<AccountId>;
+    type ForceOrigin = EnsureRoot<Self::AccountId>;
     type AssetDeposit = AssetDeposit;
     type MetadataDepositBase = MetadataDepositBase;
     type MetadataDepositPerByte = MetadataDepositPerByte;
@@ -169,225 +86,155 @@ impl parami_assets::Config for Runtime {
     type Freezer = ();
     type Extra = ();
     type WeightInfo = ();
-    type UnixTime = Timestamp;
 }
 
 parameter_types! {
-	pub const DidDeposit: Balance = 1;
+    pub const ExistentialDeposit: Balance = 1;
+    pub const MaxLocks: u32 = 50;
+    pub const MaxReserves: u32 = 50;
 }
 
-impl parami_did::Config for Runtime {
-	type Currency = Balances;
-	type Deposit = DidDeposit;
-	type Event = Event;
-	type Public = sp_runtime::MultiSigner;
-	type Signature = sp_runtime::MultiSignature;
-	type Call = Call;
-	type Time = Timestamp;
-	type WeightInfo = ();
-}
-
-parameter_types! {
-    pub CreateClassDeposit: Balance = 2;
-    pub CreateAssetDeposit: Balance = 1;
-    pub const NftPalletId: PalletId = PalletId(*b"par/pnft");
-}
-
-impl parami_nft::Config for Runtime {
+impl pallet_balances::Config for Test {
+    type Balance = Balance;
+    type DustRemoval = ();
     type Event = Event;
-    type CreateClassDeposit = CreateClassDeposit;
-    type CreateAssetDeposit = CreateAssetDeposit;
+    type ExistentialDeposit = ExistentialDeposit;
+    type AccountStore = System;
+    type WeightInfo = ();
+    type MaxLocks = MaxLocks;
+    type MaxReserves = MaxReserves;
+    type ReserveIdentifier = [u8; 8];
+}
+
+parameter_types! {
+    pub const ClassDeposit: Balance = 0;
+    pub const InstanceDeposit: Balance = 0;
+    pub const AttributeDepositBase: Balance = 0;
+}
+
+impl pallet_uniques::Config for Test {
+    type Event = Event;
+    type ClassId = AssetId;
+    type InstanceId = AssetId;
     type Currency = Balances;
-	type PalletId = NftPalletId;
-	type AssetsHandler = NftAssetHandler;
+    type ForceOrigin = frame_system::EnsureRoot<Self::AccountId>;
+    type ClassDeposit = ClassDeposit;
+    type InstanceDeposit = InstanceDeposit;
+    type MetadataDepositBase = MetadataDepositBase;
+    type AttributeDepositBase = AttributeDepositBase;
+    type DepositPerByte = MetadataDepositPerByte;
+    type StringLimit = StringLimit;
+    type KeyLimit = StringLimit;
+    type ValueLimit = StringLimit;
     type WeightInfo = ();
 }
 
-impl orml_nft::Config for Runtime {
-    type ClassId = u32;
-    type TokenId = u32;
-    type ClassData = parami_nft::ClassData<Balance>;
-    type TokenData = parami_nft::AssetData<Balance>;
+parameter_types! {
+    pub const DidPalletId: PalletId = PalletId(*b"prm/did ");
 }
 
-impl parami_ad::Config for Runtime {
-	type Event = Event;
-	type Currency = Balances;
-	type ConfigOrigin = frame_system::EnsureRoot<AccountId>;
-}
-
-//----------------------------------------------
-use frame_election_provider_support::onchain;
-use pallet_session::historical as pallet_session_historical;
-use sp_runtime::Perbill;
-
-impl pallet_session::historical::Config for Runtime {
-	type FullIdentification = pallet_staking::Exposure<AccountId, Balance>;
-	type FullIdentificationOf = pallet_staking::ExposureOf<Runtime>;
-}
-
-impl<T> frame_system::offchain::SendTransactionTypes<T> for Runtime
-where
-	Call: From<T>,
-{
-	type Extrinsic = Extrinsic;
-	type OverarchingCall = Call;
-}
-
-sp_runtime::impl_opaque_keys! {
-	pub struct SessionKeys {
-		pub foo: sp_runtime::testing::UintAuthorityId,
-	}
-}
-
-pub struct TestSessionHandler;
-impl pallet_session::SessionHandler<AccountId> for TestSessionHandler {
-	const KEY_TYPE_IDS: &'static [sp_runtime::KeyTypeId] = &[];
-
-	fn on_genesis_session<Ks: sp_runtime::traits::OpaqueKeys>(_validators: &[(AccountId, Ks)]) {}
-
-	fn on_new_session<Ks: sp_runtime::traits::OpaqueKeys>(
-		_: bool,
-		_: &[(AccountId, Ks)],
-		_: &[(AccountId, Ks)],
-	) {
-	}
-
-	fn on_disabled(_: usize) {}
+impl parami_did::Config for Test {
+    type Event = Event;
+    type AssetId = AssetId;
+    type Currency = Balances;
+    type DecentralizedId = sp_core::H160;
+    type Hashing = Keccak256;
+    type PalletId = DidPalletId;
+    type WeightInfo = ();
 }
 
 parameter_types! {
-	pub const Period: u64 = 1;
-	pub const Offset: u64 = 0;
+    pub const InitialMintingDeposit: Balance = 1_000_000;
+    pub const InitialMintingValueBase: Balance = 1_000_000;
 }
 
-impl pallet_session::Config for Runtime {
-	type SessionManager = pallet_session::historical::NoteHistoricalRoot<Runtime, Staking>;
-	type Keys = SessionKeys;
-	type ShouldEndSession = pallet_session::PeriodicSessions<Period, Offset>;
-	type NextSessionRotation = pallet_session::PeriodicSessions<Period, Offset>;
-	type SessionHandler = TestSessionHandler;
-	type Event = Event;
-	type ValidatorId = AccountId;
-	type ValidatorIdOf = pallet_staking::StashOf<Runtime>;
-	type DisabledValidatorsThreshold = ();
-	type WeightInfo = ();
+impl parami_nft::Config for Test {
+    type Event = Event;
+    type Assets = Assets;
+    type InitialMintingDeposit = InitialMintingDeposit;
+    type InitialMintingValueBase = InitialMintingValueBase;
+    type Nft = Uniques;
+    type StringLimit = StringLimit;
+    type Swaps = Swap;
+    type WeightInfo = ();
 }
 
-pallet_staking_reward_curve::build! {
-	const I_NPOS: sp_runtime::curve::PiecewiseLinear<'static> = curve!(
-		min_inflation: 0_025_000,
-		max_inflation: 0_100_000,
-		ideal_stake: 0_500_000,
-		falloff: 0_050_000,
-		max_piece_count: 40,
-		test_precision: 0_005_000,
-	);
-}
 parameter_types! {
-	pub const RewardCurve: &'static sp_runtime::curve::PiecewiseLinear<'static> = &I_NPOS;
-	pub const MaxNominatorRewardedPerValidator: u32 = 64;
+    pub const SwapPalletId: PalletId = PalletId(*b"prm/swap");
 }
 
-pub type Extrinsic = sp_runtime::testing::TestXt<Call, ()>;
-
-impl onchain::Config for Runtime {
-	type AccountId = AccountId;
-	type BlockNumber = u64;
-	type BlockWeights = ();
-	type Accuracy = Perbill;
-	type DataProvider = Staking;
+impl parami_swap::Config for Test {
+    type Event = Event;
+    type AssetId = AssetId;
+    type Assets = Assets;
+    type Currency = Balances;
+    type PalletId = SwapPalletId;
+    type WeightInfo = ();
 }
 
-impl pallet_staking::Config for Runtime {
-	const MAX_NOMINATIONS: u32 = 16;
-	type Currency = Balances;
-	type UnixTime = pallet_timestamp::Pallet<Self>;
-	type CurrencyToVote = frame_support::traits::SaturatingCurrencyToVote;
-	type RewardRemainder = ();
-	type Event = Event;
-	type Slash = ();
-	type Reward = ();
-	type SessionsPerEra = ();
-	type SlashDeferDuration = ();
-	type SlashCancelOrigin = frame_system::EnsureRoot<Self::AccountId>;
-	type BondingDuration = ();
-	type SessionInterface = Self;
-	type EraPayout = pallet_staking::ConvertCurve<RewardCurve>;
-	type NextNewSession = Session;
-	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
-	type ElectionProvider = onchain::OnChainSequentialPhragmen<Self>;
-	type GenesisElectionProvider = Self::ElectionProvider;
-	type WeightInfo = ();
-}
-//----------------------------------------------
-
-use frame_system::Call as SystemCall;
-
-pub type Block = sp_runtime::generic::Block<Header, UncheckedExtrinsic>;
-pub type UncheckedExtrinsic = sp_runtime::generic::UncheckedExtrinsic<u32, Call, u32, ()>;
-
-construct_runtime!(
-	pub enum Runtime where
-		Block = Block,
-		NodeBlock = Block,
-		UncheckedExtrinsic = UncheckedExtrinsic
-	{
-		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
-		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
-		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-		Staking: pallet_staking::{Pallet, Call, Config<T>, Storage, Event<T>},
-		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>},
-		Historical: pallet_session_historical::{Pallet},
-		Proxy: pallet_proxy::{Pallet, Call, Storage, Event<T>},
-		Utility: pallet_utility::{Pallet, Call, Event},
-		Assets: parami_assets::{Pallet, Call, Storage, Event<T>},
-		Did: parami_did::{Pallet, Call, Storage, Event<T>},
-		Ad: parami_ad::{Pallet, Call, Event<T>},
-		OrmlNft: orml_nft::{Pallet, Storage},
-        Nft: parami_nft::{Pallet, Call, Storage, Event<T>},
-	}
-);
-
-pub const ALICE: AccountId = AccountId::new([1u8; 32]);
-pub const ALICE_INIT: BalanceOf<Runtime> = 60000 * UNIT;
-pub const BOB: AccountId = AccountId::new([2u8; 32]);
-pub const BOB_INIT: BalanceOf<Runtime> = 60000 * UNIT;
-pub const CHARLIE: AccountId = AccountId::new([3u8; 32]);
-pub const CHARLIE_INIT: BalanceOf<Runtime> = 60000 * UNIT;
-pub const DAVE: AccountId = AccountId::new([4u8; 32]);
-pub const DAVE_INIT: BalanceOf<Runtime> = 60000 * UNIT;
-
-pub const CLASS_ID: u32 = 0;
-
-pub struct ExtBuilder;
-impl Default for ExtBuilder {
-	fn default() -> Self {
-		ExtBuilder
-	}
+parameter_types! {
+    pub const SubmissionFee: Balance = 1;
 }
 
-impl ExtBuilder {
-	pub fn build(self) -> sp_io::TestExternalities {
-		let mut t = frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap();
+impl parami_tag::Config for Test {
+    type Event = Event;
+    type Currency = Balances;
+    type DecentralizedId = DID;
+    type SubmissionFee = SubmissionFee;
+    type CallOrigin = parami_did::EnsureDid<Self>;
+    type ForceOrigin = EnsureRoot<Self::AccountId>;
+    type WeightInfo = ();
+}
 
-		pallet_balances::GenesisConfig::<Runtime> {
-			balances: vec![
-				(ALICE, ALICE_INIT),
-				(BOB, BOB_INIT),
-				(CHARLIE, CHARLIE_INIT),
-				(DAVE, DAVE_INIT),
-			],
-		}
-		.assimilate_storage(&mut t)
-		.unwrap();
+parameter_types! {
+    pub const AdPalletId: PalletId = PalletId(*b"prm/ad  ");
+}
 
-		crate::GenesisConfig::<Runtime>::default().assimilate_storage(&mut t).unwrap();
+impl parami_ad::Config for Test {
+    type Event = Event;
+    type Assets = Assets;
+    type PalletId = AdPalletId;
+    type Swaps = Swap;
+    type Tags = Tag;
+    type CallOrigin = parami_did::EnsureDid<Self>;
+    type ForceOrigin = EnsureRoot<Self::AccountId>;
+    type WeightInfo = ();
+}
 
-		let mut ext = sp_io::TestExternalities::new(t);
-		ext.execute_with(|| {
-			System::set_block_number(1);
-		});
-		ext
-	}
+pub fn new_test_ext() -> sp_io::TestExternalities {
+    let alice = sr25519::Public([1; 32]);
+    let bob = sr25519::Public([2; 32]);
+    let charlie = sr25519::Public([3; 32]);
+
+    let mut t = system::GenesisConfig::default()
+        .build_storage::<Test>()
+        .unwrap();
+
+    pallet_balances::GenesisConfig::<Test> {
+        balances: vec![(alice, 100), (bob, 3_000_000), (charlie, 3_000_000)],
+    }
+    .assimilate_storage(&mut t)
+    .unwrap();
+
+    parami_did::GenesisConfig::<Test> {
+        ids: vec![
+            (alice, DID::from_slice(&[0xff; 20]), None),
+            (bob, DID::from_slice(&[0xee; 20]), None),
+            (charlie, DID::from_slice(&[0xdd; 20]), None),
+        ],
+    }
+    .assimilate_storage(&mut t)
+    .unwrap();
+
+    parami_tag::GenesisConfig::<Test> {
+        tags: vec![
+            vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8],
+            vec![5u8, 4u8, 3u8, 2u8, 1u8, 0u8],
+        ],
+        ..Default::default()
+    }
+    .assimilate_storage(&mut t)
+    .unwrap();
+
+    t.into()
 }

@@ -1,199 +1,227 @@
-#![cfg(test)]
-
-use super::*;
-use crate as parami_did;
-
-use frame_support::{assert_ok, ord_parameter_types, parameter_types};
-use sp_core::{sr25519, H256};
-use sp_runtime::{testing::Header, traits::BlakeTwo256};
-
-type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
-type Block = frame_system::mocking::MockBlock<Test>;
-
-frame_support::construct_runtime!(
-    pub enum Test where
-        Block = Block,
-        NodeBlock = Block,
-        UncheckedExtrinsic = UncheckedExtrinsic,
-    {
-        System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
-        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-        Did: parami_did::{Pallet, Call, Storage, Event<T>},
-        Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
-    }
-);
-
-parameter_types! {
-    pub const BlockHashCount: u64 = 250;
-    pub BlockWeights: frame_system::limits::BlockWeights =
-        frame_system::limits::BlockWeights::simple_max(1024);
-}
-impl frame_system::Config for Test {
-    type BaseCallFilter = ();
-    type BlockWeights = ();
-    type BlockLength = ();
-    type DbWeight = ();
-    type Origin = Origin;
-    type Index = u64;
-    type BlockNumber = u64;
-    type Hash = H256;
-    type Call = Call;
-    type Hashing = BlakeTwo256;
-    type AccountId = sr25519::Public;
-    type Lookup = Did;
-    type Header = Header;
-    type Event = Event;
-    type BlockHashCount = BlockHashCount;
-    type Version = ();
-    type PalletInfo = PalletInfo;
-    type AccountData = pallet_balances::AccountData<u64>;
-    type OnNewAccount = ();
-    type OnKilledAccount = ();
-    type SystemWeightInfo = ();
-    type SS58Prefix = ();
-    type OnSetCode = ();
-}
-parameter_types! {
-    pub const ExistentialDeposit: u64 = 1;
-}
-impl pallet_balances::Config for Test {
-    type MaxLocks = ();
-    type Balance = u64;
-    type Event = Event;
-    type DustRemoval = ();
-    type ExistentialDeposit = ExistentialDeposit;
-    type AccountStore = System;
-    type WeightInfo = ();
-    type MaxReserves = ();
-    type ReserveIdentifier = [u8; 8];
-}
-ord_parameter_types! {
-    pub const One: u64 = 1;
-    pub const DidDeposit: u64 = 1;
-
-}
-
-parameter_types! {
-    pub const MinimumPeriod: u64 = 1;
-}
-impl pallet_timestamp::Config for Test {
-    type Moment = u64;
-    type OnTimestampSet = ();
-    type MinimumPeriod = MinimumPeriod;
-    type WeightInfo = ();
-}
-
-impl Config for Test {
-    type Event = Event;
-    type Currency = Balances;
-    type Deposit = DidDeposit;
-    type Signature = sr25519::Signature;
-    type Public = <sr25519::Signature as Verify>::Signer;
-    type WeightInfo = ();
-    type Call = Call;
-    type Time = Timestamp;
-}
-
-pub fn new_test_ext() -> sp_io::TestExternalities {
-    let mut t = frame_system::GenesisConfig::default()
-        .build_storage::<Test>()
-        .unwrap();
-    pallet_balances::GenesisConfig::<Test> {
-        balances: vec![
-            (sr25519::Public([1; 32]), 10),
-            (sr25519::Public([2; 32]), 10),
-        ],
-    }
-    .assimilate_storage(&mut t)
-    .unwrap();
-    t.into()
-}
+use crate::{mock::*, DidOf, EnsureDid, Error, Metadata, ReferrerOf};
+use frame_support::{assert_noop, assert_ok};
+use sp_core::sr25519;
 
 #[test]
-fn register_did_should_work() {
+fn should_register() {
     new_test_ext().execute_with(|| {
-        let acct1 = sr25519::Public([1; 32]);
-        assert_ok!(Did::register(
-            Origin::signed(sr25519::Public([1; 32])),
-            sr25519::Public([1; 32]),
-            None
-        ));
-        assert_eq!(<TotalDids<Test>>::get(), Some(1));
-        assert_eq!(Balances::total_balance(&acct1), 10);
-        //assert_eq!(Balances::total_balance(&2), 8);
-        // should have a did
-        let maybe_did = <DidOf<Test>>::get(acct1);
-        assert!(maybe_did.is_some());
-        // should have metadata
-        let maybe_metadata = <Metadata<Test>>::get(maybe_did.unwrap());
-        assert!(maybe_metadata.is_some());
-        // not revoked
-        assert!(!maybe_metadata.unwrap().3);
+        System::set_block_number(0);
 
-        // referrer should work
-        let did1 = maybe_did.unwrap();
-        assert_ok!(Did::register(
-            Origin::signed(sr25519::Public([2; 32])),
-            sr25519::Public([2; 32]),
-            Some(did1)
-        ));
-        assert_eq!(<TotalDids<Test>>::get(), Some(2));
+        let bob = sr25519::Public([2; 32]);
+        assert_ok!(Did::register(Origin::signed(bob), None));
 
-        // register for on-ex account on chain
-        // 0.you cannot register before deposit
-        assert!(Did::register_for(
-            Origin::signed(sr25519::Public([1; 32])),
-            sr25519::Public([3; 32]),
-        )
-        .is_err());
-        // 1.first, lock amount
-        assert_ok!(Did::lock(Origin::signed(sr25519::Public([1; 32])), 5));
-        // 2.then, register
-        assert_ok!(Did::register_for(
-            Origin::signed(sr25519::Public([1; 32])),
-            sr25519::Public([3; 32]),
-        ));
+        System::set_block_number(1);
+
+        assert_noop!(
+            Did::register(Origin::signed(bob), None),
+            Error::<Test>::Exists
+        );
+
+        let maybe_did = <DidOf<Test>>::get(&bob);
+        assert_ne!(maybe_did, None);
+
+        let maybe_meta = <Metadata<Test>>::get(maybe_did.unwrap());
+        assert_ne!(maybe_meta, None);
+        assert_eq!(maybe_meta.unwrap().revoked, false);
     });
 }
 
 #[test]
-fn refuse_wrong_public() {
+fn should_fail_when_exist() {
     new_test_ext().execute_with(|| {
-        assert!(Did::register(
-            Origin::signed(sr25519::Public([2; 32])),
-            sr25519::Public([1; 32]),
-            None
-        )
-        .is_err());
+        let alice = sr25519::Public([1; 32]);
+        assert_noop!(
+            Did::register(Origin::signed(alice), None),
+            Error::<Test>::Exists
+        );
     });
 }
 
 #[test]
-fn refuse_nonex_referrer() {
+fn should_register_with_referer() {
     new_test_ext().execute_with(|| {
-        assert!(Did::register(
-            Origin::signed(sr25519::Public([1; 32])),
-            sr25519::Public([1; 32]),
-            Some([0xee; 20])
-        )
-        .is_err());
+        let did = DID::from_slice(&[0xff; 20]);
+
+        let bob = sr25519::Public([2; 32]);
+        assert_ok!(Did::register(Origin::signed(bob), Some(did)));
+
+        let maybe_did = <DidOf<Test>>::get(&bob);
+        assert_ne!(maybe_did, None);
+
+        let maybe_referrer = <ReferrerOf<Test>>::get(maybe_did.unwrap());
+        assert_eq!(maybe_referrer, Some(did));
     });
 }
 
 #[test]
-fn refuse_multiple_registrations() {
+fn should_fail_when_referer_not_exist() {
     new_test_ext().execute_with(|| {
-        assert_ok!(Did::register(
-            Origin::signed(sr25519::Public([1; 32])),
-            sr25519::Public([1; 32]),
-            None
-        ));
+        let did = DID::from_slice(&[0xee; 20]);
 
-        assert!(Did::register(
-            Origin::signed(sr25519::Public([1; 32])),
-            sr25519::Public([1; 32]),
-            None
-        )
-        .is_err());
+        let bob = sr25519::Public([2; 32]);
+        assert_noop!(
+            Did::register(Origin::signed(bob), Some(did)),
+            Error::<Test>::ReferrerNotExists
+        );
+    });
+}
+
+#[test]
+fn should_fail_when_insufficient() {
+    new_test_ext().execute_with(|| {
+        let charlie = sr25519::Public([3; 32]);
+
+        assert_noop!(
+            Did::register(Origin::signed(charlie), None),
+            pallet_balances::Error::<Test>::InsufficientBalance
+        );
+    });
+}
+
+#[test]
+fn should_revoke() {
+    new_test_ext().execute_with(|| {
+        let alice = sr25519::Public([1; 32]);
+        let did = DID::from_slice(&[0xff; 20]);
+
+        assert_ok!(Did::revoke(Origin::signed(alice)));
+
+        assert!(!<DidOf<Test>>::contains_key(&alice));
+
+        let meta = <Metadata<Test>>::get(&did).unwrap();
+
+        assert_eq!(meta.revoked, true);
+    });
+}
+
+#[test]
+fn should_fail_when_not_exist() {
+    new_test_ext().execute_with(|| {
+        let bob = sr25519::Public([2; 32]);
+        assert_noop!(Did::revoke(Origin::signed(bob)), Error::<Test>::NotExists);
+    });
+}
+
+#[test]
+fn should_reassign() {
+    new_test_ext().execute_with(|| {
+        System::set_block_number(0);
+
+        let bob = sr25519::Public([2; 32]);
+        assert_ok!(Did::register(Origin::signed(bob), None));
+
+        System::set_block_number(1);
+
+        let did = <DidOf<Test>>::get(&bob).unwrap();
+
+        assert_ok!(Did::revoke(Origin::signed(bob)));
+
+        System::set_block_number(2);
+
+        assert_ok!(Did::register(Origin::signed(bob), None));
+
+        assert_ne!(<DidOf<Test>>::get(&bob), Some(did));
+    });
+}
+
+#[test]
+fn should_transfer() {
+    new_test_ext().execute_with(|| {
+        let alice = sr25519::Public([1; 32]);
+        let bob = sr25519::Public([2; 32]);
+
+        System::set_block_number(2);
+
+        assert_ok!(Did::transfer(Origin::signed(alice), bob));
+
+        assert_eq!(<DidOf<Test>>::get(&alice), None);
+
+        let maybe_did = <DidOf<Test>>::get(&bob);
+        assert_ne!(maybe_did, None);
+
+        let maybe_meta = <Metadata<Test>>::get(maybe_did.unwrap());
+        assert_ne!(maybe_meta, None);
+
+        let meta = maybe_meta.unwrap();
+        assert_eq!(meta.account, bob);
+        assert_eq!(meta.created, 2);
+        assert_eq!(meta.revoked, false);
+    });
+}
+
+#[test]
+fn should_fail_when_already_have_did() {
+    new_test_ext().execute_with(|| {
+        let alice = sr25519::Public([1; 32]);
+
+        assert_noop!(
+            Did::transfer(Origin::signed(alice), alice),
+            Error::<Test>::Exists
+        );
+    });
+}
+
+#[test]
+fn should_fail_when_revoked() {
+    new_test_ext().execute_with(|| {
+        let alice = sr25519::Public([1; 32]);
+        let bob = sr25519::Public([2; 32]);
+
+        assert_ok!(Did::revoke(Origin::signed(alice)));
+
+        assert_noop!(
+            Did::transfer(Origin::signed(alice), bob),
+            Error::<Test>::NotExists
+        );
+    });
+}
+
+#[test]
+fn should_set_avatar() {
+    new_test_ext().execute_with(|| {
+        let alice = sr25519::Public([1; 32]);
+        let did = DID::from_slice(&[0xff; 20]);
+
+        let meta = <Metadata<Test>>::get(did).unwrap();
+        assert_eq!(meta.avatar, Vec::<u8>::new());
+
+        assert_ok!(Did::set_avatar(Origin::signed(alice), vec![1, 2, 3]));
+
+        let meta = <Metadata<Test>>::get(did).unwrap();
+        assert_eq!(meta.avatar, vec![1, 2, 3]);
+    });
+}
+
+#[test]
+fn should_set_nickname() {
+    new_test_ext().execute_with(|| {
+        let alice = sr25519::Public([1; 32]);
+        let did = DID::from_slice(&[0xff; 20]);
+
+        let meta = <Metadata<Test>>::get(did).unwrap();
+        assert_eq!(meta.nickname, Vec::<u8>::new());
+
+        assert_ok!(Did::set_nickname(Origin::signed(alice), vec![1, 2, 3]));
+
+        let meta = <Metadata<Test>>::get(did).unwrap();
+        assert_eq!(meta.nickname, vec![1, 2, 3]);
+    });
+}
+
+#[test]
+fn should_ensure() {
+    new_test_ext().execute_with(|| {
+        use frame_support::traits::EnsureOrigin;
+
+        let alice = sr25519::Public([1; 32]);
+        let bob = sr25519::Public([2; 32]);
+
+        let did = DID::from_slice(&[0xff; 20]);
+
+        let ensure = EnsureDid::<Test>::try_origin(Origin::signed(alice));
+        assert!(ensure.is_ok());
+        assert_eq!(ensure.unwrap(), (did, alice));
+
+        assert!(EnsureDid::<Test>::try_origin(Origin::signed(bob)).is_err());
     });
 }

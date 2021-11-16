@@ -1,101 +1,81 @@
-#![cfg(test)]
-
-use super::*;
 use crate as parami_nft;
-use frame_support::{
-	construct_runtime, parameter_types,
-	traits::{Filter,},
-};
-pub use primitives::{AccountId, BlockNumber, Balance, Moment, AssetId, ItemId, AuctionId, AuctionItem, AuctionType};
-pub use orml_traits::{Auction,AuctionInfo};
-use orml_traits::{AssetHandler};
-use sp_core::H256;
+use frame_support::{parameter_types, traits::GenesisBuild, PalletId};
+use frame_system::{self as system, EnsureRoot};
+use sp_core::{sr25519, H256};
 use sp_runtime::{
-	testing::Header,
-	traits::{BlakeTwo256, IdentityLookup},
+    testing::Header,
+    traits::{BlakeTwo256, Keccak256},
 };
 
-pub struct NftAssetHandler;
+type UncheckedExtrinsic = system::mocking::MockUncheckedExtrinsic<Test>;
+type Block = system::mocking::MockBlock<Test>;
 
-impl AssetHandler<u32> for NftAssetHandler {
-    fn check_item_in_auction(
-        _asset_id: u32,
-    ) -> bool {
-        return false;
+frame_support::construct_runtime!(
+    pub enum Test where
+        Block = Block,
+        NodeBlock = Block,
+        UncheckedExtrinsic = UncheckedExtrinsic,
+    {
+        System: system::{Pallet, Call, Config, Storage, Event<T>},
+        Assets: pallet_assets::{Pallet, Call, Storage, Event<T>},
+        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+        Uniques: pallet_uniques::{Pallet, Storage, Event<T>},
+
+        Did: parami_did::{Pallet, Call, Storage, Config<T>, Event<T>},
+        Nft: parami_nft::{Pallet, Call, Storage, Event<T>},
+        Swap: parami_swap::{Pallet, Call, Storage, Event<T>},
     }
-}
+);
+
+pub type DID = <Test as parami_did::Config>::DecentralizedId;
+type AssetId = u64;
+type Balance = u128;
 
 parameter_types! {
-	pub const BlockHashCount: u64 = 250;
+    pub const BlockHashCount: u64 = 250;
+    pub const SS58Prefix: u8 = 42;
 }
 
-impl frame_system::Config for Runtime {
-	type BaseCallFilter = BaseFilter;
-	type Origin = Origin;
-	type Index = u64;
-	type BlockNumber = u64;
-	type Hash = H256;
-	type Call = Call;
-	type Hashing = BlakeTwo256;
-	type AccountId = u64;
-	type Lookup = IdentityLookup<Self::AccountId>;
-	type Header = Header;
-	type Event = Event;
-	type BlockHashCount = BlockHashCount;
-	type DbWeight = ();
-	type BlockWeights = ();
-	type BlockLength = ();
-	type Version = ();
-	type PalletInfo = PalletInfo;
-	type AccountData = pallet_balances::AccountData<Balance>;
-	type OnNewAccount = ();
-	type OnKilledAccount = ();
-	type SystemWeightInfo = ();
-	type SS58Prefix = ();
-	type OnSetCode = ();
-}
-
-parameter_types! {
-	pub const ExistentialDeposit: Balance = 1;
-}
-
-impl pallet_balances::Config for Runtime {
-	type Balance = u128;
-	type Event = Event;
-	type DustRemoval = ();
-	type ExistentialDeposit = ExistentialDeposit;
-	type AccountStore = frame_system::Pallet<Runtime>;
-	type MaxLocks = ();
-	type WeightInfo = ();
-	type MaxReserves = ();
-	type ReserveIdentifier = ();
-}
-
-parameter_types! {
-	pub const MinimumPeriod: u64 = 5;
-}
-
-impl pallet_timestamp::Config for Runtime {
-	type Moment = u64;
-	type OnTimestampSet = ();
-	type MinimumPeriod = MinimumPeriod;
-	type WeightInfo = ();
+impl system::Config for Test {
+    type BaseCallFilter = frame_support::traits::Everything;
+    type BlockWeights = ();
+    type BlockLength = ();
+    type DbWeight = ();
+    type Origin = Origin;
+    type Call = Call;
+    type Index = u64;
+    type BlockNumber = u64;
+    type Hash = H256;
+    type Hashing = BlakeTwo256;
+    type AccountId = sr25519::Public;
+    type Lookup = Did;
+    type Header = Header;
+    type Event = Event;
+    type BlockHashCount = BlockHashCount;
+    type Version = ();
+    type PalletInfo = PalletInfo;
+    type AccountData = pallet_balances::AccountData<Balance>;
+    type OnNewAccount = ();
+    type OnKilledAccount = ();
+    type SystemWeightInfo = ();
+    type SS58Prefix = SS58Prefix;
+    type OnSetCode = ();
 }
 
 parameter_types! {
     pub const AssetDeposit: Balance = 100;
     pub const ApprovalDeposit: Balance = 1;
     pub const StringLimit: u32 = 50;
-    pub const MetadataDepositBase: Balance = 10;
-    pub const MetadataDepositPerByte: Balance = 1;
+    pub const MetadataDepositBase: Balance = 0;
+    pub const MetadataDepositPerByte: Balance = 0;
 }
 
-impl parami_assets::Config for Runtime {
+impl pallet_assets::Config for Test {
     type Event = Event;
-    type Balance = u128;
-    type AssetId = u32;
+    type Balance = Balance;
+    type AssetId = AssetId;
     type Currency = Balances;
-    type ForceOrigin = frame_system::EnsureRoot<u64>;
+    type ForceOrigin = EnsureRoot<Self::AccountId>;
     type AssetDeposit = AssetDeposit;
     type MetadataDepositBase = MetadataDepositBase;
     type MetadataDepositPerByte = MetadataDepositPerByte;
@@ -104,103 +84,116 @@ impl parami_assets::Config for Runtime {
     type Freezer = ();
     type Extra = ();
     type WeightInfo = ();
-    type UnixTime = Timestamp;
-}
-
-impl orml_nft::Config for Runtime {
-    type ClassId = u32;
-    type TokenId = u32;
-    type ClassData = parami_nft::ClassData<Balance>;
-    type TokenData = parami_nft::AssetData<Balance>;
 }
 
 parameter_types! {
-    pub CreateClassDeposit: Balance = 2;
-    pub CreateAssetDeposit: Balance = 1;
-    pub const NftPalletId: PalletId = PalletId(*b"par/pnft");
+    pub const ExistentialDeposit: Balance = 1;
+    pub const MaxLocks: u32 = 50;
+    pub const MaxReserves: u32 = 50;
 }
 
-impl Config for Runtime {
+impl pallet_balances::Config for Test {
+    type Balance = Balance;
+    type DustRemoval = ();
     type Event = Event;
-    type CreateClassDeposit = CreateClassDeposit;
-    type CreateAssetDeposit = CreateAssetDeposit;
+    type ExistentialDeposit = ExistentialDeposit;
+    type AccountStore = System;
+    type WeightInfo = ();
+    type MaxLocks = MaxLocks;
+    type MaxReserves = MaxReserves;
+    type ReserveIdentifier = [u8; 8];
+}
+
+parameter_types! {
+    pub const ClassDeposit: Balance = 0;
+    pub const InstanceDeposit: Balance = 0;
+    pub const AttributeDepositBase: Balance = 0;
+}
+
+impl pallet_uniques::Config for Test {
+    type Event = Event;
+    type ClassId = AssetId;
+    type InstanceId = AssetId;
     type Currency = Balances;
-	type PalletId = NftPalletId;
-	type AssetsHandler = NftAssetHandler;
+    type ForceOrigin = frame_system::EnsureRoot<Self::AccountId>;
+    type ClassDeposit = ClassDeposit;
+    type InstanceDeposit = InstanceDeposit;
+    type MetadataDepositBase = MetadataDepositBase;
+    type AttributeDepositBase = AttributeDepositBase;
+    type DepositPerByte = MetadataDepositPerByte;
+    type StringLimit = StringLimit;
+    type KeyLimit = StringLimit;
+    type ValueLimit = StringLimit;
     type WeightInfo = ();
 }
 
-use frame_system::Call as SystemCall;
+parameter_types! {
+    pub const DidPalletId: PalletId = PalletId(*b"prm/did ");
+}
 
-pub const CLASS_ID: <Runtime as orml_nft::Config>::ClassId = 0;
-pub const CLASS_ID_BOUND: <Runtime as orml_nft::Config>::ClassId = 1;
-pub const CLASS_ID_NOT_EXIST: <Runtime as orml_nft::Config>::ClassId = 2;
-pub const NFT_TOKEN_ID: <Runtime as orml_nft::Config>::TokenId = 0;
-pub const NFT_TOKEN_ID_NOT_EXIST: <Runtime as orml_nft::Config>::TokenId = 1;
+impl parami_did::Config for Test {
+    type Event = Event;
+    type AssetId = AssetId;
+    type Currency = Balances;
+    type DecentralizedId = sp_core::H160;
+    type Hashing = Keccak256;
+    type PalletId = DidPalletId;
+    type WeightInfo = ();
+}
 
-pub type Block = sp_runtime::generic::Block<Header, UncheckedExtrinsic>;
-pub type UncheckedExtrinsic = sp_runtime::generic::UncheckedExtrinsic<u32, Call, u32, ()>;
+parameter_types! {
+    pub const SwapPalletId: PalletId = PalletId(*b"prm/swap");
+}
 
-pub struct BaseFilter;
-impl Filter<Call> for BaseFilter {
-    fn filter(c: &Call) -> bool {
-        match *c {
-            // Remark is used as a no-op call in the benchmarking
-            Call::System(SystemCall::remark(_)) => true,
-            Call::System(_) => false,
-            _ => true,
-        }
+impl parami_swap::Config for Test {
+    type Event = Event;
+    type AssetId = AssetId;
+    type Assets = Assets;
+    type Currency = Balances;
+    type PalletId = SwapPalletId;
+    type WeightInfo = ();
+}
+
+parameter_types! {
+    pub const InitialMintingDeposit: Balance = 1_000_000;
+    pub const InitialMintingValueBase: Balance = 1_000_000;
+}
+
+impl parami_nft::Config for Test {
+    type Event = Event;
+    type Assets = Assets;
+    type InitialMintingDeposit = InitialMintingDeposit;
+    type InitialMintingValueBase = InitialMintingValueBase;
+    type Nft = Uniques;
+    type StringLimit = StringLimit;
+    type Swaps = Swap;
+    type WeightInfo = ();
+}
+
+pub fn new_test_ext() -> sp_io::TestExternalities {
+    let alice = sr25519::Public([1; 32]);
+    let bob = sr25519::Public([2; 32]);
+    let charlie = sr25519::Public([3; 32]);
+
+    let mut t = system::GenesisConfig::default()
+        .build_storage::<Test>()
+        .unwrap();
+
+    pallet_balances::GenesisConfig::<Test> {
+        balances: vec![(alice, 100), (bob, 3_000_000), (charlie, 3_000_000)],
     }
-}
+    .assimilate_storage(&mut t)
+    .unwrap();
 
+    parami_did::GenesisConfig::<Test> {
+        ids: vec![
+            (alice, DID::from_slice(&[0xff; 20]), None),
+            (bob, DID::from_slice(&[0xee; 20]), None),
+            (charlie, DID::from_slice(&[0xdd; 20]), None),
+        ],
+    }
+    .assimilate_storage(&mut t)
+    .unwrap();
 
-construct_runtime!(
-	pub enum Runtime where
-		Block = Block,
-		NodeBlock = Block,
-		UncheckedExtrinsic = UncheckedExtrinsic
-	{
-		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
-		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
-        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-        Assets: parami_assets::{Pallet, Call, Storage, Event<T>},
-		OrmlNft: orml_nft::{Pallet, Storage},
-		Nft: parami_nft::{Pallet, Call, Event<T>},
-	}
-);
-
-pub const ALICE: u64 = 1;
-pub const BOB: u64 = 2;
-pub const DAVE: u64 = 3;
-
-pub struct ExtBuilder;
-impl Default for ExtBuilder {
-	fn default() -> Self {
-		ExtBuilder
-	}
-}
-
-impl ExtBuilder {
-	pub fn build(self) -> sp_io::TestExternalities {
-		let mut t = frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap();
-
-		pallet_balances::GenesisConfig::<Runtime> {
-            balances: vec![(ALICE, 100000), (BOB, 100000), (DAVE, 1)],
-        }
-		.assimilate_storage(&mut t)
-		.unwrap();
-
-		let mut ext = sp_io::TestExternalities::new(t);
-		ext.execute_with(|| {
-			System::set_block_number(1);
-		});
-		ext
-	}
-}
-
-pub fn last_event() -> Event {
-    frame_system::Pallet::<Runtime>::events()
-        .pop()
-        .expect("Event expected")
-        .event
+    t.into()
 }

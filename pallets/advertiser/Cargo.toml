@@ -1,0 +1,92 @@
+[package]
+authors = ['Parami Devs <info@parami.io>']
+description = 'AD3 Advertiser Pallet'
+edition = '2018'
+homepage = 'https://parami.io'
+license = 'GPL-3.0-only WITH Classpath-exception-2.0'
+name = 'parami-advertiser'
+publish = false
+repository = 'https://github.com/parami-protocol/parami-blockchain/'
+version = '3.0.0'
+
+[package.metadata.docs.rs]
+targets = ['x86_64-unknown-linux-gnu']
+
+[dependencies.parami-did]
+default-features = false
+path = '../did'
+
+[dependencies.codec]
+default-features = false
+features = ['derive']
+package = 'parity-scale-codec'
+version = '2.2.0'
+
+[dependencies]
+serde = { version = '1.0', optional = true }
+
+[dependencies.frame-benchmarking]
+default-features = false
+git = 'https://github.com/paritytech/substrate.git'
+branch = 'polkadot-v0.9.12'
+optional = true
+
+[dependencies.frame-support]
+default-features = false
+git = 'https://github.com/paritytech/substrate.git'
+branch = 'polkadot-v0.9.12'
+
+[dependencies.frame-system]
+default-features = false
+git = 'https://github.com/paritytech/substrate.git'
+branch = 'polkadot-v0.9.12'
+
+[dependencies.scale-info]
+default-features = false
+features = ['derive']
+version = '1.0'
+
+[dependencies.sp-runtime]
+default-features = false
+git = 'https://github.com/paritytech/substrate.git'
+branch = 'polkadot-v0.9.12'
+
+[dependencies.sp-std]
+default-features = false
+git = 'https://github.com/paritytech/substrate.git'
+branch = 'polkadot-v0.9.12'
+
+[dev-dependencies.pallet-balances]
+git = 'https://github.com/paritytech/substrate.git'
+branch = 'polkadot-v0.9.12'
+
+[dev-dependencies.pallet-treasury]
+git = 'https://github.com/paritytech/substrate.git'
+branch = 'polkadot-v0.9.12'
+
+[dev-dependencies.sp-core]
+git = 'https://github.com/paritytech/substrate.git'
+branch = 'polkadot-v0.9.12'
+
+[dev-dependencies.sp-io]
+git = 'https://github.com/paritytech/substrate.git'
+branch = 'polkadot-v0.9.12'
+
+[features]
+default = ['std']
+
+runtime-benchmarks = ['frame-benchmarking']
+
+std = [
+    'codec/std',
+    'frame-benchmarking/std',
+    'frame-support/std',
+    'frame-system/std',
+    'parami-did/std',
+    'scale-info/std',
+    'serde',
+    'sp-runtime/std',
+    'sp-std/std',
+]
+
+try-runtime = ['frame-support/try-runtime']

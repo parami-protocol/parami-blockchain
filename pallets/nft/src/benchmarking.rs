@@ -1,49 +1,92 @@
-// This file is part of Bit.Country
+use super::*;
 
-// Copyright (C) 2020-2021 Bit.Country.
-// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-//! Benchmarks for the nft module.
-
-#![cfg(feature = "runtime-benchmarks")]
-
-use sp_std::prelude::*;
-use sp_std::vec;
-
-use frame_benchmarking::{account, whitelisted_caller, benchmarks, impl_benchmark_test_suite};
-use frame_support::traits::Get;
+#[allow(unused)]
+use crate::Pallet as Nft;
+use frame_benchmarking::{account, benchmarks, impl_benchmark_test_suite, whitelisted_caller};
+use frame_support::traits::fungibles::Inspect;
 use frame_system::RawOrigin;
-use sp_runtime::traits::{AccountIdConversion, StaticLookup, UniqueSaturatedInto};
-
-pub use crate::Pallet as NftPallet;
-pub use crate::*;
-use orml_traits::BasicCurrencyExtended;
-use primitives::Balance;
-
-pub struct Pallet<T: Config>(crate::Pallet<T>);
-
-pub trait Config: crate::Config + orml_nft::Config + social_currencies::Config {}
-
-const SEED: u32 = 0;
-
-fn dollar(d: u32) -> Balance {
-    let d: Balance = d.into();
-    d.saturating_mul(1_000_000_000_000_000_000)
-}
+use parami_did::Pallet as Did;
+use sp_runtime::traits::{Bounded, Saturating, Zero};
 
 benchmarks! {
+    back {
+        let caller: T::AccountId = whitelisted_caller();
+
+        let kol: T::AccountId = account::<T::AccountId>("kol", 1, 1);
+
+        let max = BalanceOf::<T>::max_value();
+        let min = T::Currency::minimum_balance();
+        let pot = min.saturating_mul(1_000_000u32.into());
+
+        T::Currency::make_free_balance_be(&caller, max);
+        T::Currency::make_free_balance_be(&kol, pot);
+
+        Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), None)?;
+        Did::<T>::register(RawOrigin::Signed(kol.clone()).into(), None)?;
+
+        let kol = Did::<T>::did_of(&kol).unwrap();
+    }: _(RawOrigin::Signed(caller), kol, pot)
+    verify {
+        let meta = Did::<T>::meta(&kol).unwrap();
+        assert_eq!(T::Currency::free_balance(&meta.pot), pot);
+    }
+
+    mint {
+        let n in 1 .. 1000 - 4;
+        let s in 1 .. 1000 - 4;
+
+        let name = vec![b'x'; n as usize];
+        let symbol = vec![b'x'; n as usize];
+
+        let caller: T::AccountId = whitelisted_caller();
+
+        let supporter: T::AccountId = account::<T::AccountId>("supporter", 1, 1);
+
+        let max = BalanceOf::<T>::max_value();
+        let min = T::Currency::minimum_balance();
+        let pot = min.saturating_mul(1_000_000u32.into());
+
+        T::Currency::make_free_balance_be(&supporter, max);
+        T::Currency::make_free_balance_be(&caller, pot);
+
+        Did::<T>::register(RawOrigin::Signed(supporter.clone()).into(), None)?;
+        Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), None)?;
+
+        let kol = Did::<T>::did_of(&caller).unwrap();
+
+        Nft::<T>::back(RawOrigin::Signed(supporter).into(), kol, pot)?;
+    }: _(RawOrigin::Signed(caller), name, symbol)
+    verify {
+        let meta = Did::<T>::meta(&kol).unwrap();
+        assert_ne!(meta.nft, None);
+    }
+
+    claim {
+        let caller: T::AccountId = whitelisted_caller();
+
+        let kol: T::AccountId = account::<T::AccountId>("kol", 1, 1);
+
+        let max = BalanceOf::<T>::max_value();
+        let min = T::Currency::minimum_balance();
+        let pot = min.saturating_mul(1_000_000u32.into());
+
+        T::Currency::make_free_balance_be(&caller, max);
+        T::Currency::make_free_balance_be(&kol, pot);
+
+        Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), None)?;
+        Did::<T>::register(RawOrigin::Signed(kol.clone()).into(), None)?;
+
+        let did = Did::<T>::did_of(&kol).unwrap();
+
+        Nft::<T>::back(RawOrigin::Signed(caller.clone()).into(), did, pot)?;
+
+        Nft::<T>::mint(RawOrigin::Signed(kol).into(), b"Test Token".to_vec(), b"XTT".to_vec())?;
+    }: _(RawOrigin::Signed(caller.clone()), did)
+    verify {
+        let meta = Did::<T>::meta(&did).unwrap();
+        let token_id = meta.nft.unwrap();
+        assert!(T::Assets::balance(token_id, &caller) > Zero::zero());
+    }
 }
 
+impl_benchmark_test_suite!(Did, crate::mock::new_test_ext(), crate::mock::Test);
