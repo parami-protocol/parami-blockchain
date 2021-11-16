@@ -31,8 +31,12 @@ use frame_support::{
 };
 use parami_did::{EnsureDid, Pallet as Did};
 use parami_traits::Swaps;
+use sp_core::U512;
 use sp_runtime::traits::{Bounded, CheckedAdd, One, Saturating};
-use sp_std::prelude::*;
+use sp_std::{
+    convert::{TryFrom, TryInto},
+    prelude::*,
+};
 
 use weights::WeightInfo;
 
@@ -137,7 +141,7 @@ pub mod pallet {
         BadMetadata,
         InsufficientBalance,
         Minted,
-        NoAvailableClassId,
+        Overflow,
         NotExists,
         NoTokens,
         YourSelf,
@@ -226,9 +230,7 @@ pub mod pallet {
 
             let cid = NextClassId::<T>::try_mutate(|id| -> Result<T::AssetId, DispatchError> {
                 let current_id = *id;
-                *id = id
-                    .checked_add(&One::one())
-                    .ok_or(Error::<T>::NoAvailableClassId)?;
+                *id = id.checked_add(&One::one()).ok_or(Error::<T>::Overflow)?;
                 Ok(current_id)
             })?;
 
@@ -273,12 +275,16 @@ pub mod pallet {
             let cid = meta.nft.ok_or(Error::<T>::NotExists)?;
 
             let total = <Deposit<T>>::get(&kol).ok_or(Error::<T>::NotExists)?;
-
             let deposit = <Deposits<T>>::get(&kol, &did).ok_or(Error::<T>::NoTokens)?;
-
             let initial = T::InitialMintingValueBase::get();
 
+            let total: U512 = Self::try_into(total)?;
+            let deposit: U512 = Self::try_into(deposit)?;
+            let initial: U512 = Self::try_into(initial)?;
+
             let tokens = initial * deposit / total;
+
+            let tokens = Self::try_into(tokens)?;
 
             T::Assets::transfer(cid, &meta.pot, &who, tokens, false)?;
 
@@ -317,5 +323,17 @@ pub mod pallet {
                 <Deposits<T>>::insert(kol, did, deposit);
             }
         }
+    }
+}
+
+impl<T: Config> Pallet<T> {
+    fn try_into<S, D>(value: S) -> Result<D, Error<T>>
+    where
+        S: TryInto<u128>,
+        D: TryFrom<u128>,
+    {
+        let value: u128 = value.try_into().map_err(|_| Error::<T>::Overflow)?;
+
+        value.try_into().map_err(|_| Error::<T>::Overflow)
     }
 }
