@@ -1,22 +1,10 @@
-use crate::{mock::*, AdsOf, Config, DeadlineOf, Error, Metadata, SlotOf};
+use crate::{mock::*, AdsOf, Config, DeadlineOf, Did, Error, Metadata, SlotOf};
 use frame_support::{assert_noop, assert_ok, traits::Hooks};
-use parami_did::Pallet as Did;
 use parami_traits::Tags;
-
-macro_rules! ensure_remain {
-    ($meta:tt, $currency:expr, $tokens: expr) => {
-        assert_eq!($meta.remain, $currency);
-        assert_eq!(Balances::free_balance(&$meta.pot), $currency);
-
-        assert_eq!(Assets::balance(0, &$meta.pot), $tokens);
-    };
-}
 
 #[test]
 fn should_create() {
     new_test_ext().execute_with(|| {
-        assert_eq!(Balances::free_balance(ALICE), 100);
-
         let tags = vec![
             vec![5u8, 4u8, 3u8, 2u8, 1u8, 0u8],
             vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8],
@@ -45,6 +33,7 @@ fn should_create() {
         assert_ne!(maybe_ad, None);
 
         let (ad, meta) = maybe_ad.unwrap();
+        assert_eq!(Balances::free_balance(&meta.pot), meta.budget);
         assert_eq!(meta.creator, DID_ALICE);
         assert_eq!(meta.budget, 50);
         assert_eq!(meta.remain, 50);
@@ -54,13 +43,9 @@ fn should_create() {
 
         assert_eq!(<DeadlineOf<Test>>::get(&Did::<Test>::zero(), &ad), Some(1));
 
-        assert_eq!(Balances::free_balance(ALICE), 50);
-
-        let pool = meta.pot;
+        assert_eq!(Balances::free_balance(&ALICE), 100 - meta.budget);
 
         assert_eq!(<Test as Config>::Tags::tags_of(&ad), hashes);
-
-        assert_eq!(Balances::free_balance(pool), 50);
     });
 }
 
@@ -184,11 +169,9 @@ fn should_add_budget() {
         assert_ok!(Ad::add_budget(Origin::signed(ALICE), ad, 20));
 
         let meta = <Metadata<Test>>::get(&ad).unwrap();
-
-        assert_eq!(meta.budget, 70);
-        assert_eq!(meta.remain, 70);
-
-        assert_eq!(Balances::free_balance(meta.pot), 70);
+        assert_eq!(Balances::free_balance(&meta.pot), meta.budget);
+        assert_eq!(meta.budget, 50 + 20);
+        assert_eq!(meta.remain, 50 + 20);
     });
 }
 
@@ -217,14 +200,17 @@ fn should_bid() {
         ));
 
         let ad1 = <Metadata<Test>>::iter_keys().next().unwrap();
+
         let meta1 = <Metadata<Test>>::get(&ad1).unwrap();
-        ensure_remain!(meta1, 500, 0);
+        assert_eq!(Balances::free_balance(&meta1.pot), meta1.budget);
+        assert_eq!(meta1.budget, 500);
+        assert_eq!(meta1.remain, 500);
 
         // ad2
 
         assert_ok!(Ad::create(
             Origin::signed(CHARLIE),
-            500,
+            600,
             vec![],
             [0u8; 64].into(),
             1,
@@ -232,14 +218,17 @@ fn should_bid() {
         ));
 
         let ad2 = <Metadata<Test>>::iter_keys().next().unwrap();
-        let meta2 = <Metadata<Test>>::get(&ad2).unwrap();
-        ensure_remain!(meta2, 500, 0);
 
-        // 2. BOB bid for ad1
+        let meta2 = <Metadata<Test>>::get(&ad2).unwrap();
+        assert_eq!(Balances::free_balance(&meta2.pot), meta2.budget);
+        assert_eq!(meta2.budget, 600);
+        assert_eq!(meta2.remain, 600);
+
+        // 2. bob bid for ad1
 
         assert_noop!(
             Ad::bid(Origin::signed(BOB), ad1, DID_ALICE, 600),
-            pallet_balances::Error::<Test>::InsufficientBalance
+            Error::<Test>::InsufficientBalance
         );
 
         assert_ok!(Ad::bid(Origin::signed(BOB), ad1, DID_ALICE, 400));
@@ -250,15 +239,19 @@ fn should_bid() {
 
         let maybe_slot = <SlotOf<Test>>::get(&DID_ALICE);
         assert_ne!(maybe_slot, None);
-        let slot = maybe_slot.unwrap();
-        assert_eq!(slot.ad, ad1);
-        assert_eq!(slot.budget, 199);
-        assert_eq!(slot.remain, 199);
 
         let meta1 = <Metadata<Test>>::get(&ad1).unwrap();
-        ensure_remain!(meta1, 100, slot.remain);
+        assert_eq!(Balances::free_balance(&meta1.pot), meta1.budget - 40);
+        assert_eq!(meta1.remain, 500 - 400);
 
-        // 3. CHARLIE bid for ad2
+        let slot = maybe_slot.unwrap();
+        assert_eq!(Assets::balance(0, &meta1.pot), slot.tokens);
+        assert_eq!(slot.ad, ad1);
+        assert_eq!(slot.budget, 400);
+        assert_eq!(slot.remain, 400 - 40);
+        assert_eq!(slot.tokens, 19);
+
+        // 3. charlie bid for ad2
 
         assert_noop!(
             Ad::bid(Origin::signed(CHARLIE), ad2, DID_ALICE, 400),
@@ -274,16 +267,22 @@ fn should_bid() {
 
         let maybe_slot = <SlotOf<Test>>::get(&DID_ALICE);
         assert_ne!(maybe_slot, None);
-        let slot = maybe_slot.unwrap();
-        assert_eq!(slot.ad, ad2);
-        assert_eq!(slot.budget, 239);
-        assert_eq!(slot.remain, 239);
 
         let meta1 = <Metadata<Test>>::get(&ad1).unwrap();
-        ensure_remain!(meta1, 496, 0);
+        assert_eq!(Balances::free_balance(&meta1.pot), meta1.remain);
+        assert_eq!(meta1.remain, 497);
 
         let meta2 = <Metadata<Test>>::get(&ad2).unwrap();
-        ensure_remain!(meta2, 20, slot.remain);
+        assert_eq!(Balances::free_balance(&meta2.pot), meta2.budget - 48);
+        assert_eq!(meta2.remain, 600 - 480);
+
+        let slot = maybe_slot.unwrap();
+        assert_eq!(Assets::balance(0, &meta1.pot), 0);
+        assert_eq!(Assets::balance(0, &meta2.pot), slot.tokens);
+        assert_eq!(slot.ad, ad2);
+        assert_eq!(slot.budget, 480);
+        assert_eq!(slot.remain, 480 - 48);
+        assert_eq!(slot.tokens, 23);
     });
 }
 
@@ -328,7 +327,10 @@ fn should_drawback() {
         assert_eq!(<SlotOf<Test>>::get(&DID_ALICE), None);
 
         let meta = <Metadata<Test>>::get(&ad).unwrap();
-        ensure_remain!(meta, 496, 0);
+        assert_eq!(meta.remain, 497);
+
+        assert_eq!(Balances::free_balance(&meta.pot), meta.remain);
+        assert_eq!(Assets::balance(0, &meta.pot), 0);
 
         // 3. step in
 
@@ -339,11 +341,13 @@ fn should_drawback() {
         // ensure remain
 
         let meta = <Metadata<Test>>::get(&ad).unwrap();
-        ensure_remain!(meta, 0, 0);
+
+        assert_eq!(meta.remain, 0);
+        assert_eq!(Balances::free_balance(&meta.pot), meta.remain);
 
         assert_eq!(
             Balances::free_balance(&BOB),
-            3_000_000 - 2_000_100 - 500 + 496
+            3_000_000 - 2_000_100 - 500 + 497
         );
     });
 }
@@ -393,11 +397,24 @@ fn should_pay() {
         ));
 
         let slot = <SlotOf<Test>>::get(&DID_ALICE).unwrap();
-        assert_eq!(slot.remain, 194);
-        assert_eq!(Assets::balance(0, &meta.pot), 194);
+        assert_eq!(Assets::balance(0, &meta.pot), slot.tokens);
+        assert_eq!(slot.remain, 400 - 40);
+        assert_eq!(slot.tokens, 19 - 5);
 
         assert_eq!(Assets::balance(0, &CHARLIE), 5);
 
         assert_eq!(Tag::get_score(&DID_CHARLIE, b"Test".to_vec()), 5);
+
+        assert_noop!(
+            Ad::pay(
+                Origin::signed(BOB),
+                ad,
+                DID_ALICE,
+                DID_CHARLIE,
+                vec![(b"Test".to_vec(), 5)],
+                None
+            ),
+            Error::<Test>::Paid
+        );
     });
 }

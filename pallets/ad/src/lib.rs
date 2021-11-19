@@ -64,6 +64,10 @@ pub mod pallet {
         #[pallet::constant]
         type PalletId: Get<PalletId>;
 
+        /// The base of payout
+        #[pallet::constant]
+        type PayoutBase: Get<BalanceOf<Self>>;
+
         /// The maximum lifetime of a slot
         #[pallet::constant]
         type SlotLifetime: Get<HeightOf<Self>>;
@@ -159,6 +163,8 @@ pub mod pallet {
             Option<DidOf<T>>,
             BalanceOf<T>,
         ),
+        /// Swap Triggered \[id, kol, remain\]
+        SwapTriggered(HashOf<T>, DidOf<T>, BalanceOf<T>),
     }
 
     #[pallet::hooks]
@@ -176,6 +182,7 @@ pub mod pallet {
         Deadline,
         DidNotExists,
         EmptyTags,
+        InsufficientBalance,
         InsufficientTokens,
         NotExists,
         NotMinted,
@@ -358,6 +365,8 @@ pub mod pallet {
 
             let mut meta = Self::ensure_owned(did, ad)?;
 
+            ensure!(meta.remain > value, Error::<T>::InsufficientBalance);
+
             let kol_meta = Did::<T>::meta(&kol).ok_or(Error::<T>::NotMinted)?;
             let nft = kol_meta.nft.ok_or(Error::<T>::NotMinted)?;
 
@@ -367,30 +376,20 @@ pub mod pallet {
 
             let slot = <SlotOf<T>>::get(&kol);
 
-            // 2. swap AD3 to assets
-
-            let tokens = T::Swaps::quote_in_dry(nft, value)?;
-
-            // 3. if slot is used
+            // 2. if slot is used
             // require a 20% increase of current budget
             // and drawback current ad
 
             if let Some(slot) = slot {
                 ensure!(
-                    tokens >= slot.remain.saturating_mul(120u32.into()) / 100u32.into(),
+                    value >= slot.remain.saturating_mul(120u32.into()) / 100u32.into(),
                     Error::<T>::Underbid
                 );
 
-                let remain = Self::drawback(&kol, &slot)?;
-
-                Self::deposit_event(Event::End(kol, slot.ad, remain));
+                let _ = Self::drawback(&kol, &slot)?;
             }
 
-            // 4. swap AD3 to assets
-
-            let (_, tokens) = T::Swaps::quote_in(&meta.pot, nft, value, One::one(), false)?;
-
-            // 5. update slot
+            // 3. update slot
 
             let lifetime = T::SlotLifetime::get();
             let slotlife = created.saturating_add(lifetime);
@@ -400,18 +399,24 @@ pub mod pallet {
                 slotlife
             };
 
-            <SlotOf<T>>::insert(
-                &kol,
-                types::Slot {
-                    nft,
-                    budget: tokens,
-                    remain: tokens,
-                    created,
-                    ad,
-                },
-            );
+            let mut slot = types::Slot {
+                nft,
+                budget: value,
+                remain: value,
+                tokens: Zero::zero(),
+                created,
+                ad,
+            };
+
+            Self::swap_by_10percent(kol, &meta, &mut slot, One::one())?;
+
+            <SlotOf<T>>::insert(&kol, &slot);
 
             <DeadlineOf<T>>::insert(&kol, &ad, deadline);
+
+            meta.remain.saturating_reduce(value);
+
+            <Metadata<T>>::insert(&ad, &meta);
 
             <SlotsOf<T>>::mutate(&ad, |maybe| {
                 if let Some(slots) = maybe {
@@ -420,10 +425,6 @@ pub mod pallet {
                     *maybe = Some(vec![kol]);
                 }
             });
-
-            meta.remain.saturating_reduce(value);
-
-            <Metadata<T>>::insert(&ad, meta);
 
             Self::deposit_event(Event::Bid(kol, ad, value));
 
@@ -475,11 +476,18 @@ pub mod pallet {
 
             let socring = socring as u32;
 
-            // TODO: find a perfect balance
+            let amount = T::PayoutBase::get().saturating_mul(socring.into());
 
-            let amount = T::Currency::minimum_balance().saturating_mul(socring.into());
+            if slot.tokens < amount {
+                // if tokens is not enough, swap tokens
 
-            ensure!(slot.remain >= amount, Error::<T>::InsufficientTokens);
+                // swap 10% of current budget, at least cover current payout
+                Self::swap_by_10percent(kol, &meta, &mut slot, amount)?;
+
+                <SlotOf<T>>::insert(&kol, &slot);
+            }
+
+            ensure!(slot.tokens >= amount, Error::<T>::InsufficientTokens);
 
             // 3. influence visitor
 
@@ -511,7 +519,7 @@ pub mod pallet {
 
             T::Assets::transfer(slot.nft, &meta.pot, &account, reward, false)?;
 
-            slot.remain.saturating_reduce(amount);
+            slot.tokens.saturating_reduce(amount);
 
             <SlotOf<T>>::insert(&kol, &slot);
 
@@ -580,8 +588,9 @@ impl<T: Config> Pallet<T> {
     fn drawback(kol: &DidOf<T>, slot: &SlotMetaOf<T>) -> Result<BalanceOf<T>, DispatchError> {
         let mut meta = <Metadata<T>>::get(slot.ad).ok_or(Error::<T>::NotExists)?;
 
-        let (_, amount) = T::Swaps::token_in(&meta.pot, slot.nft, slot.remain, One::one(), false)?;
+        let (_, amount) = T::Swaps::token_in(&meta.pot, slot.nft, slot.tokens, One::one(), false)?;
 
+        meta.remain.saturating_accrue(slot.remain);
         meta.remain.saturating_accrue(amount);
 
         <Metadata<T>>::insert(slot.ad, meta);
@@ -596,6 +605,8 @@ impl<T: Config> Pallet<T> {
 
         <DeadlineOf<T>>::remove(kol, slot.ad);
 
+        Self::deposit_event(Event::End(*kol, slot.ad, amount));
+
         Ok(amount)
     }
 
@@ -604,5 +615,27 @@ impl<T: Config> Pallet<T> {
         ensure!(meta.creator == did, Error::<T>::NotOwned);
 
         Ok(meta)
+    }
+
+    fn swap_by_10percent(
+        kol: DidOf<T>,
+        meta: &MetaOf<T>,
+        slot: &mut SlotMetaOf<T>,
+        least: BalanceOf<T>,
+    ) -> DispatchResult {
+        let (cost, tokens) = T::Swaps::quote_in(
+            &meta.pot,
+            slot.nft,
+            slot.budget / 10u32.into(), // swap per 10%
+            least,
+            false,
+        )?;
+
+        slot.remain.saturating_reduce(cost);
+        slot.tokens.saturating_accrue(tokens);
+
+        Self::deposit_event(Event::SwapTriggered(slot.ad, kol, slot.remain));
+
+        Ok(())
     }
 }

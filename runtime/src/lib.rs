@@ -1082,6 +1082,7 @@ impl pallet_vesting::Config for Runtime {
 
 parameter_types! {
     pub const AdPalletId: PalletId = PalletId(*b"prm/ad  ");
+    pub const PayoutBase: Balance = 1 * CENTS;
     pub const SlotLifetime: BlockNumber = 3 * DAYS;
 }
 
@@ -1089,6 +1090,7 @@ impl parami_ad::Config for Runtime {
     type Event = Event;
     type Assets = Assets;
     type PalletId = AdPalletId;
+    type PayoutBase = PayoutBase;
     type SlotLifetime = SlotLifetime;
     type Swaps = Swap;
     type Tags = Tag;

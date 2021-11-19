@@ -28,6 +28,8 @@ pub struct Slot<B, H, N, T> {
     pub budget: B,
     #[codec(compact)]
     pub remain: B,
+    #[codec(compact)]
+    pub tokens: B,
     pub created: N,
     pub ad: H,
 }

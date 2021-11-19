@@ -198,6 +198,7 @@ impl parami_tag::Config for Test {
 
 parameter_types! {
     pub const AdPalletId: PalletId = PalletId(*b"prm/ad  ");
+    pub const PayoutBase: Balance = 1;
     pub const SlotLifetime: BlockNumber = 43200;
 }
 
@@ -205,6 +206,7 @@ impl parami_ad::Config for Test {
     type Event = Event;
     type Assets = Assets;
     type PalletId = AdPalletId;
+    type PayoutBase = PayoutBase;
     type SlotLifetime = SlotLifetime;
     type Swaps = Swap;
     type Tags = Tag;
