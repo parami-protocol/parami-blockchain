@@ -15,7 +15,7 @@ type UncheckedExtrinsic = system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = system::mocking::MockBlock<Test>;
 
 type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::AccountId;
-type Extrinsic = TestXt<Call, ()>;
+pub type Extrinsic = TestXt<Call, ()>;
 
 pub fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
     (0..s.len())
@@ -111,12 +111,14 @@ impl<T: parami_linker::Config> EnsureOrigin<T::Origin> for EnsureDid<T> {
 }
 
 parameter_types! {
+    pub const PendingLifetime: u64 = 5;
     pub const UnsignedPriority: u64 = 3;
 }
 
 impl parami_linker::Config for Test {
     type Event = Event;
     type DecentralizedId = H160;
+    type PendingLifetime = PendingLifetime;
     type UnsignedPriority = UnsignedPriority;
     type CallOrigin = EnsureDid<Self>;
 }

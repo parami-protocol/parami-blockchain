@@ -1,5 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
+pub use ocw::images;
 pub use pallet::*;
 
 #[cfg(test)]
@@ -7,6 +8,8 @@ mod mock;
 
 #[cfg(test)]
 mod tests;
+
+mod did;
 
 mod ocw;
 
@@ -56,6 +59,10 @@ pub mod pallet {
             + AsMut<[u8]>
             + MaxEncodedLen
             + TypeInfo;
+
+        /// Lifetime of a pending account
+        #[pallet::constant]
+        type PendingLifetime: Get<Self::BlockNumber>;
 
         /// Unsigned Call Priority
         #[pallet::constant]
@@ -120,6 +127,7 @@ pub mod pallet {
     #[pallet::error]
     pub enum Error<T> {
         Deadline,
+        Exists,
         HttpFetchingError,
         InvalidETHAddress,
         InvalidSignature,
@@ -141,15 +149,30 @@ pub mod pallet {
 
             let (did, _) = T::CallOrigin::ensure_origin(origin)?;
 
+            ensure!(!<LinksOf<T>>::contains_key(&did, &site), Error::<T>::Exists);
+            ensure!(
+                !<PendingOf<T>>::contains_key(&did, &site),
+                Error::<T>::Exists
+            );
+
             match site {
                 Telegram if is_stask!(profile, b"https://t.me/") => {}
                 _ => Err(Error::<T>::UnsupportedSite)?,
             };
 
-            let height = <frame_system::Pallet<T>>::block_number();
-            let deadline = height.saturating_add(5u32.into());
+            let created = <frame_system::Pallet<T>>::block_number();
+            let lifetime = T::PendingLifetime::get();
+            let deadline = created.saturating_add(lifetime);
 
-            <PendingOf<T>>::insert(&did, site, types::Pending { profile, deadline });
+            <PendingOf<T>>::insert(
+                &did,
+                site,
+                types::Pending {
+                    profile,
+                    deadline,
+                    created,
+                },
+            );
 
             Ok(())
         }
@@ -161,6 +184,11 @@ pub mod pallet {
             signature: types::Signature,
         ) -> DispatchResult {
             let (did, _) = T::CallOrigin::ensure_origin(origin)?;
+
+            ensure!(
+                !<LinksOf<T>>::contains_key(&did, types::AccountType::Ethereum),
+                Error::<T>::Exists
+            );
 
             ensure!(address.len() >= 2, Error::<T>::InvalidETHAddress);
 
@@ -198,6 +226,8 @@ pub mod pallet {
             ok: bool,
         ) -> DispatchResultWithPostInfo {
             let _ = ensure_none(origin)?;
+
+            ensure!(!<LinksOf<T>>::contains_key(&did, &site), Error::<T>::Exists);
 
             let task = <PendingOf<T>>::get(&did, &site).ok_or(Error::<T>::TaskNotExists)?;
 

@@ -67,7 +67,7 @@ path = '../pallets/traits'
 
 [build-dependencies.substrate-wasm-builder]
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.codec]
 default-features = false
@@ -78,39 +78,39 @@ version = '2.2.0'
 [dependencies.frame-benchmarking]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 optional = true
 
 [dependencies.frame-election-provider-support]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.frame-executive]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.frame-support]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.frame-system]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.frame-system-benchmarking]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 optional = true
 
 [dependencies.frame-system-rpc-runtime-api]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.hex-literal]
 version = '0.3.1'
@@ -119,189 +119,189 @@ optional = true
 [dependencies.pallet-assets]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-authority-discovery]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-authorship]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-babe]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-balances]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-bounties]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-collective]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-contracts]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-contracts-primitives]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-contracts-rpc-runtime-api]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-democracy]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-election-provider-multi-phase]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-elections-phragmen]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-grandpa]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-im-online]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-membership]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-mmr]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-multisig]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-offences]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-offences-benchmarking]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 optional = true
 
 [dependencies.pallet-randomness-collective-flip]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-recovery]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-session]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-session-benchmarking]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 optional = true
 
 [dependencies.pallet-staking]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-staking-reward-curve]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-scheduler]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-society]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-sudo]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-timestamp]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-tips]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-treasury]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-transaction-payment-rpc-runtime-api]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-transaction-payment]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-uniques]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-utility]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.pallet-vesting]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.scale-info]
 default-features = false
@@ -316,72 +316,72 @@ optional = true
 [dependencies.sp-api]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.sp-block-builder]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.sp-consensus-babe]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.sp-core]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.sp-npos-elections]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.sp-inherents]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.sp-io]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.sp-offchain]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.sp-runtime]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.sp-session]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.sp-staking]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.sp-std]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.sp-transaction-pool]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [dependencies.sp-version]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
-branch = 'polkadot-v0.9.12'
+rev = '69e384bae9f6189089d2136edb560644964b8788'
 
 [features]
 default = ['std']

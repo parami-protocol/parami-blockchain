@@ -364,7 +364,6 @@ pub fn testnet_genesis(
     GenesisConfig {
         system: SystemConfig {
             code: wasm_binary.to_vec(),
-            changes_trie_config: Default::default(),
         },
 
         authority_discovery: AuthorityDiscoveryConfig { keys: vec![] },

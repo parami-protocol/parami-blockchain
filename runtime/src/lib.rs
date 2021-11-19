@@ -41,8 +41,8 @@ use frame_election_provider_support::{onchain, ElectionProvider, Supports};
 use frame_support::{
     construct_runtime, parameter_types,
     traits::{
-        Currency, Everything, Imbalance, KeyOwnerProofSystem, LockIdentifier, Nothing,
-        OnUnbalanced, U128CurrencyToVote,
+        Currency, EqualPrivilegeOnly, Everything, Imbalance, KeyOwnerProofSystem, LockIdentifier,
+        Nothing, OnUnbalanced, U128CurrencyToVote,
     },
     weights::{
         constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
@@ -836,6 +836,7 @@ impl pallet_scheduler::Config for Runtime {
     type Call = Call;
     type MaximumWeight = MaximumSchedulerWeight;
     type ScheduleOrigin = EnsureRootOrHalfCouncil;
+    type OriginPrivilegeCmp = EqualPrivilegeOnly;
     type MaxScheduledPerBlock = MaxScheduledPerBlock;
     type WeightInfo = pallet_scheduler::weights::SubstrateWeight<Runtime>;
 }
@@ -1062,6 +1063,7 @@ impl pallet_uniques::Config for Runtime {
 impl pallet_utility::Config for Runtime {
     type Event = Event;
     type Call = Call;
+    type PalletsOrigin = OriginCaller;
     type WeightInfo = pallet_utility::weights::SubstrateWeight<Runtime>;
 }
 
@@ -1158,12 +1160,14 @@ impl parami_did::Config for Runtime {
 }
 
 parameter_types! {
-    pub const UnsignedPriority: BlockNumber = 3;
+    pub const PendingLifetime: BlockNumber = 5;
+    pub const UnsignedPriority: TransactionPriority = 3;
 }
 
 impl parami_linker::Config for Runtime {
     type Event = Event;
     type DecentralizedId = sp_core::H160;
+    type PendingLifetime = PendingLifetime;
     type UnsignedPriority = UnsignedPriority;
     type CallOrigin = parami_did::EnsureDid<Self>;
 }
