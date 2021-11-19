@@ -40,7 +40,7 @@ benchmarks! {
             let mut rng = SmallRng::from_seed(Default::default());
 
             for i in 0..n {
-                let name: Vec<u8> = (0..50).map(|_| { rng.gen() }).collect();
+                let name: Vec<u8> = (0..50).map(|_| rng.gen()).collect();
                 Tag::<T>::create(RawOrigin::Signed(caller.clone()).into(), name.clone())?;
                 tags.push(name);
             }
@@ -63,7 +63,14 @@ benchmarks! {
         Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), None)?;
         Advertiser::<T>::deposit(RawOrigin::Signed(caller.clone()).into(), pot)?;
 
-        Ad::<T>::create(RawOrigin::Signed(caller.clone()).into(), min, vec![], Default::default(), 1, HeightOf::<T>::max_value())?;
+        Ad::<T>::create(
+            RawOrigin::Signed(caller.clone()).into(),
+            min,
+            vec![],
+            Default::default(),
+            1,
+            HeightOf::<T>::max_value(),
+        )?;
 
         let ad = Metadata::<T>::iter_keys().next().unwrap();
     }: _(RawOrigin::Signed(caller), ad, 100)
@@ -92,13 +99,20 @@ benchmarks! {
             let mut rng = SmallRng::from_seed(Default::default());
 
             for i in 0..n {
-                let name: Vec<u8> = (0..50).map(|_| { rng.gen() }).collect();
+                let name: Vec<u8> = (0..50).map(|_| rng.gen()).collect();
                 Tag::<T>::create(RawOrigin::Signed(caller.clone()).into(), name.clone())?;
                 tags.push(name);
             }
         }
 
-        Ad::<T>::create(RawOrigin::Signed(caller.clone()).into(), min, vec![], Default::default(), 1, HeightOf::<T>::max_value())?;
+        Ad::<T>::create(
+            RawOrigin::Signed(caller.clone()).into(),
+            min,
+            vec![],
+            Default::default(),
+            1,
+            HeightOf::<T>::max_value(),
+        )?;
 
         let ad = Metadata::<T>::iter_keys().next().unwrap();
     }: _(RawOrigin::Signed(caller), ad, tags.clone())
@@ -124,12 +138,27 @@ benchmarks! {
         Did::<T>::register(RawOrigin::Signed(kol.clone()).into(), None)?;
         let did = Did::<T>::did_of(&kol).unwrap();
 
-        Ad::<T>::create(RawOrigin::Signed(caller.clone()).into(), pot, vec![], Default::default(), 1, HeightOf::<T>::max_value())?;
+        Ad::<T>::create(
+            RawOrigin::Signed(caller.clone()).into(),
+            pot,
+            vec![],
+            Default::default(),
+            1,
+            HeightOf::<T>::max_value(),
+        )?;
         let ad = Metadata::<T>::iter_keys().next().unwrap();
 
-        Nft::<T>::back(RawOrigin::Signed(caller.clone()).into(), did, pot.saturating_mul(2u32.into()))?;
+        Nft::<T>::back(
+            RawOrigin::Signed(caller.clone()).into(),
+            did,
+            pot.saturating_mul(2u32.into()),
+        )?;
 
-        Nft::<T>::mint(RawOrigin::Signed(kol).into(), b"Test Token".to_vec(), b"XTT".to_vec())?;
+        Nft::<T>::mint(
+            RawOrigin::Signed(kol).into(),
+            b"Test Token".to_vec(),
+            b"XTT".to_vec(),
+        )?;
     }: _(RawOrigin::Signed(caller.clone()), ad, did, pot)
     verify {
         assert_ne!(SlotOf::<T>::get(&did), None);
@@ -148,7 +177,14 @@ benchmarks! {
         Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), None)?;
         Advertiser::<T>::deposit(RawOrigin::Signed(caller.clone()).into(), pot)?;
 
-        Ad::<T>::create(RawOrigin::Signed(caller.clone()).into(), pot, vec![], Default::default(), 1, HeightOf::<T>::max_value())?;
+        Ad::<T>::create(
+            RawOrigin::Signed(caller.clone()).into(),
+            pot,
+            vec![],
+            Default::default(),
+            1,
+            HeightOf::<T>::max_value(),
+        )?;
 
         let ad = Metadata::<T>::iter_keys().next().unwrap();
     }: _(RawOrigin::Signed(caller.clone()), ad, pot)
@@ -188,19 +224,34 @@ benchmarks! {
             let mut rng = SmallRng::from_seed(Default::default());
 
             for i in 0..n {
-                let name: Vec<u8> = (0..50).map(|_| { rng.gen() }).collect();
+                let name: Vec<u8> = (0..50).map(|_| rng.gen()).collect();
                 Tag::<T>::create(RawOrigin::Signed(caller.clone()).into(), name.clone())?;
                 tags.push(name.clone());
                 scores.push((name, 5))
             }
         }
 
-        Ad::<T>::create(RawOrigin::Signed(caller.clone()).into(), pot, tags, Default::default(), 1, HeightOf::<T>::max_value())?;
+        Ad::<T>::create(
+            RawOrigin::Signed(caller.clone()).into(),
+            pot,
+            tags,
+            Default::default(),
+            1,
+            HeightOf::<T>::max_value(),
+        )?;
         let ad = Metadata::<T>::iter_keys().next().unwrap();
 
-        Nft::<T>::back(RawOrigin::Signed(caller.clone()).into(), slot, pot.saturating_mul(2u32.into()))?;
+        Nft::<T>::back(
+            RawOrigin::Signed(caller.clone()).into(),
+            slot,
+            pot.saturating_mul(2u32.into()),
+        )?;
 
-        Nft::<T>::mint(RawOrigin::Signed(kol).into(), b"Test Token".to_vec(), b"XTT".to_vec())?;
+        Nft::<T>::mint(
+            RawOrigin::Signed(kol).into(),
+            b"Test Token".to_vec(),
+            b"XTT".to_vec(),
+        )?;
 
         Ad::<T>::bid(RawOrigin::Signed(caller.clone()).into(), ad, slot, pot)?;
     }: _(RawOrigin::Signed(caller.clone()), ad, slot, visitor, scores, None)
@@ -212,7 +263,7 @@ benchmarks! {
 
         let visitor: T::AccountId = account::<T::AccountId>("visitor", 2, 2);
 
-        assert!(<T as parami_nft::Config>::Assets::balance(nft ,&visitor) > min.into());
+        assert!(<T as parami_nft::Config>::Assets::balance(nft, &visitor) > min.into());
     }
 }
 

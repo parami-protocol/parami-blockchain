@@ -42,6 +42,7 @@ use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> = <<T as parami_did::Config>::Currency as Currency<AccountOf<T>>>::Balance;
+type HeightOf<T> = <T as frame_system::Config>::BlockNumber;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -56,24 +57,28 @@ pub mod pallet {
 
         /// The assets trait to create, mint, and transfer fragments (fungible token)
         /// it uses parami_did::Config::AssetId as AssetId
-        type Assets: FungCreate<Self::AccountId, AssetId = Self::AssetId>
-            + FungMetaMutate<Self::AccountId, AssetId = Self::AssetId>
-            + FungMutate<Self::AccountId, AssetId = Self::AssetId, Balance = BalanceOf<Self>>
-            + FungTransfer<Self::AccountId, AssetId = Self::AssetId, Balance = BalanceOf<Self>>;
+        type Assets: FungCreate<AccountOf<Self>, AssetId = Self::AssetId>
+            + FungMetaMutate<AccountOf<Self>, AssetId = Self::AssetId>
+            + FungMutate<AccountOf<Self>, AssetId = Self::AssetId, Balance = BalanceOf<Self>>
+            + FungTransfer<AccountOf<Self>, AssetId = Self::AssetId, Balance = BalanceOf<Self>>;
+
+        /// The ICO baseline of donation for currency
+        #[pallet::constant]
+        type InitialMintingDeposit: Get<BalanceOf<Self>>;
+
+        /// The ICO lockup period for fragments, KOL will not be able to claim before this period
+        #[pallet::constant]
+        type InitialMintingLockupPeriod: Get<HeightOf<Self>>;
 
         /// The ICO value base of fragments, system will mint triple of the value
         /// once for KOL, once to swaps, once to supporters
         #[pallet::constant]
         type InitialMintingValueBase: Get<BalanceOf<Self>>;
 
-        /// The ICO baseline of donation for currency
-        #[pallet::constant]
-        type InitialMintingDeposit: Get<BalanceOf<Self>>;
-
         /// The NFT trait to create, mint non-fungible token
         /// it uses parami_did::Config::AssetId as InstanceId and ClassId
-        type Nft: NftCreate<Self::AccountId, InstanceId = Self::AssetId, ClassId = Self::AssetId>
-            + NftMutate<Self::AccountId, InstanceId = Self::AssetId, ClassId = Self::AssetId>;
+        type Nft: NftCreate<AccountOf<Self>, InstanceId = Self::AssetId, ClassId = Self::AssetId>
+            + NftMutate<AccountOf<Self>, InstanceId = Self::AssetId, ClassId = Self::AssetId>;
 
         /// The maximum length of a name or symbol stored on-chain.
         #[pallet::constant]
@@ -81,7 +86,7 @@ pub mod pallet {
 
         /// The swaps trait
         type Swaps: Swaps<
-            AccountId = Self::AccountId,
+            AccountId = AccountOf<Self>,
             AssetId = Self::AssetId,
             QuoteBalance = BalanceOf<Self>,
             TokenBalance = BalanceOf<Self>,
@@ -117,7 +122,12 @@ pub mod pallet {
         BalanceOf<T>,
     >;
 
-    /// Next available class ID.
+    /// Initial Minting date
+    #[pallet::storage]
+    #[pallet::getter(fn date)]
+    pub(super) type Date<T: Config> = StorageMap<_, Identity, T::DecentralizedId, HeightOf<T>>;
+
+    /// Next available class ID
     #[pallet::storage]
     #[pallet::getter(fn next_cid)]
     pub(super) type NextClassId<T: Config> = StorageValue<_, T::AssetId, ValueQuery>;
@@ -129,8 +139,15 @@ pub mod pallet {
         Backed(T::DecentralizedId, T::DecentralizedId, BalanceOf<T>),
         /// NFT fragments Claimed \[did, kol, value\]
         Claimed(T::DecentralizedId, T::DecentralizedId, BalanceOf<T>),
-        /// NFT fragments Minted \[kol, class, token, tokens\]
-        Minted(T::DecentralizedId, T::AssetId, T::AssetId, BalanceOf<T>),
+        /// NFT fragments Minted \[kol, class, instance, name, symbol, tokens\]
+        Minted(
+            T::DecentralizedId,
+            T::AssetId,
+            T::AssetId,
+            Vec<u8>,
+            Vec<u8>,
+            BalanceOf<T>,
+        ),
     }
 
     #[pallet::hooks]
@@ -143,7 +160,7 @@ pub mod pallet {
         Minted,
         Overflow,
         NotExists,
-        NoTokens,
+        NoToken,
         YourSelf,
     }
 
@@ -191,6 +208,7 @@ pub mod pallet {
         #[pallet::weight(<T as Config>::WeightInfo::mint(name.len() as u32, symbol.len() as u32))]
         pub fn mint(origin: OriginFor<T>, name: Vec<u8>, symbol: Vec<u8>) -> DispatchResult {
             let limit = T::StringLimit::get() as usize - 4;
+
             ensure!(
                 0 < name.len() && name.len() <= limit,
                 Error::<T>::BadMetadata
@@ -210,6 +228,8 @@ pub mod pallet {
                 symbol[0].is_ascii_alphabetic() && symbol.iter().all(is_valid_char),
                 Error::<T>::BadMetadata
             );
+
+            let minted = <frame_system::Pallet<T>>::block_number();
 
             let (did, _) = EnsureDid::<T>::ensure_origin(origin)?;
 
@@ -244,7 +264,7 @@ pub mod pallet {
             let initial = T::InitialMintingValueBase::get();
 
             T::Assets::create(cid, meta.pot.clone(), true, One::one())?;
-            T::Assets::set(cid, &meta.pot, name, symbol, 18)?;
+            T::Assets::set(cid, &meta.pot, name.clone(), symbol.clone(), 18)?;
             T::Assets::mint_into(cid, &meta.pot, initial.saturating_mul(3u32.into()))?;
 
             // 4. transfer third of initial minting to swap
@@ -256,7 +276,13 @@ pub mod pallet {
 
             Did::<T>::set_meta(&did, meta);
 
-            Self::deposit_event(Event::Minted(did, cid, tid, initial));
+            <Date<T>>::insert(&did, minted);
+
+            <Deposits<T>>::mutate(&did, &did, |maybe| {
+                *maybe = Some(deposit);
+            });
+
+            Self::deposit_event(Event::Minted(did, cid, tid, name, symbol, initial));
 
             Ok(())
         }
@@ -266,16 +292,22 @@ pub mod pallet {
         pub fn claim(origin: OriginFor<T>, kol: T::DecentralizedId) -> DispatchResult {
             let (did, who) = EnsureDid::<T>::ensure_origin(origin)?;
 
-            // TODO: ensure locked?
+            let height = <frame_system::Pallet<T>>::block_number();
 
-            // TODO: KOL claim self-issued tokens
+            if kol == did {
+                let minted = <Date<T>>::get(&kol).ok_or(Error::<T>::NotExists)?;
+                ensure!(
+                    height - minted >= T::InitialMintingLockupPeriod::get(),
+                    Error::<T>::NoToken
+                );
+            }
 
             let meta = Did::<T>::meta(&kol).ok_or(Error::<T>::NotExists)?;
 
             let cid = meta.nft.ok_or(Error::<T>::NotExists)?;
 
             let total = <Deposit<T>>::get(&kol).ok_or(Error::<T>::NotExists)?;
-            let deposit = <Deposits<T>>::get(&kol, &did).ok_or(Error::<T>::NoTokens)?;
+            let deposit = <Deposits<T>>::get(&kol, &did).ok_or(Error::<T>::NoToken)?;
             let initial = T::InitialMintingValueBase::get();
 
             let total: U512 = Self::try_into(total)?;

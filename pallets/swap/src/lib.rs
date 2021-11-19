@@ -69,14 +69,14 @@ pub mod pallet {
             + Copy;
 
         /// The assets trait to create, mint, and transfer fungible tokens
-        type Assets: FungCreate<Self::AccountId, AssetId = Self::AssetId>
-            + FungMeta<Self::AccountId, AssetId = Self::AssetId>
-            + FungMetaMutate<Self::AccountId, AssetId = Self::AssetId>
-            + FungMutate<Self::AccountId, AssetId = Self::AssetId, Balance = BalanceOf<Self>>
-            + FungTransfer<Self::AccountId, AssetId = Self::AssetId, Balance = BalanceOf<Self>>;
+        type Assets: FungCreate<AccountOf<Self>, AssetId = Self::AssetId>
+            + FungMeta<AccountOf<Self>, AssetId = Self::AssetId>
+            + FungMetaMutate<AccountOf<Self>, AssetId = Self::AssetId>
+            + FungMutate<AccountOf<Self>, AssetId = Self::AssetId, Balance = BalanceOf<Self>>
+            + FungTransfer<AccountOf<Self>, AssetId = Self::AssetId, Balance = BalanceOf<Self>>;
 
         /// The currency trait
-        type Currency: Currency<Self::AccountId>;
+        type Currency: Currency<AccountOf<Self>>;
 
         /// The pallet id, used for deriving liquid accounts
         #[pallet::constant]
@@ -332,7 +332,7 @@ pub mod pallet {
 
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
-        pub swaps: Vec<(u32, u32, T::AccountId)>,
+        pub swaps: Vec<(u32, u32, AccountOf<T>)>,
     }
 
     #[cfg(feature = "std")]
@@ -365,7 +365,7 @@ pub mod pallet {
                         token,
                         token_id,
                         lp_token_id,
-                        created: Default::default(),
+                        ..Default::default()
                     },
                 );
             }
@@ -435,6 +435,55 @@ impl<T: Config> Pallet<T> {
         Ok((currency, tokens, meta))
     }
 
+    pub(crate) fn calculate_price_buy(
+        output_amount: U512,
+        input_reserve: U512,
+        output_reserve: U512,
+    ) -> U512 {
+        let p1 = output_reserve / 10;
+
+        if output_amount > p1 {
+            let d = Self::calculate_price_buy(p1, input_reserve, output_reserve);
+
+            d + Self::calculate_price_buy(
+                output_amount - p1,
+                input_reserve + d,
+                output_reserve - p1,
+            )
+        } else {
+            let numerator = input_reserve * output_amount * U512::from(1000);
+            let denominator = (output_reserve - output_amount) * U512::from(997);
+            let result = numerator / denominator + U512::from(1);
+
+            result
+        }
+    }
+
+    pub(crate) fn calculate_price_sell(
+        input_amount: U512,
+        input_reserve: U512,
+        output_reserve: U512,
+    ) -> U512 {
+        let p1 = input_reserve / 10;
+
+        if input_amount > p1 {
+            let d = Self::calculate_price_sell(p1, input_reserve, output_reserve);
+
+            d + Self::calculate_price_sell(
+                input_amount - p1,
+                input_reserve + p1,
+                output_reserve - d,
+            )
+        } else {
+            let input_amount_with_fee = input_amount * U512::from(997);
+            let numerator = input_amount_with_fee * output_reserve;
+            let denominator = (input_reserve * U512::from(1000)) + input_amount_with_fee;
+            let result = numerator / denominator;
+
+            result
+        }
+    }
+
     fn price_buy(
         output_amount: BalanceOf<T>,
         input_reserve: BalanceOf<T>,
@@ -449,9 +498,7 @@ impl<T: Config> Pallet<T> {
         let input_reserve: U512 = Self::try_into(input_reserve)?;
         let output_reserve: U512 = Self::try_into(output_reserve)?;
 
-        let numerator = input_reserve * output_amount * U512::from(1000);
-        let denominator = (output_reserve - output_amount) * U512::from(997);
-        let result = numerator / denominator + U512::from(1);
+        let result = Self::calculate_price_buy(output_amount, input_reserve, output_reserve);
 
         let result = Self::try_into(result)?;
 
@@ -472,10 +519,7 @@ impl<T: Config> Pallet<T> {
         let input_reserve: U512 = Self::try_into(input_reserve)?;
         let output_reserve: U512 = Self::try_into(output_reserve)?;
 
-        let input_amount_with_fee = input_amount * U512::from(997);
-        let numerator = input_amount_with_fee * output_reserve;
-        let denominator = (input_reserve * U512::from(1000)) + input_amount_with_fee;
-        let result = numerator / denominator;
+        let result = Self::calculate_price_sell(input_amount, input_reserve, output_reserve);
 
         let result = Self::try_into(result)?;
 

@@ -17,7 +17,6 @@ pub struct Metadata<A, B, D, H, N> {
     pub remain: B,
     pub metadata: Vec<u8>,
     pub reward_rate: u16,
-    pub deadline: N,
     pub created: N,
 }
 
@@ -29,6 +28,6 @@ pub struct Slot<B, H, N, T> {
     pub budget: B,
     #[codec(compact)]
     pub remain: B,
-    pub deadline: N,
+    pub created: N,
     pub ad: H,
 }

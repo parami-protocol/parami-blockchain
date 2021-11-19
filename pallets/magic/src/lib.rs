@@ -48,7 +48,7 @@ pub mod pallet {
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
         /// The currency trait
-        type Currency: Currency<Self::AccountId>;
+        type Currency: Currency<AccountOf<Self>>;
 
         /// The overarching call type
         type Call: Parameter
@@ -73,21 +73,21 @@ pub mod pallet {
     /// map from controller account to `StableAccount`
     #[pallet::storage]
     #[pallet::getter(fn stable_of)]
-    pub(super) type StableAccountOf<T: Config> = StorageMap<_, Blake2_256, T::AccountId, MetaOf<T>>;
+    pub(super) type StableAccountOf<T: Config> = StorageMap<_, Blake2_256, AccountOf<T>, MetaOf<T>>;
 
     /// map from magic account to controller account
     #[pallet::storage]
     #[pallet::getter(fn controller_of)]
     pub(super) type ControllerAccountOf<T: Config> =
-        StorageMap<_, Blake2_256, T::AccountId, T::AccountId>;
+        StorageMap<_, Blake2_256, AccountOf<T>, AccountOf<T>>;
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
         /// Stable account created \[stash, controller\]
-        CreatedStableAccount(T::AccountId, T::AccountId),
+        Created(AccountOf<T>, AccountOf<T>),
         /// Controller changed \[stash, controller\]
-        ChangedController(T::AccountId, T::AccountId),
+        Changed(AccountOf<T>, AccountOf<T>),
         /// Proxy executed correctly \[ result \]
         Codo(DispatchResult),
     }
@@ -110,7 +110,7 @@ pub mod pallet {
         #[pallet::weight(T::WeightInfo::create_stable_account())]
         pub fn create_stable_account(
             origin: OriginFor<T>,
-            magic_account: T::AccountId,
+            magic_account: AccountOf<T>,
             #[pallet::compact] deposit: BalanceOf<T>,
         ) -> DispatchResult {
             let controller_account = ensure_signed(origin)?;
@@ -147,7 +147,7 @@ pub mod pallet {
             let created = <frame_system::Pallet<T>>::block_number();
 
             // TODO: use a HMAC-based algorithm.
-            let mut raw = T::AccountId::encode(&magic_account);
+            let mut raw = <AccountOf<T>>::encode(&magic_account);
             let mut ord = T::BlockNumber::encode(&created);
             raw.append(&mut ord);
 
@@ -176,10 +176,7 @@ pub mod pallet {
             <StableAccountOf<T>>::insert(&sa.controller_account, &sa);
             <ControllerAccountOf<T>>::insert(&sa.magic_account, &sa.controller_account);
 
-            Self::deposit_event(Event::CreatedStableAccount(
-                sa.stash_account,
-                sa.controller_account,
-            ));
+            Self::deposit_event(Event::Created(sa.stash_account, sa.controller_account));
 
             Ok(())
         }
@@ -187,7 +184,7 @@ pub mod pallet {
         #[pallet::weight(T::WeightInfo::change_controller())]
         pub fn change_controller(
             origin: OriginFor<T>,
-            new_controller: T::AccountId,
+            new_controller: AccountOf<T>,
         ) -> DispatchResult {
             let magic_account = ensure_signed(origin)?;
 
@@ -223,10 +220,7 @@ pub mod pallet {
                 *maybe = Some(new_controller)
             });
 
-            Self::deposit_event(Event::ChangedController(
-                sa.stash_account,
-                sa.controller_account,
-            ));
+            Self::deposit_event(Event::Changed(sa.stash_account, sa.controller_account));
 
             Ok(())
         }
@@ -266,11 +260,8 @@ pub mod pallet {
 
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
-        // pub stash_account: A,
-        // pub controller_account: A,
-        // pub magic_account: A,
-        // pub created: N,
-        pub accounts: Vec<(T::AccountId, T::AccountId, T::AccountId)>,
+        /// \[magic_account, stash_account, controller_account\]
+        pub accounts: Vec<(AccountOf<T>, AccountOf<T>, AccountOf<T>)>,
     }
 
     #[cfg(feature = "std")]

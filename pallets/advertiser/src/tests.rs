@@ -7,15 +7,13 @@ fn should_deposit() {
     new_test_ext().execute_with(|| {
         let alice = sr25519::Public([1; 32]);
 
-        assert_eq!(Balances::free_balance(alice), 100);
+        assert_eq!(Balances::free_balance(&alice), 100);
         assert_eq!(Balances::reserved_balance(alice), 0);
-        assert_eq!(Balances::total_issuance(), 100);
 
         assert_ok!(Advertiser::deposit(Origin::signed(alice), 10));
 
-        assert_eq!(Balances::free_balance(alice), 90);
+        assert_eq!(Balances::free_balance(&alice), 90);
         assert_eq!(Balances::reserved_balance(alice), 10);
-        assert_eq!(Balances::total_issuance(), 100);
     });
 }
 
@@ -54,15 +52,13 @@ fn should_block() {
 
         assert_ok!(Advertiser::deposit(Origin::signed(alice), 10));
 
-        assert_eq!(Balances::free_balance(alice), 90);
+        assert_eq!(Balances::free_balance(&alice), 90);
         assert_eq!(Balances::reserved_balance(alice), 10);
-        assert_eq!(Balances::total_issuance(), 100);
 
-        assert_ok!(Advertiser::block(Origin::root(), did));
+        assert_ok!(Advertiser::force_block(Origin::root(), did));
 
-        assert_eq!(Balances::free_balance(alice), 90);
+        assert_eq!(Balances::free_balance(&alice), 90);
         assert_eq!(Balances::reserved_balance(alice), 0);
-        assert_eq!(Balances::total_issuance(), 100);
 
         assert_eq!(<Blocked<Test>>::get(&did), Some(true));
 

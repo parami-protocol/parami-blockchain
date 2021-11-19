@@ -5,7 +5,6 @@ use sp_core::{sr25519, H256};
 use sp_runtime::{
     testing::Header,
     traits::{BlakeTwo256, Keccak256},
-    Permill,
 };
 
 type UncheckedExtrinsic = system::mocking::MockUncheckedExtrinsic<Test>;
@@ -19,7 +18,6 @@ frame_support::construct_runtime!(
     {
         System: system::{Pallet, Call, Config, Storage, Event<T>},
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-        Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>},
 
         Did: parami_did::{Pallet, Call, Storage, Config<T>, Event<T>},
         Advertiser: parami_advertiser::{Pallet, Call, Storage, Event<T>},
@@ -80,32 +78,6 @@ impl pallet_balances::Config for Test {
 }
 
 parameter_types! {
-    pub const Burn: Permill = Permill::from_percent(50);
-    pub const MaxApprovals: u32 = 100;
-    pub const ProposalBond: Permill = Permill::from_percent(5);
-    pub const ProposalBondMinimum: Balance = 1;
-    pub const SpendPeriod: u64 = 1;
-    pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");
-}
-
-impl pallet_treasury::Config for Test {
-    type Currency = Balances;
-    type ApproveOrigin = EnsureRoot<Self::AccountId>;
-    type RejectOrigin = EnsureRoot<Self::AccountId>;
-    type Event = Event;
-    type OnSlash = ();
-    type ProposalBond = ProposalBond;
-    type ProposalBondMinimum = ProposalBondMinimum;
-    type SpendPeriod = SpendPeriod;
-    type Burn = Burn;
-    type PalletId = TreasuryPalletId;
-    type BurnDestination = ();
-    type WeightInfo = ();
-    type SpendFunds = ();
-    type MaxApprovals = MaxApprovals;
-}
-
-parameter_types! {
     pub const DidPalletId: PalletId = PalletId(*b"prm/did ");
 }
 
@@ -120,15 +92,15 @@ impl parami_did::Config for Test {
 }
 
 parameter_types! {
-    pub const MinimalDeposit: Balance = 10;
+    pub const MinimumDeposit: Balance = 10;
     pub const AdvertiserPalletId: PalletId = PalletId(*b"prm/ader");
 }
 
 impl parami_advertiser::Config for Test {
     type Event = Event;
-    type MinimalDeposit = MinimalDeposit;
+    type MinimumDeposit = MinimumDeposit;
     type PalletId = AdvertiserPalletId;
-    type Slash = Treasury;
+    type Slash = ();
     type ForceOrigin = EnsureRoot<Self::AccountId>;
     type WeightInfo = ();
 }

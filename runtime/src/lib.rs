@@ -1082,12 +1082,14 @@ impl pallet_vesting::Config for Runtime {
 
 parameter_types! {
     pub const AdPalletId: PalletId = PalletId(*b"prm/ad  ");
+    pub const SlotLifetime: BlockNumber = 3 * DAYS;
 }
 
 impl parami_ad::Config for Runtime {
     type Event = Event;
     type Assets = Assets;
     type PalletId = AdPalletId;
+    type SlotLifetime = SlotLifetime;
     type Swaps = Swap;
     type Tags = Tag;
     type CallOrigin = parami_advertiser::EnsureAdvertiser<Self>;
@@ -1096,13 +1098,13 @@ impl parami_ad::Config for Runtime {
 }
 
 parameter_types! {
-    pub const MinimalDeposit: Balance = 10 * DOLLARS;
+    pub const MinimumDeposit: Balance = 10 * DOLLARS;
     pub const AdvertiserPalletId: PalletId = PalletId(*b"prm/ader");
 }
 
 impl parami_advertiser::Config for Runtime {
     type Event = Event;
-    type MinimalDeposit = MinimalDeposit;
+    type MinimumDeposit = MinimumDeposit;
     type PalletId = AdvertiserPalletId;
     type Slash = Treasury;
     type ForceOrigin = EnsureRootOrHalfCouncil;
@@ -1186,6 +1188,7 @@ impl parami_magic::Config for Runtime {
 
 parameter_types! {
     pub const InitialMintingDeposit: Balance = 1_000 * DOLLARS;
+    pub const InitialMintingLockupPeriod: BlockNumber = 6 * 30 * DAYS;
     pub const InitialMintingValueBase: Balance = 1_000_000 * DOLLARS;
 }
 
@@ -1193,6 +1196,7 @@ impl parami_nft::Config for Runtime {
     type Event = Event;
     type Assets = Assets;
     type InitialMintingDeposit = InitialMintingDeposit;
+    type InitialMintingLockupPeriod = InitialMintingLockupPeriod;
     type InitialMintingValueBase = InitialMintingValueBase;
     type Nft = Uniques;
     type StringLimit = StringLimit;

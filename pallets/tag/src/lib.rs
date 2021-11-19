@@ -48,7 +48,7 @@ pub mod pallet {
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
         /// The currency trait
-        type Currency: Currency<Self::AccountId>;
+        type Currency: Currency<AccountOf<Self>>;
 
         /// The DID type
         type DecentralizedId: Parameter
@@ -70,7 +70,7 @@ pub mod pallet {
         /// The origin which may do calls
         type CallOrigin: EnsureOrigin<
             Self::Origin,
-            Success = (Self::DecentralizedId, Self::AccountId),
+            Success = (Self::DecentralizedId, AccountOf<Self>),
         >;
 
         /// The origin which may forcibly create tag or otherwise alter privileged attributes

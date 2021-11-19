@@ -59,7 +59,7 @@ pub mod pallet {
             + Copy;
 
         /// The reservable currency trait
-        type Currency: NamedReservableCurrency<Self::AccountId, ReserveIdentifier = [u8; 8]>;
+        type Currency: NamedReservableCurrency<AccountOf<Self>, ReserveIdentifier = [u8; 8]>;
 
         /// The DID type, should be 20 bytes length
         type DecentralizedId: Parameter
@@ -104,7 +104,7 @@ pub mod pallet {
     /// The DID of an account id.
     #[pallet::storage]
     #[pallet::getter(fn did_of)]
-    pub(super) type DidOf<T: Config> = StorageMap<_, Blake2_256, T::AccountId, T::DecentralizedId>;
+    pub(super) type DidOf<T: Config> = StorageMap<_, Blake2_256, AccountOf<T>, T::DecentralizedId>;
 
     /// The inviter's DID of a DID.
     #[pallet::storage]
@@ -116,11 +116,11 @@ pub mod pallet {
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
         /// New DID assigned \[did, account, inviter\]
-        Assigned(T::DecentralizedId, T::AccountId, Option<T::DecentralizedId>),
+        Assigned(T::DecentralizedId, AccountOf<T>, Option<T::DecentralizedId>),
         /// DID was revoked \[did\]
         Revoked(T::DecentralizedId),
         /// DID transferred \[did, from, to\]
-        Transferred(T::DecentralizedId, T::AccountId, T::AccountId),
+        Transferred(T::DecentralizedId, AccountOf<T>, AccountOf<T>),
         /// DID was updated \[did\]
         Updated(T::DecentralizedId),
     }
@@ -131,6 +131,7 @@ pub mod pallet {
     #[pallet::error]
     pub enum Error<T> {
         Exists,
+        Minted,
         NotExists,
         ReferrerNotExists,
     }
@@ -159,7 +160,7 @@ pub mod pallet {
             let created = <frame_system::Pallet<T>>::block_number();
 
             // TODO: use a HMAC-based algorithm.
-            let mut raw = T::AccountId::encode(&who);
+            let mut raw = <AccountOf<T>>::encode(&who);
             let mut ord = T::BlockNumber::encode(&created);
             raw.append(&mut ord);
 
@@ -200,7 +201,7 @@ pub mod pallet {
 
         /// Transfer a new DID.
         #[pallet::weight(T::WeightInfo::transfer())]
-        pub fn transfer(origin: OriginFor<T>, account: T::AccountId) -> DispatchResult {
+        pub fn transfer(origin: OriginFor<T>, account: AccountOf<T>) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
             ensure!(!<DidOf<T>>::contains_key(&account), Error::<T>::Exists);
@@ -229,17 +230,18 @@ pub mod pallet {
 
             let did = <DidOf<T>>::get(&who).ok_or(Error::<T>::NotExists)?;
 
-            // TODO: ensure NFT buy-back
+            let meta = <Metadata<T>>::get(&did).ok_or(Error::<T>::NotExists)?;
 
-            <Metadata<T>>::mutate(&did, |maybe| {
-                if let Some(meta) = maybe {
-                    *meta = types::Metadata {
-                        account: meta.account.clone(),
-                        revoked: true,
-                        ..Default::default()
-                    };
-                }
-            });
+            ensure!(meta.nft.is_none(), Error::<T>::Minted);
+
+            <Metadata<T>>::insert(
+                &did,
+                types::Metadata {
+                    account: meta.account.clone(),
+                    revoked: true,
+                    ..Default::default()
+                },
+            );
 
             <DidOf<T>>::remove(&who);
 
@@ -283,7 +285,7 @@ pub mod pallet {
 
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
-        pub ids: Vec<(T::AccountId, T::DecentralizedId, Option<T::AssetId>)>,
+        pub ids: Vec<(AccountOf<T>, T::DecentralizedId, Option<T::AssetId>)>,
     }
 
     #[cfg(feature = "std")]
@@ -316,7 +318,11 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-    pub fn lookup_address(a: MultiAddress<T::AccountId, ()>) -> Option<T::AccountId> {
+    pub fn zero() -> T::DecentralizedId {
+        Default::default()
+    }
+
+    pub fn lookup_address(a: MultiAddress<AccountOf<T>, ()>) -> Option<AccountOf<T>> {
         match a {
             MultiAddress::Id(i) => Some(i),
             MultiAddress::Address20(a) => Self::lookup_did(a.into()),
@@ -328,7 +334,7 @@ impl<T: Config> Pallet<T> {
         }
     }
 
-    pub fn lookup_did(did: T::DecentralizedId) -> Option<T::AccountId> {
+    pub fn lookup_did(did: T::DecentralizedId) -> Option<AccountOf<T>> {
         <Metadata<T>>::get(&did).map(|x| x.account)
     }
 
@@ -347,8 +353,8 @@ impl<T: Config> Pallet<T> {
 }
 
 impl<T: Config> StaticLookup for Pallet<T> {
-    type Source = MultiAddress<T::AccountId, ()>;
-    type Target = T::AccountId;
+    type Source = MultiAddress<AccountOf<T>, ()>;
+    type Target = AccountOf<T>;
 
     fn lookup(a: Self::Source) -> Result<Self::Target, LookupError> {
         Self::lookup_address(a).ok_or(LookupError)
@@ -361,7 +367,7 @@ impl<T: Config> StaticLookup for Pallet<T> {
 
 pub struct EnsureDid<T>(sp_std::marker::PhantomData<T>);
 impl<T: pallet::Config> EnsureOrigin<T::Origin> for EnsureDid<T> {
-    type Success = (T::DecentralizedId, T::AccountId);
+    type Success = (T::DecentralizedId, AccountOf<T>);
 
     fn try_origin(o: T::Origin) -> Result<Self::Success, T::Origin> {
         use frame_support::traits::OriginTrait;

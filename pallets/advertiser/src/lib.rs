@@ -27,6 +27,7 @@ use weights::WeightInfo;
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> = <CurrencyOf<T> as Currency<AccountOf<T>>>::Balance;
 type CurrencyOf<T> = <T as parami_did::Config>::Currency;
+type DidOf<T> = <T as parami_did::Config>::DecentralizedId;
 type NegativeImbOf<T> = <CurrencyOf<T> as Currency<AccountOf<T>>>::NegativeImbalance;
 
 #[frame_support::pallet]
@@ -40,9 +41,9 @@ pub mod pallet {
         /// The overarching event type
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
-        /// Minimal deposit to become an advertiser
+        /// Minimum deposit to become an advertiser
         #[pallet::constant]
-        type MinimalDeposit: Get<BalanceOf<Self>>;
+        type MinimumDeposit: Get<BalanceOf<Self>>;
 
         /// The pallet id, used for deriving "pot" accounts of deposits
         #[pallet::constant]
@@ -65,15 +66,15 @@ pub mod pallet {
     /// Blocked DIDs
     #[pallet::storage]
     #[pallet::getter(fn blocked)]
-    pub(super) type Blocked<T: Config> = StorageMap<_, Identity, T::DecentralizedId, bool>;
+    pub(super) type Blocked<T: Config> = StorageMap<_, Identity, DidOf<T>, bool>;
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
         /// Advertiser deposited \[id, value\]
-        Deposited(T::DecentralizedId, BalanceOf<T>),
+        Deposited(DidOf<T>, BalanceOf<T>),
         /// Advertiser was blocked \[id\]
-        Blocked(T::DecentralizedId),
+        Blocked(DidOf<T>),
     }
 
     #[pallet::hooks]
@@ -98,13 +99,13 @@ pub mod pallet {
 
             ensure!(!<Blocked<T>>::contains_key(&did), Error::<T>::Blocked);
 
-            let minimal = T::MinimalDeposit::get();
+            let minimum = T::MinimumDeposit::get();
 
             let id = <T as Config>::PalletId::get();
 
             let reserved = T::Currency::reserved_balance_named(&id.0, &who);
 
-            ensure!(reserved + value >= minimal, Error::<T>::ExistentialDeposit);
+            ensure!(reserved + value >= minimum, Error::<T>::ExistentialDeposit);
 
             T::Currency::reserve_named(&id.0, &who, value)?;
 
@@ -113,8 +114,8 @@ pub mod pallet {
             Ok(())
         }
 
-        #[pallet::weight(<T as Config>::WeightInfo::block())]
-        pub fn block(origin: OriginFor<T>, advertiser: T::DecentralizedId) -> DispatchResult {
+        #[pallet::weight(<T as Config>::WeightInfo::force_block())]
+        pub fn force_block(origin: OriginFor<T>, advertiser: DidOf<T>) -> DispatchResult {
             T::ForceOrigin::ensure_origin(origin)?;
 
             let meta = Did::<T>::meta(&advertiser).ok_or(Error::<T>::NotExists)?;
@@ -135,7 +136,7 @@ pub mod pallet {
 
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
-        pub blocked: Vec<T::DecentralizedId>,
+        pub blocked: Vec<DidOf<T>>,
     }
 
     #[cfg(feature = "std")]
@@ -159,20 +160,20 @@ pub mod pallet {
 
 pub struct EnsureAdvertiser<T>(sp_std::marker::PhantomData<T>);
 impl<T: pallet::Config> EnsureOrigin<T::Origin> for EnsureAdvertiser<T> {
-    type Success = (T::DecentralizedId, T::AccountId);
+    type Success = (DidOf<T>, AccountOf<T>);
 
     fn try_origin(o: T::Origin) -> Result<Self::Success, T::Origin> {
         use frame_support::traits::{Get, OriginTrait};
 
         let (did, who) = EnsureDid::<T>::ensure_origin(o).or(Err(T::Origin::none()))?;
 
-        let minimal = T::MinimalDeposit::get();
+        let minimum = T::MinimumDeposit::get();
 
         let id = <T as Config>::PalletId::get();
 
         let reserved = T::Currency::reserved_balance_named(&id.0, &who);
 
-        if reserved >= minimal {
+        if reserved >= minimum {
             Ok((did, who))
         } else {
             Err(T::Origin::none())

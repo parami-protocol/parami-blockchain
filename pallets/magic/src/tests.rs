@@ -8,7 +8,7 @@ fn should_create() {
         let alice = sr25519::Public([0x1; 32]);
         let magic = sr25519::Public([0xe; 32]);
 
-        assert_eq!(Balances::free_balance(alice), 100);
+        assert_eq!(Balances::free_balance(&alice), 100);
         assert_eq!(Balances::total_issuance(), 100);
 
         assert_ok!(Magic::create_stable_account(
@@ -17,7 +17,7 @@ fn should_create() {
             0
         ));
 
-        assert_eq!(Balances::free_balance(alice), 99);
+        assert_eq!(Balances::free_balance(&alice), 99);
         assert_eq!(Balances::total_issuance(), 100);
 
         let maybe_stash = <StableAccountOf<Test>>::get(&alice);
@@ -27,8 +27,8 @@ fn should_create() {
         assert_eq!(stash.controller_account, alice);
         assert_eq!(stash.magic_account, magic);
 
-        assert_eq!(Balances::free_balance(stash.stash_account), 0);
-        assert_eq!(Balances::free_balance(magic), 1);
+        assert_eq!(Balances::free_balance(&stash.stash_account), 0);
+        assert_eq!(Balances::free_balance(&magic), 1);
 
         assert_eq!(<ControllerAccountOf<Test>>::get(&magic), Some(alice));
     });
@@ -66,7 +66,7 @@ fn should_transfer() {
         let alice = sr25519::Public([0x1; 32]);
         let bob = sr25519::Public([0x2; 32]);
 
-        assert_eq!(Balances::free_balance(bob), 0);
+        assert_eq!(Balances::free_balance(&bob), 0);
 
         let magic = sr25519::Public([0xe; 32]);
 
@@ -87,9 +87,9 @@ fn should_transfer() {
         assert_eq!(stash.controller_account, bob);
         assert_eq!(stash.magic_account, magic);
 
-        assert_eq!(Balances::free_balance(stash.stash_account), 1);
-        assert_eq!(Balances::free_balance(magic), 1);
-        assert_ne!(Balances::free_balance(bob), 0);
+        assert_eq!(Balances::free_balance(&stash.stash_account), 1);
+        assert_eq!(Balances::free_balance(&magic), 1);
+        assert_ne!(Balances::free_balance(&bob), 0);
 
         assert_eq!(<ControllerAccountOf<Test>>::get(&magic), Some(bob));
     });

@@ -45,7 +45,7 @@ use sp_std::marker::PhantomData;
 /// Weight functions needed for parami_advertiser.
 pub trait WeightInfo {
     fn deposit() -> Weight;
-    fn block() -> Weight;
+    fn force_block() -> Weight;
 }
 
 /// Weights for parami_advertiser using the Substrate node and recommended hardware.
@@ -63,7 +63,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
     // Storage: Balances Reserves (r:1 w:1)
     // Storage: System Account (r:1 w:1)
     // Storage: Advertiser Blocked (r:0 w:1)
-    fn block() -> Weight {
+    fn force_block() -> Weight {
         (49_000_000 as Weight)
             .saturating_add(T::DbWeight::get().reads(3 as Weight))
             .saturating_add(T::DbWeight::get().writes(3 as Weight))
@@ -84,7 +84,7 @@ impl WeightInfo for () {
     // Storage: Balances Reserves (r:1 w:1)
     // Storage: System Account (r:1 w:1)
     // Storage: Advertiser Blocked (r:0 w:1)
-    fn block() -> Weight {
+    fn force_block() -> Weight {
         (49_000_000 as Weight)
             .saturating_add(RocksDbWeight::get().reads(3 as Weight))
             .saturating_add(RocksDbWeight::get().writes(3 as Weight))

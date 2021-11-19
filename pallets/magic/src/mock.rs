@@ -1,6 +1,6 @@
 use crate as parami_magic;
 use frame_support::{parameter_types, PalletId};
-use frame_system::{self as system};
+use frame_system as system;
 use sp_core::{sr25519, H256};
 use sp_runtime::{
     testing::Header,

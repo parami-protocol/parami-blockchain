@@ -452,9 +452,9 @@ fn create_unsucessful_proposal() {
             };
             assert_eq!(prop, expected);
 
-            assert_eq!(Balances::free_balance(RELAYER_B), 0);
+            assert_eq!(Balances::free_balance(&RELAYER_B), 0);
             assert_eq!(
-                Balances::free_balance(ChainBridge::account_id()),
+                Balances::free_balance(&ChainBridge::account_id()),
                 ENDOWED_BALANCE
             );
 
@@ -523,9 +523,9 @@ fn execute_after_threshold_change() {
             };
             assert_eq!(prop, expected);
 
-            assert_eq!(Balances::free_balance(RELAYER_B), 0);
+            assert_eq!(Balances::free_balance(&RELAYER_B), 0);
             assert_eq!(
-                Balances::free_balance(ChainBridge::account_id()),
+                Balances::free_balance(&ChainBridge::account_id()),
                 ENDOWED_BALANCE
             );
 

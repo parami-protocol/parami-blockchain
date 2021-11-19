@@ -44,8 +44,6 @@ pub fn parse(data: Vec<u8>) -> Option<Vec<u8>> {
         }
     }
 
-    log::info!("did parsed {:?}", binary);
-
     Some(binary)
 }
 

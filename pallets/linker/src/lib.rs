@@ -23,11 +23,8 @@ use frame_support::{
 };
 use frame_system::offchain::CreateSignedTransaction;
 use scale_info::TypeInfo;
-use sp_core::crypto::KeyTypeId;
 use sp_runtime::traits::{MaybeSerializeDeserialize, Member};
 use sp_std::prelude::*;
-
-const OFFCHAIN_KEY_TYPE: KeyTypeId = KeyTypeId(*b"lnk!");
 
 macro_rules! is_task {
     ($profile:expr, $prefix:expr) => {
@@ -119,7 +116,7 @@ pub mod pallet {
             match Self::ocw_begin_block(block_number) {
                 Ok(_) => {}
                 Err(e) => {
-                    log::error!("An error occurred in OCW: {:?}", e);
+                    tracing::error!("An error occurred in OCW: {:?}", e);
                 }
             }
         }
@@ -306,33 +303,5 @@ pub mod pallet {
                 _ => InvalidTransaction::Call.into(),
             }
         }
-    }
-}
-
-pub mod crypto {
-    use crate::OFFCHAIN_KEY_TYPE;
-    use sp_core::sr25519::{Public as Sr25519Public, Signature as Sr25519Signature};
-    use sp_runtime::{
-        app_crypto::{app_crypto, sr25519},
-        traits::Verify,
-        MultiSignature, MultiSigner,
-    };
-
-    app_crypto!(sr25519, OFFCHAIN_KEY_TYPE);
-
-    pub struct LinkerAuthId;
-
-    impl frame_system::offchain::AppCrypto<MultiSigner, MultiSignature> for LinkerAuthId {
-        type RuntimeAppPublic = Public;
-        type GenericSignature = Sr25519Signature;
-        type GenericPublic = Sr25519Public;
-    }
-
-    impl frame_system::offchain::AppCrypto<<Sr25519Signature as Verify>::Signer, Sr25519Signature>
-        for LinkerAuthId
-    {
-        type RuntimeAppPublic = Public;
-        type GenericSignature = Sr25519Signature;
-        type GenericPublic = Sr25519Public;
     }
 }

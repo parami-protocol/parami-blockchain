@@ -1,7 +1,7 @@
 use crate as parami_ad;
 use frame_support::{parameter_types, traits::GenesisBuild, PalletId};
 use frame_system::{self as system, EnsureRoot};
-use sp_core::{sr25519, H256};
+use sp_core::{sr25519, H160, H256};
 use sp_runtime::{
     testing::Header,
     traits::{BlakeTwo256, Keccak256},
@@ -9,6 +9,14 @@ use sp_runtime::{
 
 type UncheckedExtrinsic = system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = system::mocking::MockBlock<Test>;
+
+pub const ALICE: sr25519::Public = sr25519::Public([1; 32]);
+pub const BOB: sr25519::Public = sr25519::Public([2; 32]);
+pub const CHARLIE: sr25519::Public = sr25519::Public([3; 32]);
+
+pub const DID_ALICE: H160 = H160([0xff; 20]);
+pub const DID_BOB: H160 = H160([0xee; 20]);
+pub const DID_CHARLIE: H160 = H160([0xdd; 20]);
 
 frame_support::construct_runtime!(
     pub enum Test where
@@ -29,9 +37,9 @@ frame_support::construct_runtime!(
     }
 );
 
-pub type DID = <Test as parami_did::Config>::DecentralizedId;
 type AssetId = u64;
 type Balance = u128;
+type BlockNumber = u64;
 
 parameter_types! {
     pub const BlockHashCount: u64 = 250;
@@ -46,7 +54,7 @@ impl system::Config for Test {
     type Origin = Origin;
     type Call = Call;
     type Index = u64;
-    type BlockNumber = u64;
+    type BlockNumber = BlockNumber;
     type Hash = H256;
     type Hashing = BlakeTwo256;
     type AccountId = sr25519::Public;
@@ -137,7 +145,7 @@ impl parami_did::Config for Test {
     type Event = Event;
     type AssetId = AssetId;
     type Currency = Balances;
-    type DecentralizedId = sp_core::H160;
+    type DecentralizedId = H160;
     type Hashing = Keccak256;
     type PalletId = DidPalletId;
     type WeightInfo = ();
@@ -145,6 +153,7 @@ impl parami_did::Config for Test {
 
 parameter_types! {
     pub const InitialMintingDeposit: Balance = 1_000_000;
+    pub const InitialMintingLockupPeriod: BlockNumber = 5;
     pub const InitialMintingValueBase: Balance = 1_000_000;
 }
 
@@ -152,6 +161,7 @@ impl parami_nft::Config for Test {
     type Event = Event;
     type Assets = Assets;
     type InitialMintingDeposit = InitialMintingDeposit;
+    type InitialMintingLockupPeriod = InitialMintingLockupPeriod;
     type InitialMintingValueBase = InitialMintingValueBase;
     type Nft = Uniques;
     type StringLimit = StringLimit;
@@ -179,7 +189,7 @@ parameter_types! {
 impl parami_tag::Config for Test {
     type Event = Event;
     type Currency = Balances;
-    type DecentralizedId = DID;
+    type DecentralizedId = H160;
     type SubmissionFee = SubmissionFee;
     type CallOrigin = parami_did::EnsureDid<Self>;
     type ForceOrigin = EnsureRoot<Self::AccountId>;
@@ -188,12 +198,14 @@ impl parami_tag::Config for Test {
 
 parameter_types! {
     pub const AdPalletId: PalletId = PalletId(*b"prm/ad  ");
+    pub const SlotLifetime: BlockNumber = 43200;
 }
 
 impl parami_ad::Config for Test {
     type Event = Event;
     type Assets = Assets;
     type PalletId = AdPalletId;
+    type SlotLifetime = SlotLifetime;
     type Swaps = Swap;
     type Tags = Tag;
     type CallOrigin = parami_did::EnsureDid<Self>;
@@ -202,25 +214,21 @@ impl parami_ad::Config for Test {
 }
 
 pub fn new_test_ext() -> sp_io::TestExternalities {
-    let alice = sr25519::Public([1; 32]);
-    let bob = sr25519::Public([2; 32]);
-    let charlie = sr25519::Public([3; 32]);
-
     let mut t = system::GenesisConfig::default()
         .build_storage::<Test>()
         .unwrap();
 
     pallet_balances::GenesisConfig::<Test> {
-        balances: vec![(alice, 100), (bob, 3_000_000), (charlie, 3_000_000)],
+        balances: vec![(ALICE, 100), (BOB, 3_000_000), (CHARLIE, 3_000_000)],
     }
     .assimilate_storage(&mut t)
     .unwrap();
 
     parami_did::GenesisConfig::<Test> {
         ids: vec![
-            (alice, DID::from_slice(&[0xff; 20]), None),
-            (bob, DID::from_slice(&[0xee; 20]), None),
-            (charlie, DID::from_slice(&[0xdd; 20]), None),
+            (ALICE, DID_ALICE, None),
+            (BOB, DID_BOB, None),
+            (CHARLIE, DID_CHARLIE, None),
         ],
     }
     .assimilate_storage(&mut t)

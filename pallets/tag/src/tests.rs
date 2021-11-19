@@ -8,7 +8,7 @@ fn should_create() {
     new_test_ext().execute_with(|| {
         let alice = sr25519::Public([1; 32]);
 
-        assert_eq!(Balances::free_balance(alice), 100);
+        assert_eq!(Balances::free_balance(&alice), 100);
         assert_eq!(Balances::total_issuance(), 100);
 
         let tag = vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8];
@@ -18,7 +18,7 @@ fn should_create() {
         let maybe_tag = <Metadata<Test>>::get(&tag);
         assert_ne!(maybe_tag, None);
 
-        assert_eq!(Balances::free_balance(alice), 99);
+        assert_eq!(Balances::free_balance(&alice), 99);
         assert_eq!(Balances::total_issuance(), 99);
     });
 }
@@ -44,7 +44,7 @@ fn should_fail_when_insufficient() {
 
         Balances::make_free_balance_be(&bob, 1);
 
-        assert_eq!(Balances::free_balance(bob), 1);
+        assert_eq!(Balances::free_balance(&bob), 1);
         assert_eq!(Balances::total_issuance(), 101);
 
         let tag = vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8];
@@ -57,7 +57,7 @@ fn should_fail_when_insufficient() {
         let maybe_tag = <Metadata<Test>>::get(&tag);
         assert_eq!(maybe_tag, None);
 
-        assert_eq!(Balances::free_balance(bob), 1);
+        assert_eq!(Balances::free_balance(&bob), 1);
         assert_eq!(Balances::total_issuance(), 101);
     });
 }
@@ -89,7 +89,7 @@ fn tags_trait() {
         let hash1 = Tag::key(&tag1);
         let hash2 = Tag::key(&tag2);
 
-        let ad = HashOf::<Test>::default();
+        let ad = <HashOf<Test>>::default();
 
         assert_ok!(Tag::add_tag(&ad, tag1.clone()));
         assert_eq!(Tag::tags_of(&ad), vec![hash1.clone()]);

@@ -1,52 +1,35 @@
 use crate::{mock::*, Deposit, Deposits, Error};
 use frame_support::{assert_noop, assert_ok};
-use sp_core::sr25519;
 
 #[test]
 fn should_back() {
     new_test_ext().execute_with(|| {
-        let bob = sr25519::Public([2; 32]);
-        let charlie = sr25519::Public([3; 32]);
+        let meta = Did::meta(&DID_ALICE).unwrap();
 
-        let did = DID::from_slice(&[0xee; 20]);
-        let kol = DID::from_slice(&[0xff; 20]);
+        assert_ok!(Nft::back(Origin::signed(BOB), DID_ALICE, 50));
 
-        let meta = Did::meta(&kol).unwrap();
+        let deposit = <Deposit<Test>>::get(&DID_ALICE);
+        assert_eq!(deposit, Some(50));
 
-        assert_ok!(Nft::back(Origin::signed(bob), kol, 50));
+        let deposit = <Deposits<Test>>::get(&DID_ALICE, &DID_BOB);
+        assert_eq!(deposit, Some(50));
 
-        let maybe_deposit = <Deposit<Test>>::get(&kol);
-        assert_ne!(maybe_deposit, None);
-        let deposit = maybe_deposit.unwrap();
-        assert_eq!(deposit, 50);
+        assert_eq!(Balances::free_balance(&meta.pot), 50);
 
-        let maybe_deposit = <Deposits<Test>>::get(&kol, &did);
-        assert_ne!(maybe_deposit, None);
-        let deposit = maybe_deposit.unwrap();
-        assert_eq!(deposit, 50);
+        assert_ok!(Nft::back(Origin::signed(CHARLIE), DID_ALICE, 30));
 
-        assert_eq!(Balances::free_balance(meta.pot), 50);
+        let deposit = <Deposit<Test>>::get(&DID_ALICE);
+        assert_eq!(deposit, Some(80));
 
-        assert_ok!(Nft::back(Origin::signed(charlie), kol, 30));
-
-        let maybe_deposit = <Deposit<Test>>::get(&kol);
-        assert_ne!(maybe_deposit, None);
-        let deposit = maybe_deposit.unwrap();
-        assert_eq!(deposit, 80);
-
-        assert_eq!(Balances::free_balance(meta.pot), 80);
+        assert_eq!(Balances::free_balance(&meta.pot), 80);
     });
 }
 
 #[test]
 fn should_fail_when_self() {
     new_test_ext().execute_with(|| {
-        let alice = sr25519::Public([1; 32]);
-
-        let kol = DID::from_slice(&[0xff; 20]);
-
         assert_noop!(
-            Nft::back(Origin::signed(alice), kol, 50),
+            Nft::back(Origin::signed(ALICE), DID_ALICE, 50),
             Error::<Test>::YourSelf
         );
     });
@@ -55,22 +38,17 @@ fn should_fail_when_self() {
 #[test]
 fn should_fail_when_minted() {
     new_test_ext().execute_with(|| {
-        let alice = sr25519::Public([1; 32]);
-        let bob = sr25519::Public([2; 32]);
-
-        let kol = DID::from_slice(&[0xff; 20]);
-
-        assert_ok!(Nft::back(Origin::signed(bob), kol, 2_000_100u128));
+        assert_ok!(Nft::back(Origin::signed(BOB), DID_ALICE, 2_000_100u128));
 
         assert_ok!(Nft::mint(
-            Origin::signed(alice),
+            Origin::signed(ALICE),
             b"Test Token".to_vec(),
             b"XTT".to_vec()
         ));
 
         assert_noop!(
             Nft::mint(
-                Origin::signed(alice),
+                Origin::signed(ALICE),
                 b"Test Token".to_vec(),
                 b"XTT".to_vec()
             ),
@@ -78,7 +56,7 @@ fn should_fail_when_minted() {
         );
 
         assert_noop!(
-            Nft::back(Origin::signed(bob), kol, 50),
+            Nft::back(Origin::signed(BOB), DID_ALICE, 50),
             Error::<Test>::Minted
         );
     });
@@ -87,12 +65,8 @@ fn should_fail_when_minted() {
 #[test]
 fn should_fail_when_insufficient_balance() {
     new_test_ext().execute_with(|| {
-        let bob = sr25519::Public([2; 32]);
-
-        let kol = DID::from_slice(&[0xff; 20]);
-
         assert_noop!(
-            Nft::back(Origin::signed(bob), kol, 3_000_100u128),
+            Nft::back(Origin::signed(BOB), DID_ALICE, 3_000_100u128),
             pallet_balances::Error::<Test>::InsufficientBalance
         );
     });
@@ -101,32 +75,34 @@ fn should_fail_when_insufficient_balance() {
 #[test]
 fn should_mint() {
     new_test_ext().execute_with(|| {
-        let alice = sr25519::Public([1; 32]);
-        let bob = sr25519::Public([2; 32]);
-
-        let kol = DID::from_slice(&[0xff; 20]);
-
-        assert_ok!(Nft::back(Origin::signed(bob), kol, 2_000_100u128));
+        assert_ok!(Nft::back(Origin::signed(BOB), DID_ALICE, 2_000_100u128));
 
         assert_ok!(Nft::mint(
-            Origin::signed(alice),
+            Origin::signed(ALICE),
             b"Test Token".to_vec(),
             b"XTT".to_vec()
         ));
 
-        let meta = Did::meta(&kol).unwrap();
+        let meta = Did::meta(&DID_ALICE).unwrap();
         assert_eq!(meta.nft, Some(0));
+
+        let deposit = <Deposit<Test>>::get(&DID_ALICE);
+        assert_eq!(deposit, Some(2_000_100u128));
+
+        let deposit_bob = <Deposits<Test>>::get(&DID_ALICE, &DID_BOB);
+        assert_eq!(deposit_bob, deposit);
+
+        let deposit_kol = <Deposits<Test>>::get(&DID_ALICE, &DID_ALICE);
+        assert_eq!(deposit_kol, deposit);
     });
 }
 
 #[test]
 fn should_fail_when_insufficient() {
     new_test_ext().execute_with(|| {
-        let alice = sr25519::Public([1; 32]);
-
         assert_noop!(
             Nft::mint(
-                Origin::signed(alice),
+                Origin::signed(ALICE),
                 b"Test Token".to_vec(),
                 b"XTT".to_vec()
             ),
@@ -138,30 +114,34 @@ fn should_fail_when_insufficient() {
 #[test]
 fn should_claim() {
     new_test_ext().execute_with(|| {
-        let alice = sr25519::Public([1; 32]);
-        let bob = sr25519::Public([2; 32]);
-        let charlie = sr25519::Public([3; 32]);
-
-        let kol = DID::from_slice(&[0xff; 20]);
-        let did2 = DID::from_slice(&[0xee; 20]);
-        let did3 = DID::from_slice(&[0xdd; 20]);
-
-        assert_ok!(Nft::back(Origin::signed(bob), kol, 2_000_000u128));
-        assert_ok!(Nft::back(Origin::signed(charlie), kol, 1_000_000u128));
+        assert_ok!(Nft::back(Origin::signed(BOB), DID_ALICE, 2_000_000u128));
+        assert_ok!(Nft::back(Origin::signed(CHARLIE), DID_ALICE, 1_000_000u128));
 
         assert_ok!(Nft::mint(
-            Origin::signed(alice),
+            Origin::signed(ALICE),
             b"Test Token".to_vec(),
             b"XTT".to_vec()
         ));
 
-        assert_ok!(Nft::claim(Origin::signed(bob), kol));
-        assert_ok!(Nft::claim(Origin::signed(charlie), kol));
+        assert_ok!(Nft::claim(Origin::signed(BOB), DID_ALICE));
+        assert_ok!(Nft::claim(Origin::signed(CHARLIE), DID_ALICE));
 
-        assert_eq!(Assets::balance(0, &bob), 666_666);
-        assert_eq!(Assets::balance(0, &charlie), 333_333);
+        assert_eq!(Assets::balance(0, &BOB), 666_666);
+        assert_eq!(Assets::balance(0, &CHARLIE), 333_333);
 
-        assert_eq!(<Deposits<Test>>::get(&kol, &did2), None);
-        assert_eq!(<Deposits<Test>>::get(&kol, &did3), None);
+        assert_eq!(<Deposits<Test>>::get(&DID_ALICE, &DID_BOB), None);
+        assert_eq!(<Deposits<Test>>::get(&DID_ALICE, &DID_CHARLIE), None);
+
+        assert_noop!(
+            Nft::claim(Origin::signed(ALICE), DID_ALICE),
+            Error::<Test>::NoToken
+        );
+
+        System::set_block_number(5);
+
+        assert_ok!(Nft::claim(Origin::signed(ALICE), DID_ALICE));
+
+        assert_eq!(Assets::balance(0, &ALICE), 1_000_000);
+        assert_eq!(<Deposits<Test>>::get(&DID_ALICE, &DID_ALICE), None);
     });
 }

@@ -186,7 +186,7 @@ impl<T: Config + CreateSignedTransaction<Call<T>>> Pallet<T> {
             .map_err(|_| Error::<T>::HttpFetchingError)?;
 
         if response.code != 200 {
-            log::warn!("Unexpected status code: {}", response.code);
+            tracing::warn!("Unexpected status code: {}", response.code);
             return Err(Error::<T>::HttpFetchingError);
         }
 
