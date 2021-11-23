@@ -17,6 +17,15 @@ type Block = system::mocking::MockBlock<Test>;
 type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::AccountId;
 pub type Extrinsic = TestXt<Call, ()>;
 
+pub const ALICE: sr25519::Public = sr25519::Public([1; 32]);
+pub const DID: H160 = H160([
+    0x32, 0xac, 0x79, 0x9d, //
+    0x35, 0xde, 0x72, 0xa2, //
+    0xae, 0x57, 0xa4, 0x6c, //
+    0xa9, 0x75, 0x31, 0x9f, //
+    0xbb, 0xb1, 0x25, 0xa9,
+]);
+
 pub fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
     (0..s.len())
         .step_by(2)
@@ -101,10 +110,8 @@ impl<T: parami_linker::Config> EnsureOrigin<T::Origin> for EnsureDid<T> {
     fn try_origin(o: T::Origin) -> Result<Self::Success, T::Origin> {
         use frame_system::RawOrigin;
 
-        let did = "32ac799d35de72a2ae57a46ca975319fbbb125a9";
-
         o.into().and_then(|o| match o {
-            RawOrigin::Signed(who) => Ok((H160::from_slice(&decode_hex(did).unwrap()), who)),
+            RawOrigin::Signed(who) => Ok((DID, who)),
             r => Err(T::Origin::from(r)),
         })
     }

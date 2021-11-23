@@ -1,5 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
+pub use btc::hashing;
 pub use ocw::images;
 pub use pallet::*;
 
@@ -9,13 +10,13 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+mod btc;
 mod did;
-
+mod impls;
 mod ocw;
-
 mod types;
+mod witness;
 
-use codec::Encode;
 use frame_support::{
     dispatch::{DispatchResult, DispatchResultWithPostInfo},
     ensure,
@@ -28,13 +29,13 @@ use sp_std::prelude::*;
 
 const OFFCHAIN_KEY_TYPE: KeyTypeId = KeyTypeId(*b"lnk!");
 
-macro_rules! is_stask {
+macro_rules! is_task {
     ($profile:expr, $prefix:expr) => {
         $profile.starts_with($prefix) && $profile.last() != Some(&b'/')
     };
 }
 
-pub(crate) use is_stask;
+pub(crate) use is_task;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -129,7 +130,7 @@ pub mod pallet {
         Deadline,
         Exists,
         HttpFetchingError,
-        InvalidETHAddress,
+        InvalidAddress,
         InvalidSignature,
         TaskNotExists,
         UnexpectedAddress,
@@ -138,6 +139,14 @@ pub mod pallet {
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {
+        /// Link a sociality account to a DID
+        ///
+        /// Link will become pending, and will be checked with the offchain worker or a validator
+        ///
+        /// # Arguments
+        ///
+        /// * `site` - Account type
+        /// * `profile` - Profile URL
         #[pallet::weight(1_000_000_000)]
         pub fn link_sociality(
             origin: OriginFor<T>,
@@ -156,7 +165,8 @@ pub mod pallet {
             );
 
             match site {
-                Telegram if is_stask!(profile, b"https://t.me/") => {}
+                Telegram if is_task!(profile, b"https://t.me/") => {}
+                Twitter if is_task!(profile, b"https://twitter.com/") => {}
                 _ => Err(Error::<T>::UnsupportedSite)?,
             };
 
@@ -177,42 +187,42 @@ pub mod pallet {
             Ok(())
         }
 
+        /// Link a cryptographic account to a DID
+        ///
+        ///
+        /// # Arguments
+        ///
+        /// * `crypto` - Account type
+        /// * `address` - Account address
+        ///   * When dealing with BTC, DOT, SOL, TRX, the address should in the format of base58
+        ///   * When dealing with ETH, the address should in the format of binary or hex
+        /// * `signature` - Account signature
+        ///   * When dealing with DOT, SOL, the signature should have a prefix of `0x00`
         #[pallet::weight(1_000_000_000)]
-        pub fn link_eth(
+        pub fn link_crypto(
             origin: OriginFor<T>,
+            crypto: types::AccountType,
             address: Vec<u8>,
             signature: types::Signature,
         ) -> DispatchResult {
             let (did, _) = T::CallOrigin::ensure_origin(origin)?;
 
             ensure!(
-                !<LinksOf<T>>::contains_key(&did, types::AccountType::Ethereum),
+                !<LinksOf<T>>::contains_key(&did, crypto),
                 Error::<T>::Exists
             );
 
-            ensure!(address.len() >= 2, Error::<T>::InvalidETHAddress);
+            ensure!(address.len() >= 2, Error::<T>::InvalidAddress);
 
-            let mut bytes = Self::generate_message(&did);
+            let bytes = Self::generate_message(&did);
 
-            let mut length = Self::usize_to_u8_array(bytes.len())?;
-            let mut data = b"\x19Ethereum Signed Message:\n".encode();
-            data.append(&mut length);
-            data.append(&mut bytes);
-            let hash = sp_io::hashing::keccak_256(&data);
+            let recovered = Self::recover_address(crypto, address.clone(), signature, bytes)?;
 
-            let pubkey = sp_io::crypto::secp256k1_ecdsa_recover(&signature, &hash)
-                .map_err(|_| Error::<T>::InvalidSignature)?;
-            let pk = sp_io::hashing::keccak_256(&pubkey);
+            ensure!(recovered == address, Error::<T>::UnexpectedAddress);
 
-            ensure!(&pk[12..32] == &address, Error::<T>::UnexpectedAddress);
+            <LinksOf<T>>::insert(&did, crypto, address.clone());
 
-            <LinksOf<T>>::insert(&did, types::AccountType::Ethereum, address.clone());
-
-            Self::deposit_event(Event::<T>::AccountLinked(
-                did,
-                types::AccountType::Bitcoin,
-                address,
-            ));
+            Self::deposit_event(Event::<T>::AccountLinked(did, crypto, address));
 
             Ok(())
         }
@@ -296,41 +306,6 @@ pub mod pallet {
                 _ => InvalidTransaction::Call.into(),
             }
         }
-    }
-}
-
-impl<T: Config> Pallet<T> {
-    fn usize_to_u8_array(length: usize) -> Result<Vec<u8>, &'static str> {
-        if length >= 100 {
-            Err("Unexpected message length!")?;
-        }
-
-        let digits = b"0123456789".encode();
-        let tens = length / 10;
-        let ones = length % 10;
-
-        let mut vec_res: Vec<u8> = Vec::new();
-        if tens != 0 {
-            vec_res.push(digits[tens]);
-        }
-        vec_res.push(digits[ones]);
-        Ok(vec_res)
-    }
-
-    pub fn generate_message(did: &T::DecentralizedId) -> Vec<u8> {
-        use base58::ToBase58;
-
-        let mut bytes = b"Link: ".to_vec();
-
-        let did = did.as_ref();
-        let did = did.to_base58();
-        let mut did = did.as_bytes().to_vec();
-
-        let mut prefix = b"did:ad3:".to_vec();
-
-        bytes.append(&mut prefix);
-        bytes.append(&mut did);
-        bytes
     }
 }
 

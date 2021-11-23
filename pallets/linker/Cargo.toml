@@ -27,6 +27,7 @@ version = '2.2.0'
 base58 = '0.2'
 image = { version = '0.23', optional = true }
 log = { version = '0.4', default-features = false }
+ripemd160 = { version = '0.9', optional = true }
 serde = { version = '1.0', optional = true }
 
 [dependencies.frame-benchmarking]
@@ -99,6 +100,7 @@ std = [
     'image',
     'log/std',
     'parami-did/std',
+    'ripemd160',
     'scale-info/std',
     'serde',
     'sp-core/std',

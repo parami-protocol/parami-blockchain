@@ -5,24 +5,28 @@ use serde::{Deserialize, Serialize};
 use sp_runtime::RuntimeDebug;
 use sp_std::prelude::*;
 
-#[derive(Clone, Decode, Encode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
+#[derive(Clone, Copy, Decode, Encode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub enum AccountType {
     /// Unknown account type
     Unknown,
 
+    /// Binance Smart Chain (BSC) Address
+    Binance,
     /// BTC Address
     Bitcoin,
-    /// ETH Address
-    Ethereum,
     /// EOS Address
     Eosio,
-    /// SOL Address
-    Solana,
+    /// ETH Address
+    Ethereum,
     /// Substrate Address on the Kusama (KSM) Network
     Kusama,
     /// Substrate Address on the Polkadot (DOT) Network
     Polkadot,
+    /// SOL Address
+    Solana,
+    /// TRX Address
+    Tron,
 
     /// Telegram Profile
     Telegram,

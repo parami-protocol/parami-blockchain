@@ -1,9 +1,12 @@
-use crate::{did, is_stask, types, Call, Config, Error, Pallet, PendingOf};
+use crate::{did, is_task, types, Call, Config, Error, Pallet, PendingOf};
 use codec::Encode;
 use frame_system::offchain::{CreateSignedTransaction, SubmitTransaction};
 use sp_runtime::offchain::{http, Duration};
 use sp_runtime_interface::runtime_interface;
 use sp_std::prelude::*;
+
+pub const USER_AGENT: &str =
+    "GoogleBot (compatible; ParamiValidator/1.0; +http://parami.io/validator/)";
 
 #[runtime_interface]
 pub trait Images {
@@ -62,9 +65,15 @@ impl<T: Config + CreateSignedTransaction<Call<T>>> Pallet<T> {
                 continue;
             };
 
+            let profile = sp_std::str::from_utf8(&task.profile) //
+                .map_err(|_| Error::<T>::HttpFetchingError)?;
+
             let result = match site {
-                Telegram if is_stask!(task.profile, b"https://t.me/") => {
-                    Self::ocw_link_telegram(did, task.profile.clone())
+                Telegram if is_task!(task.profile, b"https://t.me/") => {
+                    Self::ocw_link_telegram(did, profile)
+                }
+                Twitter if is_task!(task.profile, b"https://twitter.com/") => {
+                    Self::ocw_link_twitter(did, profile)
                 }
                 _ => {
                     // drop unsupported sites
@@ -74,7 +83,7 @@ impl<T: Config + CreateSignedTransaction<Call<T>>> Pallet<T> {
                 }
             };
 
-            if result.is_ok() {
+            if let Ok(()) = result {
                 Self::ocw_submit_link(did, site, task.profile, true);
             }
         }
@@ -98,7 +107,7 @@ impl<T: Config + CreateSignedTransaction<Call<T>>> Pallet<T> {
         let _ = submit_unsigned!(call);
     }
 
-    pub(crate) fn ocw_link_telegram<U: AsRef<[u8]>>(
+    pub(crate) fn ocw_link_telegram<U: AsRef<str>>(
         did: T::DecentralizedId,
         profile: U,
     ) -> Result<(), Error<T>> {
@@ -110,31 +119,63 @@ impl<T: Config + CreateSignedTransaction<Call<T>>> Pallet<T> {
 
         let start = res
             .find("<metaproperty=\"og:image\"content=\"")
+            .ok_or(Error::<T>::HttpFetchingError)?
+            + 33;
+        let end = res[start..]
+            .find("\"")
             .ok_or(Error::<T>::HttpFetchingError)?;
-        let end = res.find(".jpg\"").ok_or(Error::<T>::HttpFetchingError)?;
 
-        let avatar = &res[start + 33..end + 4];
+        let avatar = &res[start..start + end];
 
-        log::info!("telegram avatar uri: {}", avatar);
+        Self::ocw_check_avatar(avatar, did)
+    }
 
+    pub(crate) fn ocw_link_twitter<U: AsRef<str>>(
+        did: T::DecentralizedId,
+        profile: U,
+    ) -> Result<(), Error<T>> {
+        let res = Self::ocw_fetch(profile)?;
+
+        let res = sp_std::str::from_utf8(&res).map_err(|_| Error::<T>::HttpFetchingError)?;
+
+        let res = res.replace(" ", "");
+
+        let start = res
+            .find("<imgclass=\"ProfileAvatar-image\"src=\"")
+            .ok_or(Error::<T>::HttpFetchingError)?
+            + 36;
+        let end = res[start..]
+            .find("\"")
+            .ok_or(Error::<T>::HttpFetchingError)?;
+
+        let avatar = &res[start..start + end];
+
+        Self::ocw_check_avatar(avatar, did)
+    }
+
+    pub(crate) fn ocw_check_avatar<U: AsRef<str>>(
+        avatar: U,
+        did: T::DecentralizedId,
+    ) -> Result<(), Error<T>> {
         let res = Self::ocw_fetch(avatar)?;
 
+        let did = did.encode();
+
         match did::parse(res) {
-            Some(res) if res == did.encode() => Ok(()),
+            Some(res) if res == did => Ok(()),
             _ => Err(Error::<T>::InvalidSignature),
         }
     }
 
-    pub(crate) fn ocw_fetch<U: AsRef<[u8]>>(url: U) -> Result<Vec<u8>, Error<T>> {
+    pub(crate) fn ocw_fetch<U: AsRef<str>>(url: U) -> Result<Vec<u8>, Error<T>> {
         let url = url.as_ref();
-        let url = sp_std::str::from_utf8(url).map_err(|_| Error::<T>::HttpFetchingError)?;
 
         let deadline = sp_io::offchain::timestamp().add(Duration::from_millis(3_000));
 
         let request = http::Request::get(url);
 
         let pending = request
-            .add_header("User-Agent", "ParamiLinker/1.0")
+            .add_header("User-Agent", USER_AGENT)
             .deadline(deadline)
             .send()
             .map_err(|_| Error::<T>::HttpFetchingError)?;
