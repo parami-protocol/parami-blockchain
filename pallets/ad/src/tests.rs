@@ -1,6 +1,10 @@
 use crate::{mock::*, AdsOf, Config, DeadlineOf, Did, Error, Metadata, SlotOf};
-use frame_support::{assert_noop, assert_ok, traits::Hooks};
+use frame_support::{
+    assert_noop, assert_ok,
+    traits::{Currency, Hooks},
+};
 use parami_traits::Tags;
+use sp_core::{sr25519, H160};
 
 #[test]
 fn should_create() {
@@ -417,4 +421,67 @@ fn should_pay() {
             Error::<Test>::Paid
         );
     });
+}
+
+#[test]
+fn should_auto_swap_when_swapped_token_used_up() {
+    new_test_ext().execute_with(|| {
+        // 1. prepare
+
+        assert_ok!(Tag::create(Origin::signed(ALICE), b"Test".to_vec()));
+
+        assert_ok!(Nft::back(Origin::signed(BOB), DID_ALICE, 2_000_100u128));
+
+        assert_ok!(Nft::mint(
+            Origin::signed(ALICE),
+            b"Test Token".to_vec(),
+            b"XTT".to_vec()
+        ));
+
+        // create ad
+
+        assert_ok!(Ad::create(
+            Origin::signed(BOB),
+            500,
+            vec![b"Test".to_vec()],
+            [0u8; 64].into(),
+            1,
+            1
+        ));
+
+        let ad = <Metadata<Test>>::iter_keys().next().unwrap();
+
+        // bid
+
+        assert_ok!(Ad::bid(Origin::signed(BOB), ad, DID_ALICE, 400));
+
+        // 2. pay to 9 users, 5 tokens each
+        let viewer_dids = make_dids(9u8);
+        for viewer_did in &viewer_dids {
+            assert_ok!(Ad::pay(
+                Origin::signed(BOB),
+                ad,
+                DID_ALICE,
+                *viewer_did,
+                vec![(b"Test".to_vec(), 5)],
+                None
+            ));
+        }
+
+        let slot = <SlotOf<Test>>::get(&DID_ALICE).unwrap();
+        assert_eq!(slot.remain, 400 - 40 * 3);
+    });
+}
+
+fn make_dids(num: u8) -> Vec<H160> {
+    let mut res: Vec<H160> = Vec::new();
+    for i in 0..num {
+        let temp_account: sr25519::Public = sr25519::Public([i + 20; 32]);
+
+        <Test as parami_did::Config>::Currency::make_free_balance_be(&temp_account, 2);
+        assert_ok!(Did::<Test>::register(Origin::signed(temp_account), None));
+        let temp_did = Did::<Test>::did_of(temp_account).unwrap();
+        res.push(temp_did);
+    }
+    return res;
 }
