@@ -1,5 +1,5 @@
 use crate::{mock::*, Deposit, Deposits, Error};
-use frame_support::{assert_noop, assert_ok};
+use frame_support::{assert_noop, assert_ok, traits::Hooks};
 
 #[test]
 fn should_back() {
@@ -143,5 +143,46 @@ fn should_claim() {
 
         assert_eq!(Assets::balance(0, &ALICE), 1_000_000);
         assert_eq!(<Deposits<Test>>::get(&DID_ALICE, &DID_ALICE), None);
+    });
+}
+
+#[test]
+fn should_farming() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Nft::back(Origin::signed(BOB), DID_ALICE, 2_000_000u128));
+        assert_ok!(Nft::back(Origin::signed(CHARLIE), DID_ALICE, 1_000_000u128));
+
+        assert_ok!(Nft::mint(
+            Origin::signed(ALICE),
+            b"Test Token".to_vec(),
+            b"XTT".to_vec()
+        ));
+
+        assert_ok!(Nft::claim(Origin::signed(BOB), DID_ALICE));
+        assert_ok!(Nft::claim(Origin::signed(CHARLIE), DID_ALICE));
+
+        assert_ok!(Swap::add_liquidity(
+            Origin::signed(BOB),
+            0,
+            500_000,
+            1,
+            300_000,
+            2
+        ));
+        assert_ok!(Swap::add_liquidity(
+            Origin::signed(CHARLIE),
+            0,
+            400_000,
+            1,
+            300_000,
+            2
+        ));
+
+        System::set_block_number(1);
+
+        Nft::on_initialize(System::block_number());
+
+        assert_eq!(Assets::balance(0, &BOB), 500_000 + 12);
+        assert_eq!(Assets::balance(0, &CHARLIE), 200_000 + 10);
     });
 }

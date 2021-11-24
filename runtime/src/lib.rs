@@ -1194,9 +1194,40 @@ parameter_types! {
     pub const InitialMintingValueBase: Balance = 1_000_000 * DOLLARS;
 }
 
+pub struct FarmingCurve;
+impl parami_nft::FarmingCurve<Runtime> for FarmingCurve {
+    fn calculate_farming_reward(
+        minted_height: BlockNumber,
+        maximum_tokens: Balance,
+        current_height: BlockNumber,
+        started_supply: Balance,
+    ) -> Balance {
+        use core::f64::consts::E;
+
+        // DAYS is the block number of a day
+        const PERIOD: f64 = 3f64 * 365.25f64 * DAYS as f64;
+        const E1: f64 = E - 1f64;
+
+        // Divide[1,x+1]                : y = 1 / (x + 1)
+        // Integrate[y=Divide[1,x+1],x] : y' = log(x + 1)
+        // Log[n+1] = 1                 : y' = 1
+        // n = e - 1
+        //
+        // r = 1 / (x / m * n + 1) / m * n
+        //   = 1 / (x / m * (e - 1) + 1) / m * (e - 1)
+        //   = (e - 1) / (m + (e - 1) x)
+        let x = (current_height - minted_height) as f64;
+
+        let r = E1 / (PERIOD + E1 * x) * 100f64;
+
+        (r as Balance) * (maximum_tokens - started_supply) / 100
+    }
+}
+
 impl parami_nft::Config for Runtime {
     type Event = Event;
     type Assets = Assets;
+    type FarmingCurve = FarmingCurve;
     type InitialMintingDeposit = InitialMintingDeposit;
     type InitialMintingLockupPeriod = InitialMintingLockupPeriod;
     type InitialMintingValueBase = InitialMintingValueBase;

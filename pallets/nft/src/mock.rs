@@ -168,9 +168,22 @@ parameter_types! {
     pub const InitialMintingValueBase: Balance = 1_000_000;
 }
 
+pub struct FarmingCurve;
+impl parami_nft::FarmingCurve<Test> for FarmingCurve {
+    fn calculate_farming_reward(
+        _minted_height: BlockNumber,
+        _maximum_tokens: Balance,
+        _current_height: BlockNumber,
+        _started_supply: Balance,
+    ) -> Balance {
+        100
+    }
+}
+
 impl parami_nft::Config for Test {
     type Event = Event;
     type Assets = Assets;
+    type FarmingCurve = FarmingCurve;
     type InitialMintingDeposit = InitialMintingDeposit;
     type InitialMintingLockupPeriod = InitialMintingLockupPeriod;
     type InitialMintingValueBase = InitialMintingValueBase;

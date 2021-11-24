@@ -1,18 +1,8 @@
-use crate::{mock::*, Config, Error, Metadata};
+use crate::{mock::*, Config, Error, LiquidityOf, Metadata};
 use frame_support::{
     assert_noop, assert_ok,
     traits::{tokens::fungibles::Mutate as FungMutate, Currency},
 };
-
-macro_rules! ensure_balance {
-    ($meta:tt, $quote:expr, $token: expr) => {
-        assert_eq!($meta.quote, $quote);
-        assert_eq!(Balances::free_balance(&$meta.pot), $quote);
-
-        assert_eq!($meta.token, $token);
-        assert_eq!(Assets::balance($meta.token_id, &$meta.pot), $token);
-    };
-}
 
 #[test]
 fn should_create() {
@@ -21,12 +11,12 @@ fn should_create() {
 
         assert_ok!(Swap::create(Origin::signed(ALICE), token));
 
-        let maybe_meta = <Metadata<Test>>::get(token);
+        let maybe_meta = <Metadata<Test>>::get(&token);
         assert_ne!(maybe_meta, None);
 
         let meta = maybe_meta.unwrap();
 
-        assert_eq!(meta.token_id, token);
+        assert_eq!(token, token);
         assert_eq!(
             meta.lp_token_id,
             <Test as Config>::AssetId::max_value() - token
@@ -36,12 +26,12 @@ fn should_create() {
 
         assert_ok!(Swap::create(Origin::signed(ALICE), token));
 
-        let maybe_meta = <Metadata<Test>>::get(token);
+        let maybe_meta = <Metadata<Test>>::get(&token);
         assert_ne!(maybe_meta, None);
 
         let meta = maybe_meta.unwrap();
 
-        assert_eq!(meta.token_id, token);
+        assert_eq!(token, token);
         assert_eq!(
             meta.lp_token_id,
             <Test as Config>::AssetId::max_value() - token
@@ -79,11 +69,12 @@ fn should_add_liquidity() {
             100,
         ));
 
-        let meta = <Metadata<Test>>::get(token).unwrap();
-        ensure_balance!(meta, 200, 20);
+        let meta = <Metadata<Test>>::get(&token).unwrap();
+        assert_eq!(Balances::free_balance(&meta.pot), 200);
+        assert_eq!(Assets::balance(token, &meta.pot), 20);
 
         assert_eq!(Balances::free_balance(&ALICE), 10000 - 200);
-        assert_eq!(Assets::balance(token, &ALICE), 24);
+        assert_eq!(Assets::balance(token, &ALICE), 44 - 20);
         assert_eq!(Assets::balance(meta.lp_token_id, &ALICE), 200);
 
         assert_noop!(
@@ -100,12 +91,16 @@ fn should_add_liquidity() {
             100,
         ));
 
-        let meta = <Metadata<Test>>::get(token).unwrap();
-        ensure_balance!(meta, 300, 30);
+        let meta = <Metadata<Test>>::get(&token).unwrap();
+        assert_eq!(Balances::free_balance(&meta.pot), 300);
+        assert_eq!(Assets::balance(token, &meta.pot), 30);
 
-        assert_eq!(Balances::free_balance(&ALICE), 10000 - 300);
-        assert_eq!(Assets::balance(token, &ALICE), 14);
-        assert_eq!(Assets::balance(meta.lp_token_id, &ALICE), 300);
+        let liquidity = <LiquidityOf<Test>>::get(&token, &ALICE);
+        assert_eq!(liquidity, 300);
+
+        assert_eq!(Balances::free_balance(&ALICE), 10000 - 200 - 100);
+        assert_eq!(Assets::balance(token, &ALICE), 44 - 20 - 10);
+        assert_eq!(Assets::balance(meta.lp_token_id, &ALICE), liquidity);
     });
 }
 
@@ -130,8 +125,9 @@ fn should_remove_liquidity() {
             100,
         ));
 
-        let meta = <Metadata<Test>>::get(token).unwrap();
-        ensure_balance!(meta, 200, 20);
+        let meta = <Metadata<Test>>::get(&token).unwrap();
+        assert_eq!(Balances::free_balance(&meta.pot), 200);
+        assert_eq!(Assets::balance(token, &meta.pot), 20);
 
         assert_noop!(
             Swap::remove_liquidity(Origin::signed(ALICE), token, 0, 0, 0, 100),
@@ -157,12 +153,16 @@ fn should_remove_liquidity() {
             100,
         ));
 
-        let meta = <Metadata<Test>>::get(token).unwrap();
-        ensure_balance!(meta, 0, 0);
+        let meta = <Metadata<Test>>::get(&token).unwrap();
+        assert_eq!(Balances::free_balance(&meta.pot), 0);
+        assert_eq!(Assets::balance(token, &meta.pot), 0);
+
+        let liquidity = <LiquidityOf<Test>>::get(&token, &ALICE);
+        assert_eq!(liquidity, 0);
 
         assert_eq!(Balances::free_balance(&ALICE), 10000);
         assert_eq!(Assets::balance(token, &ALICE), 44);
-        assert_eq!(Assets::balance(meta.lp_token_id, &ALICE), 0);
+        assert_eq!(Assets::balance(meta.lp_token_id, &ALICE), liquidity);
     });
 }
 
@@ -182,8 +182,9 @@ fn should_buy_tokens() {
             100,
         ));
 
-        let meta = <Metadata<Test>>::get(token).unwrap();
-        ensure_balance!(meta, 420, 42);
+        let meta = <Metadata<Test>>::get(&token).unwrap();
+        assert_eq!(Balances::free_balance(&meta.pot), 420);
+        assert_eq!(Assets::balance(token, &meta.pot), 42);
 
         assert_noop!(
             Swap::buy_tokens(Origin::signed(ALICE), token, 17, 200, 100),
@@ -192,11 +193,12 @@ fn should_buy_tokens() {
 
         assert_ok!(Swap::buy_tokens(Origin::signed(ALICE), token, 17, 300, 100));
 
-        let meta = <Metadata<Test>>::get(token).unwrap();
-        ensure_balance!(meta, 420 + 290, 42 - 17);
+        let meta = <Metadata<Test>>::get(&token).unwrap();
+        assert_eq!(Balances::free_balance(&meta.pot), 420 + 290);
+        assert_eq!(Assets::balance(token, &meta.pot), 42 - 17);
 
         assert_eq!(Balances::free_balance(&ALICE), 10000 - 420 - 290);
-        assert_eq!(Assets::balance(token, &ALICE), 2 + 17);
+        assert_eq!(Assets::balance(token, &ALICE), 44 - 42 + 17);
         assert_eq!(Assets::balance(meta.lp_token_id, &ALICE), 420);
     });
 }
@@ -217,8 +219,9 @@ fn should_sell_tokens() {
             100,
         ));
 
-        let meta = <Metadata<Test>>::get(token).unwrap();
-        ensure_balance!(meta, 420, 42);
+        let meta = <Metadata<Test>>::get(&token).unwrap();
+        assert_eq!(Balances::free_balance(&meta.pot), 420);
+        assert_eq!(Assets::balance(token, &meta.pot), 42);
 
         assert_ok!(Assets::mint_into(token, &ALICE, 42));
 
@@ -229,11 +232,12 @@ fn should_sell_tokens() {
 
         assert_ok!(Swap::sell_tokens(Origin::signed(ALICE), token, 20, 1, 100));
 
-        let meta = <Metadata<Test>>::get(token).unwrap();
-        ensure_balance!(meta, 420 - 133, 42 + 20);
+        let meta = <Metadata<Test>>::get(&token).unwrap();
+        assert_eq!(Balances::free_balance(&meta.pot), 420 - 133);
+        assert_eq!(Assets::balance(token, &meta.pot), 42 + 20);
 
         assert_eq!(Balances::free_balance(&ALICE), 10000 - 420 + 133);
-        assert_eq!(Assets::balance(token, &ALICE), 2 + 42 - 20);
+        assert_eq!(Assets::balance(token, &ALICE), 44 - 42 + 42 - 20);
         assert_eq!(Assets::balance(meta.lp_token_id, &ALICE), 420);
     });
 }
@@ -254,11 +258,12 @@ fn should_sell_currency() {
             100,
         ));
 
-        let meta = <Metadata<Test>>::get(token).unwrap();
-        ensure_balance!(meta, 420, 42);
+        let meta = <Metadata<Test>>::get(&token).unwrap();
+        assert_eq!(Balances::free_balance(&meta.pot), 420);
+        assert_eq!(Assets::balance(token, &meta.pot), 42);
 
         assert_noop!(
-            Swap::sell_currency(Origin::signed(ALICE), token, 300, 20, 100),
+            Swap::sell_currency(Origin::signed(ALICE), token, 300, 40, 100),
             Error::<Test>::TooExpensiveTokens
         );
 
@@ -270,11 +275,12 @@ fn should_sell_currency() {
             100
         ));
 
-        let meta = <Metadata<Test>>::get(token).unwrap();
-        ensure_balance!(meta, 420 + 300, 42 - 14);
+        let meta = <Metadata<Test>>::get(&token).unwrap();
+        assert_eq!(Balances::free_balance(&meta.pot), 420 + 300);
+        assert_eq!(Assets::balance(token, &meta.pot), 42 - 14);
 
         assert_eq!(Balances::free_balance(&ALICE), 10000 - 420 - 300);
-        assert_eq!(Assets::balance(token, &ALICE), 2 + 14);
+        assert_eq!(Assets::balance(token, &ALICE), 44 - 42 + 14);
         assert_eq!(Assets::balance(meta.lp_token_id, &ALICE), 420);
     });
 }
@@ -295,8 +301,9 @@ fn should_buy_currency() {
             100,
         ));
 
-        let meta = <Metadata<Test>>::get(token).unwrap();
-        ensure_balance!(meta, 420, 42);
+        let meta = <Metadata<Test>>::get(&token).unwrap();
+        assert_eq!(Balances::free_balance(&meta.pot), 420);
+        assert_eq!(Assets::balance(token, &meta.pot), 42);
 
         assert_ok!(Assets::mint_into(token, &ALICE, 42));
 
@@ -313,11 +320,12 @@ fn should_buy_currency() {
             100
         ));
 
-        let meta = <Metadata<Test>>::get(token).unwrap();
-        ensure_balance!(meta, 420 - 135, 42 + 22);
+        let meta = <Metadata<Test>>::get(&token).unwrap();
+        assert_eq!(Balances::free_balance(&meta.pot), 420 - 135);
+        assert_eq!(Assets::balance(token, &meta.pot), 42 + 22);
 
         assert_eq!(Balances::free_balance(&ALICE), 10000 - 420 + 135);
-        assert_eq!(Assets::balance(token, &ALICE), 2 + 42 - 22);
+        assert_eq!(Assets::balance(token, &ALICE), 44 - 42 + 42 - 22);
         assert_eq!(Assets::balance(meta.lp_token_id, &ALICE), 420);
     });
 }

@@ -6,6 +6,7 @@ use sp_runtime::{
     },
     DispatchError,
 };
+use sp_std::boxed::Box;
 
 pub trait Swaps {
     type AccountId: Parameter + Member + MaybeSerializeDeserialize + Ord + Default + MaxEncodedLen;
@@ -28,7 +29,17 @@ pub trait Swaps {
         + MaxEncodedLen
         + UniqueSaturatedInto<Self::QuoteBalance>;
 
-    /// create new swap pair
+    /// Iterate over the swaps
+    fn iter() -> Box<dyn Iterator<Item = (Self::AssetId, Self::AssetId, Self::AccountId)>>;
+
+    /// Iterate over the holders
+    ///
+    /// # Arguments
+    ///
+    /// * `token_id` - The Asset ID
+    fn iter_holder(token_id: Self::AssetId) -> Box<dyn Iterator<Item = Self::AccountId>>;
+
+    /// Create new swap pair
     ///
     /// # Arguments
     ///

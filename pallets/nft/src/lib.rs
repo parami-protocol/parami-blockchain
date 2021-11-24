@@ -20,19 +20,24 @@ use frame_support::{
     traits::{
         tokens::{
             fungibles::{
-                metadata::Mutate as FungMetaMutate, Create as FungCreate, Mutate as FungMutate,
-                Transfer as FungTransfer,
+                metadata::Mutate as FungMetaMutate, Create as FungCreate, Inspect as FungInspect,
+                Mutate as FungMutate, Transfer as FungTransfer,
             },
             nonfungibles::{Create as NftCreate, Mutate as NftMutate},
         },
         Currency, EnsureOrigin,
         ExistenceRequirement::KeepAlive,
+        Get,
     },
+    weights::Weight,
 };
 use parami_did::{EnsureDid, Pallet as Did};
 use parami_traits::Swaps;
 use sp_core::U512;
-use sp_runtime::traits::{Bounded, CheckedAdd, One, Saturating};
+use sp_runtime::{
+    traits::{Bounded, CheckedAdd, One, Saturating},
+    DispatchError,
+};
 use sp_std::{
     convert::{TryFrom, TryInto},
     prelude::*,
@@ -43,6 +48,23 @@ use weights::WeightInfo;
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> = <<T as parami_did::Config>::Currency as Currency<AccountOf<T>>>::Balance;
 type HeightOf<T> = <T as frame_system::Config>::BlockNumber;
+
+pub trait FarmingCurve<T: Config> {
+    /// Calculate the farming value for a given block height
+    ///
+    /// # Arguments
+    ///
+    /// * `minted_height` - The block number of the initial minting
+    /// * `maximum_tokens` - the maximum amount of tokens
+    /// * `current_height` - the block number of current block
+    /// * `started_supply` - the tokens amount of the initial minting
+    fn calculate_farming_reward(
+        minted_height: HeightOf<T>,
+        maximum_tokens: BalanceOf<T>,
+        current_height: HeightOf<T>,
+        started_supply: BalanceOf<T>,
+    ) -> BalanceOf<T>;
+}
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -62,6 +84,9 @@ pub mod pallet {
             + FungMutate<AccountOf<Self>, AssetId = Self::AssetId, Balance = BalanceOf<Self>>
             + FungTransfer<AccountOf<Self>, AssetId = Self::AssetId, Balance = BalanceOf<Self>>;
 
+        /// The curve for seasoned orffering
+        type FarmingCurve: FarmingCurve<Self>;
+
         /// The ICO baseline of donation for currency
         #[pallet::constant]
         type InitialMintingDeposit: Get<BalanceOf<Self>>;
@@ -72,6 +97,7 @@ pub mod pallet {
 
         /// The ICO value base of fragments, system will mint triple of the value
         /// once for KOL, once to swaps, once to supporters
+        /// The maximum value of fragments is decuple of this value
         #[pallet::constant]
         type InitialMintingValueBase: Get<BalanceOf<Self>>;
 
@@ -125,7 +151,7 @@ pub mod pallet {
     /// Initial Minting date
     #[pallet::storage]
     #[pallet::getter(fn date)]
-    pub(super) type Date<T: Config> = StorageMap<_, Identity, T::DecentralizedId, HeightOf<T>>;
+    pub(super) type Date<T: Config> = StorageMap<_, Twox64Concat, T::AssetId, HeightOf<T>>;
 
     /// Next available class ID
     #[pallet::storage]
@@ -151,7 +177,14 @@ pub mod pallet {
     }
 
     #[pallet::hooks]
-    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+        fn on_initialize(n: HeightOf<T>) -> Weight {
+            Self::begin_block_for_farming_reward(n).unwrap_or_else(|e| {
+                sp_runtime::print(e);
+                0
+            })
+        }
+    }
 
     #[pallet::error]
     pub enum Error<T> {
@@ -276,7 +309,7 @@ pub mod pallet {
 
             Did::<T>::set_meta(&did, meta);
 
-            <Date<T>>::insert(&did, minted);
+            <Date<T>>::insert(&cid, minted);
 
             <Deposits<T>>::mutate(&did, &did, |maybe| {
                 *maybe = Some(deposit);
@@ -294,17 +327,17 @@ pub mod pallet {
 
             let height = <frame_system::Pallet<T>>::block_number();
 
-            if kol == did {
-                let minted = <Date<T>>::get(&kol).ok_or(Error::<T>::NotExists)?;
-                ensure!(
-                    height - minted >= T::InitialMintingLockupPeriod::get(),
-                    Error::<T>::NoToken
-                );
-            }
-
             let meta = Did::<T>::meta(&kol).ok_or(Error::<T>::NotExists)?;
 
             let cid = meta.nft.ok_or(Error::<T>::NotExists)?;
+
+            if kol == did {
+                let minted_block_number = <Date<T>>::get(&cid).ok_or(Error::<T>::NotExists)?;
+                ensure!(
+                    height - minted_block_number >= T::InitialMintingLockupPeriod::get(),
+                    Error::<T>::NoToken
+                );
+            }
 
             let total = <Deposit<T>>::get(&kol).ok_or(Error::<T>::NotExists)?;
             let deposit = <Deposits<T>>::get(&kol, &did).ok_or(Error::<T>::NoToken)?;
@@ -330,6 +363,7 @@ pub mod pallet {
 
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
+        pub next_cid: T::AssetId,
         pub deposit: Vec<(T::DecentralizedId, BalanceOf<T>)>,
         pub deposits: Vec<(T::DecentralizedId, T::DecentralizedId, BalanceOf<T>)>,
     }
@@ -340,6 +374,7 @@ pub mod pallet {
             Self {
                 deposit: Default::default(),
                 deposits: Default::default(),
+                next_cid: Default::default(),
             }
         }
     }
@@ -347,6 +382,8 @@ pub mod pallet {
     #[pallet::genesis_build]
     impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
         fn build(&self) {
+            <NextClassId<T>>::put(self.next_cid);
+
             for (kol, deposit) in &self.deposit {
                 <Deposit<T>>::insert(kol, deposit);
             }
@@ -359,6 +396,56 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
+    fn begin_block_for_farming_reward(now: HeightOf<T>) -> Result<Weight, DispatchError> {
+        let weight = 1_000_000_000;
+
+        // TODO: weight benchmark
+
+        let initial = T::InitialMintingValueBase::get();
+
+        let started = initial.saturating_mul(3u32.into());
+        let maximum = initial.saturating_mul(10u32.into());
+
+        for swap in T::Swaps::iter() {
+            let token_id = swap.0;
+            let lp_token_id = swap.1;
+
+            let minted_block_number = <Date<T>>::get(&token_id);
+            if minted_block_number.is_none() {
+                continue;
+            }
+            let minted_block_number = minted_block_number.unwrap();
+
+            let amount = T::FarmingCurve::calculate_farming_reward(
+                minted_block_number,
+                maximum,
+                now,
+                started,
+            );
+
+            let amount = if amount < maximum { amount } else { maximum };
+
+            let liquidity = T::Assets::total_issuance(lp_token_id);
+
+            let amount: U512 = Self::try_into(amount)?;
+            let liquidity: U512 = Self::try_into(liquidity)?;
+
+            for holder in T::Swaps::iter_holder(token_id) {
+                let hold = T::Assets::balance(lp_token_id, &holder);
+
+                let hold: U512 = Self::try_into(hold)?;
+
+                let value = amount * hold / liquidity;
+
+                let value = Self::try_into(value)?;
+
+                T::Assets::mint_into(token_id, &holder, value)?;
+            }
+        }
+
+        Ok(weight)
+    }
+
     fn try_into<S, D>(value: S) -> Result<D, Error<T>>
     where
         S: TryInto<u128>,
