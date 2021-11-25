@@ -1,15 +1,15 @@
 use crate as parami_linker;
-use frame_support::{parameter_types, traits::EnsureOrigin};
-use frame_system::{self as system};
+use frame_support::{parameter_types, traits::GenesisBuild, PalletId};
+use frame_system::{self as system, EnsureRoot};
 use sp_core::{
     sr25519::{self, Signature},
     H160, H256,
 };
 use sp_runtime::{
     testing::{Header, TestXt},
-    traits::{BlakeTwo256, Extrinsic as ExtrinsicT, IdentifyAccount, IdentityLookup, Verify},
+    traits::{BlakeTwo256, Extrinsic as ExtrinsicT, IdentifyAccount, Keccak256, Verify},
 };
-use sp_std::{marker::PhantomData, num::ParseIntError};
+use sp_std::num::ParseIntError;
 
 type UncheckedExtrinsic = system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = system::mocking::MockBlock<Test>;
@@ -18,7 +18,8 @@ type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::AccountId;
 pub type Extrinsic = TestXt<Call, ()>;
 
 pub const ALICE: sr25519::Public = sr25519::Public([1; 32]);
-pub const DID: H160 = H160([
+
+pub const DID_ALICE: H160 = H160([
     0x32, 0xac, 0x79, 0x9d, //
     0x35, 0xde, 0x72, 0xa2, //
     0xae, 0x57, 0xa4, 0x6c, //
@@ -40,10 +41,16 @@ frame_support::construct_runtime!(
         UncheckedExtrinsic = UncheckedExtrinsic,
     {
         System: system::{Pallet, Call, Config, Storage, Event<T>},
+        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 
+        Did: parami_did::{Pallet, Call, Storage, Config<T>, Event<T>},
+        Tag: parami_tag::{Pallet, Call, Storage, Config<T>, Event<T>},
         Linker: parami_linker::{Pallet, Call, Storage, Config<T>, Event<T>},
     }
 );
+
+type AssetId = u64;
+type Balance = u128;
 
 parameter_types! {
     pub const BlockHashCount: u64 = 250;
@@ -62,13 +69,13 @@ impl system::Config for Test {
     type Hash = H256;
     type Hashing = BlakeTwo256;
     type AccountId = sr25519::Public;
-    type Lookup = IdentityLookup<Self::AccountId>;
+    type Lookup = Did;
     type Header = Header;
     type Event = Event;
     type BlockHashCount = BlockHashCount;
     type Version = ();
     type PalletInfo = PalletInfo;
-    type AccountData = ();
+    type AccountData = pallet_balances::AccountData<Balance>;
     type OnNewAccount = ();
     type OnKilledAccount = ();
     type SystemWeightInfo = ();
@@ -103,36 +110,86 @@ impl frame_system::offchain::SigningTypes for Test {
     type Signature = Signature;
 }
 
-pub struct EnsureDid<T>(PhantomData<T>);
-impl<T: parami_linker::Config> EnsureOrigin<T::Origin> for EnsureDid<T> {
-    type Success = (H160, T::AccountId);
+parameter_types! {
+    pub const ExistentialDeposit: Balance = 1;
+    pub const MaxLocks: u32 = 50;
+    pub const MaxReserves: u32 = 50;
+}
 
-    fn try_origin(o: T::Origin) -> Result<Self::Success, T::Origin> {
-        use frame_system::RawOrigin;
+impl pallet_balances::Config for Test {
+    type Balance = Balance;
+    type DustRemoval = ();
+    type Event = Event;
+    type ExistentialDeposit = ExistentialDeposit;
+    type AccountStore = System;
+    type WeightInfo = ();
+    type MaxLocks = MaxLocks;
+    type MaxReserves = MaxReserves;
+    type ReserveIdentifier = [u8; 8];
+}
 
-        o.into().and_then(|o| match o {
-            RawOrigin::Signed(who) => Ok((DID, who)),
-            r => Err(T::Origin::from(r)),
-        })
-    }
+parameter_types! {
+    pub const DidPalletId: PalletId = PalletId(*b"prm/did ");
+}
+
+impl parami_did::Config for Test {
+    type Event = Event;
+    type AssetId = AssetId;
+    type Currency = Balances;
+    type DecentralizedId = H160;
+    type Hashing = Keccak256;
+    type PalletId = DidPalletId;
+    type WeightInfo = ();
+}
+
+parameter_types! {
+    pub const SubmissionFee: Balance = 1;
+}
+
+impl parami_tag::Config for Test {
+    type Event = Event;
+    type Currency = Balances;
+    type DecentralizedId = H160;
+    type SubmissionFee = SubmissionFee;
+    type CallOrigin = parami_did::EnsureDid<Self>;
+    type ForceOrigin = EnsureRoot<Self::AccountId>;
+    type WeightInfo = ();
 }
 
 parameter_types! {
     pub const PendingLifetime: u64 = 5;
     pub const UnsignedPriority: u64 = 3;
+    pub const MinimumDeposit: Balance = 10;
+    pub const LinkerPalletId: PalletId = PalletId(*b"prm/link");
 }
 
 impl parami_linker::Config for Test {
     type Event = Event;
-    type DecentralizedId = H160;
+    type ForceOrigin = EnsureRoot<Self::AccountId>;
+    type MinimumDeposit = MinimumDeposit;
+    type PalletId = LinkerPalletId;
     type PendingLifetime = PendingLifetime;
+    type Slash = ();
+    type Tags = Tag;
     type UnsignedPriority = UnsignedPriority;
-    type CallOrigin = EnsureDid<Self>;
 }
 
 pub fn new_test_ext() -> sp_io::TestExternalities {
-    system::GenesisConfig::default()
+    let mut t = system::GenesisConfig::default()
         .build_storage::<Test>()
-        .unwrap()
-        .into()
+        .unwrap();
+
+    pallet_balances::GenesisConfig::<Test> {
+        balances: vec![(ALICE, 100)],
+    }
+    .assimilate_storage(&mut t)
+    .unwrap();
+
+    parami_did::GenesisConfig::<Test> {
+        ids: vec![(ALICE, DID_ALICE, None)],
+    }
+    .assimilate_storage(&mut t)
+    .unwrap();
+
+    t.into()
 }

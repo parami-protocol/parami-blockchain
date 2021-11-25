@@ -1,7 +1,15 @@
-use crate::{mock::*, ocw::USER_AGENT, types::AccountType, Config, Error, LinksOf, PendingOf};
+use crate::{
+    mock::*, ocw::USER_AGENT, types::AccountType, Config, Error, LinksOf, PendingOf, Registrar,
+};
 use codec::Decode;
 use frame_support::{assert_noop, assert_ok, traits::Hooks};
 use sp_core::offchain::{testing, OffchainWorkerExt, TransactionPoolExt};
+
+macro_rules! assert_ok_eq {
+    ($left:expr, $right:expr) => {
+        assert_eq!($left.ok(), Some($right));
+    };
+}
 
 macro_rules! assert_tx {
     ($tx:tt, $call:expr) => {
@@ -13,13 +21,12 @@ macro_rules! assert_tx {
     };
 }
 
+const MESSAGE: &[u8] = b"Link: did:ad3:hwtGPq42GojPtyx5ngtSRSpJfjN";
+
 #[test]
 fn should_generate_message() {
     new_test_ext().execute_with(|| {
-        assert_eq!(
-            Linker::generate_message(&DID),
-            b"Link: did:ad3:hwtGPq42GojPtyx5ngtSRSpJfjN".to_vec()
-        );
+        assert_eq!(Linker::generate_message(&DID_ALICE), MESSAGE.to_vec());
     });
 }
 
@@ -60,14 +67,14 @@ fn should_submit() {
     t.register_extension(TransactionPoolExt::new(pool));
 
     t.execute_with(|| {
-        Linker::ocw_submit_link(DID, AccountType::Unknown, Vec::<u8>::new(), false);
+        Linker::ocw_submit_link(DID_ALICE, AccountType::Unknown, Vec::<u8>::new(), false);
 
         let tx = state.write().transactions.pop().unwrap();
 
         assert_tx!(
             tx,
-            Call::Linker(crate::Call::submit_link_unsigned {
-                did: DID,
+            Call::Linker(crate::Call::submit_link {
+                did: DID_ALICE,
                 site: AccountType::Unknown,
                 profile: Vec::<u8>::new(),
                 ok: false,
@@ -79,15 +86,8 @@ fn should_submit() {
 }
 
 #[test]
-fn should_link_telegram() {
-    const HTM: &[u8] = include_bytes!("../artifacts/telegram.html");
-    const JPG: &[u8] = include_bytes!("../artifacts/did.jpg");
-
-    let htm = HTM.to_vec();
-    let jpg = JPG.to_vec();
-
+fn should_link_sociality() {
     let profile: String = "https://t.me/AmeliaParami".into();
-    let avatar: String = "https://cdn5.telesco.pe/file/did.jpg".into();
 
     let (offchain, state) = testing::TestOffchainExt::new();
     let (pool, tx) = testing::TestTransactionPoolExt::new();
@@ -98,15 +98,7 @@ fn should_link_telegram() {
             method: "GET".into(),
             uri: profile.clone(),
             headers: vec![("User-Agent".into(), USER_AGENT.into())],
-            response: Some(htm),
-            sent: true,
-            ..Default::default()
-        });
-        state.expect_request(testing::PendingRequest {
-            method: "GET".into(),
-            uri: avatar.clone(),
-            headers: vec![("User-Agent".into(), USER_AGENT.into())],
-            response: Some(jpg),
+            response: Some(Vec::new()),
             sent: true,
             ..Default::default()
         });
@@ -125,41 +117,43 @@ fn should_link_telegram() {
             profile.clone(),
         ));
 
-        let maybe_link = <PendingOf<Test>>::get(&DID, AccountType::Telegram);
-        assert_ne!(maybe_link, None);
-        let link = maybe_link.unwrap();
-        assert_eq!(link.profile, profile.clone());
-        assert_eq!(link.deadline, <Test as Config>::PendingLifetime::get());
+        let maybe_pending = <PendingOf<Test>>::get(&AccountType::Telegram, &DID_ALICE);
+        assert_ne!(maybe_pending, None);
+
+        let pending = maybe_pending.unwrap();
+        assert_eq!(pending.profile, profile);
+        assert_eq!(pending.deadline, <Test as Config>::PendingLifetime::get());
 
         Linker::offchain_worker(0);
+
+        Linker::offchain_worker(5);
 
         let tx = tx.write().transactions.pop().unwrap();
 
         assert_tx!(
             tx,
-            Call::Linker(crate::Call::submit_link_unsigned {
-                did: DID,
+            Call::Linker(crate::Call::submit_link {
+                did: DID_ALICE,
                 site: AccountType::Telegram,
-                profile,
-                ok: true,
+                profile: Vec::new(),
+                ok: false,
             })
         );
     });
 }
 
 #[test]
-fn should_link_twitter() {
-    const HTM: &[u8] = include_bytes!("../artifacts/twitter.html");
+fn should_verify_telegram() {
+    const HTM: &[u8] = include_bytes!("../artifacts/telegram.html");
     const JPG: &[u8] = include_bytes!("../artifacts/did.jpg");
 
     let htm = HTM.to_vec();
     let jpg = JPG.to_vec();
 
-    let profile: String = "https://twitter.com/ParamiProtocol".into();
-    let avatar: String = "https://pbs.twimg.com/profile_images/1380053132760125441/did.jpg".into();
+    let profile: String = "https://t.me/AmeliaParami".into();
+    let avatar: String = "https://cdn5.telesco.pe/file/did.jpg".into();
 
     let (offchain, state) = testing::TestOffchainExt::new();
-    let (pool, tx) = testing::TestTransactionPoolExt::new();
 
     {
         let mut state = state.write();
@@ -181,43 +175,77 @@ fn should_link_twitter() {
         });
     }
 
-    let profile = profile.as_bytes().to_vec();
+    let mut t = new_test_ext();
+    t.register_extension(OffchainWorkerExt::new(offchain));
+
+    t.execute_with(|| {
+        assert_ok!(Linker::ocw_verify_telegram(DID_ALICE, profile));
+    });
+}
+
+#[test]
+fn should_verify_twitter() {
+    const HTM: &[u8] = include_bytes!("../artifacts/twitter.html");
+    const JPG: &[u8] = include_bytes!("../artifacts/did.jpg");
+
+    let htm = HTM.to_vec();
+    let jpg = JPG.to_vec();
+
+    let profile: String = "https://twitter.com/ParamiProtocol".into();
+    let avatar: String = "https://pbs.twimg.com/profile_images/1380053132760125441/did.jpg".into();
+
+    let (offchain, state) = testing::TestOffchainExt::new();
+
+    {
+        let mut state = state.write();
+        state.expect_request(testing::PendingRequest {
+            method: "GET".into(),
+            uri: profile.clone(),
+            headers: vec![("User-Agent".into(), USER_AGENT.into())],
+            response: Some(htm),
+            sent: true,
+            ..Default::default()
+        });
+        state.expect_request(testing::PendingRequest {
+            method: "GET".into(),
+            uri: avatar.clone(),
+            headers: vec![("User-Agent".into(), USER_AGENT.into())],
+            response: Some(jpg),
+            sent: true,
+            ..Default::default()
+        });
+    }
 
     let mut t = new_test_ext();
     t.register_extension(OffchainWorkerExt::new(offchain));
-    t.register_extension(TransactionPoolExt::new(pool));
 
     t.execute_with(|| {
-        assert_ok!(Linker::link_sociality(
+        assert_ok!(Linker::ocw_verify_twitter(DID_ALICE, profile));
+    });
+}
+
+#[test]
+fn should_link_crypto() {
+    new_test_ext().execute_with(|| {
+        let address = vec![0u8; 20];
+        let signature = [0u8; 65];
+
+        assert_ok!(Linker::link_crypto(
             Origin::signed(ALICE),
-            AccountType::Twitter,
-            profile.clone(),
+            AccountType::Unknown,
+            address.clone(),
+            signature,
         ));
 
-        let maybe_link = <PendingOf<Test>>::get(&DID, AccountType::Twitter);
-        assert_ne!(maybe_link, None);
-        let link = maybe_link.unwrap();
-        assert_eq!(link.profile, profile.clone());
-        assert_eq!(link.deadline, <Test as Config>::PendingLifetime::get());
-
-        Linker::offchain_worker(0);
-
-        let tx = tx.write().transactions.pop().unwrap();
-
-        assert_tx!(
-            tx,
-            Call::Linker(crate::Call::submit_link_unsigned {
-                did: DID,
-                site: AccountType::Twitter,
-                profile,
-                ok: true,
-            })
+        assert_eq!(
+            <LinksOf<Test>>::get(&DID_ALICE, &AccountType::Unknown),
+            Some(address)
         );
     });
 }
 
 #[test]
-fn should_link_btc() {
+fn should_recover_btc() {
     new_test_ext().execute_with(|| {
         // PK: 5KYZdUEo39z3FPrtuX2QbbwGnNP5zTd7yyr2SC1j299sBCnWjss
         let address = b"1F3sAm6ZtwLAUnj7d38pGFxtP3RVEvtsbV".to_vec();
@@ -228,22 +256,17 @@ fn should_link_btc() {
         let mut sig = [0u8; 65];
         sig.copy_from_slice(&signature);
 
-        assert_ok!(Linker::link_crypto(
-            Origin::signed(ALICE),
+        assert_ok_eq!(Linker::recover_address(
             AccountType::Bitcoin,
             address.clone(),
             sig,
-        ));
-
-        assert_eq!(
-            <LinksOf<Test>>::get(&DID, AccountType::Bitcoin),
-            Some(address)
-        );
+            MESSAGE.to_vec()
+        ), address);
     });
 }
 
 #[test]
-fn should_link_btc_segwit() {
+fn should_recover_btc_segwit() {
     new_test_ext().execute_with(|| {
         // PK: p2wpkh:Kzbv1fJbGs24LpWjdPNgvtBEdkVF9w1urLiqbfrvTt2YGqQS6SSC
         let address = b"bc1qug9quswyl8pxalrfudfr9p34mmjvj2f6tx6f0k".to_vec();
@@ -254,22 +277,17 @@ fn should_link_btc_segwit() {
         let mut sig = [0u8; 65];
         sig.copy_from_slice(&signature);
 
-        assert_ok!(Linker::link_crypto(
-            Origin::signed(ALICE),
+        assert_ok_eq!(Linker::recover_address(
             AccountType::Bitcoin,
             address.clone(),
             sig,
-        ));
-
-        assert_eq!(
-            <LinksOf<Test>>::get(&DID, AccountType::Bitcoin),
-            Some(address)
-        );
+            MESSAGE.to_vec()
+        ), address);
     });
 }
 
 #[test]
-fn should_link_dot() {
+fn should_recover_dot() {
     new_test_ext().execute_with(|| {
         // URI: //Alice
         let address = b"5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY".to_vec();
@@ -280,19 +298,17 @@ fn should_link_dot() {
         let mut sig = [0u8; 65];
         sig.copy_from_slice(&signature);
 
-        assert_ok!(Linker::link_crypto(
-            Origin::signed(ALICE),
+        assert_ok_eq!(Linker::recover_address(
             AccountType::Polkadot,
             address.clone(),
             sig,
-        ));
-
-        assert_eq!(<LinksOf<Test>>::get(&DID, AccountType::Polkadot), Some(address));
+            MESSAGE.to_vec()
+        ), address);
     });
 }
 
 #[test]
-fn should_link_eth() {
+fn should_recover_eth() {
     new_test_ext().execute_with(|| {
         // PK: b63a08b47e2476870812e98896d696c6662018091f34f537e29359270c98d474
         let address = "a42e6A7529BC92011B1ffac36B451C485aa2DfaC";
@@ -304,19 +320,17 @@ fn should_link_eth() {
         let mut sig = [0u8; 65];
         sig.copy_from_slice(&signature);
 
-        assert_ok!(Linker::link_crypto(
-            Origin::signed(ALICE),
+        assert_ok_eq!(Linker::recover_address(
             AccountType::Ethereum,
             address.clone(),
             sig,
-        ));
-
-        assert_eq!(<LinksOf<Test>>::get(&DID, AccountType::Ethereum), Some(address));
+            MESSAGE.to_vec()
+        ), address);
     });
 }
 
 #[test]
-fn should_link_sol() {
+fn should_recover_sol() {
     new_test_ext().execute_with(|| {
         // PK: 4c696e6b3a206469643a6164333a6877744750713432476f6a50747978356e6774535253704a666a4e
         let address = b"2q7pyhPwAwZ3QMfZrnAbDhnh9mDUqycszcpf86VgQxhF".to_vec();
@@ -327,19 +341,17 @@ fn should_link_sol() {
         let mut sig = [0u8; 65];
         sig.copy_from_slice(&signature);
 
-        assert_ok!(Linker::link_crypto(
-            Origin::signed(ALICE),
+        assert_ok_eq!(Linker::recover_address(
             AccountType::Solana,
             address.clone(),
             sig,
-        ));
-
-        assert_eq!(<LinksOf<Test>>::get(&DID, AccountType::Solana), Some(address));
+            MESSAGE.to_vec()
+        ), address);
     });
 }
 
 #[test]
-fn should_link_trx() {
+fn should_recover_trx() {
     new_test_ext().execute_with(|| {
         // PK: da146374a75310b9666e834ee4ad0866d6f4035967bfc76217c5a495fff9f0d0
         let address = b"TPL66VK2gCXNCD7EJg9pgJRfqcRazjhUZY".to_vec();
@@ -350,13 +362,98 @@ fn should_link_trx() {
         let mut sig = [0u8; 65];
         sig.copy_from_slice(&signature);
 
-        assert_ok!(Linker::link_crypto(
-            Origin::signed(ALICE),
+        assert_ok_eq!(Linker::recover_address(
             AccountType::Tron,
             address.clone(),
             sig,
+            MESSAGE.to_vec()
+        ), address);
+    });
+}
+
+#[test]
+fn should_deposit() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Linker::deposit(Origin::signed(ALICE), 10));
+
+        assert_eq!(Balances::free_balance(&ALICE), 90);
+        assert_eq!(Balances::reserved_balance(ALICE), 10);
+    });
+}
+
+#[test]
+fn should_trust() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Linker::deposit(Origin::signed(ALICE), 10));
+
+        assert_ok!(Linker::force_trust(Origin::root(), DID_ALICE));
+
+        assert_eq!(<Registrar<Test>>::get(&DID_ALICE), Some(true));
+    });
+}
+
+#[test]
+fn should_block() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Linker::deposit(Origin::signed(ALICE), 10));
+
+        assert_ok!(Linker::force_trust(Origin::root(), DID_ALICE));
+
+        assert_ok!(Linker::force_block(Origin::root(), DID_ALICE));
+
+        assert_eq!(<Registrar<Test>>::get(&DID_ALICE), Some(false));
+
+        assert_eq!(Balances::free_balance(&ALICE), 90);
+        assert_eq!(Balances::reserved_balance(ALICE), 0);
+
+        assert_noop!(
+            Linker::deposit(Origin::signed(ALICE), 10),
+            Error::<Test>::Blocked
+        );
+    });
+}
+
+#[test]
+fn should_link_via_registrar() {
+    new_test_ext().execute_with(|| {
+        let profile = b"https://mastodon.social/@ParamiProtocol".to_vec();
+
+        assert_noop!(
+            Linker::submit_link(
+                Origin::signed(ALICE),
+                DID_ALICE,
+                AccountType::Mastodon,
+                profile.clone(),
+                true
+            ),
+            Error::<Test>::Blocked
+        );
+
+        assert_ok!(Linker::deposit(Origin::signed(ALICE), 10));
+
+        assert_ok!(Linker::force_trust(Origin::root(), DID_ALICE));
+
+        assert_eq!(<Registrar<Test>>::get(&DID_ALICE), Some(true));
+
+        assert_ok!(Linker::link_sociality(
+            Origin::signed(ALICE),
+            AccountType::Mastodon,
+            profile.clone(),
         ));
 
-        assert_eq!(<LinksOf<Test>>::get(&DID, AccountType::Tron), Some(address));
+        assert_ok!(Linker::submit_link(
+            Origin::signed(ALICE),
+            DID_ALICE,
+            AccountType::Mastodon,
+            profile.clone(),
+            true
+        ));
+
+        assert_ok!(Linker::submit_score(
+            Origin::signed(ALICE),
+            DID_ALICE,
+            b"mastodon".to_vec(),
+            50
+        ));
     });
 }

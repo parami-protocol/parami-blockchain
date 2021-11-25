@@ -50,41 +50,43 @@ impl<T: Config + CreateSignedTransaction<Call<T>>> Pallet<T> {
     pub fn ocw_begin_block(block_number: T::BlockNumber) -> Result<(), Error<T>> {
         use types::AccountType::*;
 
-        let pending = <PendingOf<T>>::iter();
+        for site in [Telegram, Twitter] {
+            let pending = <PendingOf<T>>::iter_prefix(&site);
 
-        for (did, site, task) in pending {
-            if task.deadline <= block_number {
-                // call to remove
-                Self::ocw_submit_link(did, site, Vec::<u8>::new(), false);
-
-                return Err(Error::<T>::Deadline);
-            };
-
-            if task.created < block_number {
-                // only start once (at created + 1)
-                continue;
-            };
-
-            let profile = sp_std::str::from_utf8(&task.profile) //
-                .map_err(|_| Error::<T>::HttpFetchingError)?;
-
-            let result = match site {
-                Telegram if is_task!(task.profile, b"https://t.me/") => {
-                    Self::ocw_link_telegram(did, profile)
-                }
-                Twitter if is_task!(task.profile, b"https://twitter.com/") => {
-                    Self::ocw_link_twitter(did, profile)
-                }
-                _ => {
-                    // drop unsupported sites
+            for (did, task) in pending {
+                if task.deadline <= block_number {
+                    // call to remove
                     Self::ocw_submit_link(did, site, Vec::<u8>::new(), false);
 
-                    continue;
-                }
-            };
+                    return Err(Error::<T>::Deadline);
+                };
 
-            if let Ok(()) = result {
-                Self::ocw_submit_link(did, site, task.profile, true);
+                if task.created < block_number {
+                    // only start once (at created + 1)
+                    continue;
+                };
+
+                let profile = sp_std::str::from_utf8(&task.profile) //
+                    .map_err(|_| Error::<T>::HttpFetchingError)?;
+
+                let result = match site {
+                    Telegram if is_task!(task.profile, b"https://t.me/") => {
+                        Self::ocw_verify_telegram(did, profile)
+                    }
+                    Twitter if is_task!(task.profile, b"https://twitter.com/") => {
+                        Self::ocw_verify_twitter(did, profile)
+                    }
+                    _ => {
+                        // drop unsupported sites
+                        Self::ocw_submit_link(did, site, Vec::<u8>::new(), false);
+
+                        continue;
+                    }
+                };
+
+                if let Ok(()) = result {
+                    Self::ocw_submit_link(did, site, task.profile, true);
+                }
             }
         }
 
@@ -97,7 +99,7 @@ impl<T: Config + CreateSignedTransaction<Call<T>>> Pallet<T> {
         profile: Vec<u8>,
         ok: bool,
     ) {
-        let call = Call::submit_link_unsigned {
+        let call = Call::submit_link {
             did,
             site,
             profile,
@@ -107,7 +109,7 @@ impl<T: Config + CreateSignedTransaction<Call<T>>> Pallet<T> {
         let _ = submit_unsigned!(call);
     }
 
-    pub(crate) fn ocw_link_telegram<U: AsRef<str>>(
+    pub(crate) fn ocw_verify_telegram<U: AsRef<str>>(
         did: T::DecentralizedId,
         profile: U,
     ) -> Result<(), Error<T>> {
@@ -130,7 +132,7 @@ impl<T: Config + CreateSignedTransaction<Call<T>>> Pallet<T> {
         Self::ocw_check_avatar(avatar, did)
     }
 
-    pub(crate) fn ocw_link_twitter<U: AsRef<str>>(
+    pub(crate) fn ocw_verify_twitter<U: AsRef<str>>(
         did: T::DecentralizedId,
         profile: U,
     ) -> Result<(), Error<T>> {

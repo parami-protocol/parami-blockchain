@@ -31,6 +31,7 @@ impl<T: Config> Pallet<T> {
         bytes: Vec<u8>,
     ) -> Result<Vec<u8>, Error<T>> {
         match crypto {
+            AccountType::Unknown => Ok(address),
             AccountType::Binance => Self::recover_address_eth(address, signature, bytes),
             AccountType::Bitcoin => Self::recover_address_btc(address, signature, bytes),
             AccountType::Ethereum => Self::recover_address_eth(address, signature, bytes),

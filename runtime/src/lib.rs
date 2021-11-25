@@ -1100,13 +1100,13 @@ impl parami_ad::Config for Runtime {
 }
 
 parameter_types! {
-    pub const MinimumDeposit: Balance = 10 * DOLLARS;
+    pub const AdvertiserMinimumDeposit: Balance = 1000 * DOLLARS;
     pub const AdvertiserPalletId: PalletId = PalletId(*b"prm/ader");
 }
 
 impl parami_advertiser::Config for Runtime {
     type Event = Event;
-    type MinimumDeposit = MinimumDeposit;
+    type MinimumDeposit = AdvertiserMinimumDeposit;
     type PalletId = AdvertiserPalletId;
     type Slash = Treasury;
     type ForceOrigin = EnsureRootOrHalfCouncil;
@@ -1164,16 +1164,21 @@ impl parami_did::Config for Runtime {
 }
 
 parameter_types! {
+    pub const LinkerPalletId: PalletId = PalletId(*b"prm/link");
     pub const PendingLifetime: BlockNumber = 5;
+    pub const RegistrarMinimumDeposit: Balance = 1_000_000 * DOLLARS;
     pub const UnsignedPriority: TransactionPriority = 3;
 }
 
 impl parami_linker::Config for Runtime {
     type Event = Event;
-    type DecentralizedId = sp_core::H160;
+    type ForceOrigin = EnsureRootOrHalfCouncil;
+    type MinimumDeposit = MinimumDeposit;
+    type PalletId = LinkerPalletId;
     type PendingLifetime = PendingLifetime;
+    type Slash = Treasury;
+    type Tags = Tag;
     type UnsignedPriority = UnsignedPriority;
-    type CallOrigin = parami_did::EnsureDid<Self>;
 }
 
 parameter_types! {
