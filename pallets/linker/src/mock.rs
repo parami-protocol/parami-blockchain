@@ -18,6 +18,7 @@ type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::AccountId;
 pub type Extrinsic = TestXt<Call, ()>;
 
 pub const ALICE: sr25519::Public = sr25519::Public([1; 32]);
+pub const BOB: sr25519::Public = sr25519::Public([2; 32]);
 
 pub const DID_ALICE: H160 = H160([
     0x32, 0xac, 0x79, 0x9d, //
@@ -26,6 +27,8 @@ pub const DID_ALICE: H160 = H160([
     0xa9, 0x75, 0x31, 0x9f, //
     0xbb, 0xb1, 0x25, 0xa9,
 ]);
+
+pub const DID_BOB: H160 = H160([0xee; 20]);
 
 pub fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
     (0..s.len())
@@ -186,7 +189,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     .unwrap();
 
     parami_did::GenesisConfig::<Test> {
-        ids: vec![(ALICE, DID_ALICE, None)],
+        ids: vec![(ALICE, DID_ALICE, None), (BOB, DID_BOB, None)],
     }
     .assimilate_storage(&mut t)
     .unwrap();

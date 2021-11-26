@@ -113,6 +113,19 @@ pub mod pallet {
         types::Pending<T::BlockNumber>,
     >;
 
+    /// Linked accounts
+    #[pallet::storage]
+    #[pallet::getter(fn linked)]
+    pub(super) type Linked<T: Config> = StorageDoubleMap<
+        _,
+        Twox64Concat,
+        types::AccountType,
+        Blake2_256,
+        Vec<u8>,
+        bool,
+        ValueQuery,
+    >;
+
     /// DID of a registrar
     #[pallet::storage]
     #[pallet::getter(fn registrar)]
@@ -185,6 +198,10 @@ pub mod pallet {
                 !<PendingOf<T>>::contains_key(&site, &did),
                 Error::<T>::Exists
             );
+            ensure!(
+                !<Linked<T>>::contains_key(&site, &profile),
+                Error::<T>::Exists
+            );
 
             match site {
                 Discord if is_task!(profile, b"https://discordapp.com/users/") => {}
@@ -239,6 +256,10 @@ pub mod pallet {
                 !<LinksOf<T>>::contains_key(&did, &crypto),
                 Error::<T>::Exists
             );
+            ensure!(
+                !<Linked<T>>::contains_key(&crypto, &address),
+                Error::<T>::Exists
+            );
 
             ensure!(address.len() >= 2, Error::<T>::InvalidAddress);
 
@@ -249,6 +270,8 @@ pub mod pallet {
             ensure!(recovered == address, Error::<T>::UnexpectedAddress);
 
             <LinksOf<T>>::insert(&did, &crypto, address.clone());
+
+            <Linked<T>>::insert(&crypto, &address, true);
 
             Self::deposit_event(Event::<T>::AccountLinked(did, crypto, address));
 
@@ -273,6 +296,10 @@ pub mod pallet {
             }
 
             ensure!(!<LinksOf<T>>::contains_key(&did, &site), Error::<T>::Exists);
+            ensure!(
+                !<Linked<T>>::contains_key(&site, &profile),
+                Error::<T>::Exists
+            );
 
             let task = <PendingOf<T>>::get(&site, &did).ok_or(Error::<T>::NotExists)?;
 
@@ -280,6 +307,8 @@ pub mod pallet {
                 ensure!(task.profile == profile, Error::<T>::UnexpectedAddress);
 
                 <LinksOf<T>>::insert(&did, &site, task.profile.clone());
+
+                <Linked<T>>::insert(&site, &task.profile, true);
 
                 Self::deposit_event(Event::<T>::AccountLinked(did, site.clone(), task.profile));
             } else {
@@ -400,6 +429,7 @@ pub mod pallet {
         fn build(&self) {
             for (did, typ, dat) in &self.links {
                 <LinksOf<T>>::insert(did, typ, dat);
+                <Linked<T>>::insert(typ, dat, true);
             }
         }
     }

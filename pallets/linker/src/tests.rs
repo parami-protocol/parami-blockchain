@@ -1,5 +1,6 @@
 use crate::{
-    mock::*, ocw::USER_AGENT, types::AccountType, Config, Error, LinksOf, PendingOf, Registrar,
+    mock::*, ocw::USER_AGENT, types::AccountType, Config, Error, Linked, LinksOf, PendingOf,
+    Registrar,
 };
 use codec::Decode;
 use frame_support::{assert_noop, assert_ok, traits::Hooks};
@@ -237,6 +238,8 @@ fn should_link_crypto() {
             signature,
         ));
 
+        assert!(<Linked<Test>>::get(&AccountType::Unknown, &address));
+
         assert_eq!(
             <LinksOf<Test>>::get(&DID_ALICE, &AccountType::Unknown),
             Some(address)
@@ -455,5 +458,62 @@ fn should_link_via_registrar() {
             b"mastodon".to_vec(),
             50
         ));
+
+        assert_noop!(
+            Linker::submit_link(
+                Origin::signed(ALICE),
+                DID_ALICE,
+                AccountType::Mastodon,
+                profile.clone(),
+                true
+            ),
+            Error::<Test>::Exists
+        );
+
+        assert_noop!(
+            Linker::submit_link(
+                Origin::signed(ALICE),
+                DID_BOB,
+                AccountType::Mastodon,
+                profile.clone(),
+                true
+            ),
+            Error::<Test>::Exists
+        );
+    });
+}
+
+#[test]
+fn should_reject_duplicate() {
+    new_test_ext().execute_with(|| {
+        let address = vec![0u8; 20];
+        let signature = [0u8; 65];
+
+        assert_ok!(Linker::link_crypto(
+            Origin::signed(ALICE),
+            AccountType::Unknown,
+            address.clone(),
+            signature,
+        ));
+
+        assert_noop!(
+            Linker::link_crypto(
+                Origin::signed(ALICE),
+                AccountType::Unknown,
+                address.clone(),
+                signature,
+            ),
+            Error::<Test>::Exists
+        );
+
+        assert_noop!(
+            Linker::link_crypto(
+                Origin::signed(BOB),
+                AccountType::Unknown,
+                address.clone(),
+                signature,
+            ),
+            Error::<Test>::Exists
+        );
     });
 }
