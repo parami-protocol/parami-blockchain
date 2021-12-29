@@ -14,6 +14,9 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
+mod types;
+pub use types::*;
+
 use frame_support::{
     dispatch::DispatchResult,
     ensure,
@@ -32,12 +35,12 @@ use frame_support::{
     },
     weights::Weight,
 };
-use parami_did::{EnsureDid, Pallet as Did};
+use parami_did::{EnsureDid};
 use parami_traits::Swaps;
 use sp_core::U512;
 use sp_runtime::{
-    traits::{Bounded, CheckedAdd, One, Saturating},
-    DispatchError,
+    traits::{One, Saturating},
+    DispatchError, RuntimeDebug
 };
 use sp_std::{
     convert::{TryFrom, TryInto},
@@ -46,11 +49,10 @@ use sp_std::{
 
 use weights::WeightInfo;
 
-type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> = <<T as parami_did::Config>::Currency as Currency<AccountOf<T>>>::Balance;
 type HeightOf<T> = <T as frame_system::Config>::BlockNumber;
 
-pub trait FarmingCurve<T: Config> {
+pub trait FarmingCurve<T: pallet::Config> {
     /// Calculate the farming value for a given block height
     ///
     /// # Arguments
@@ -123,6 +125,7 @@ pub mod pallet {
             + NftMutate<AccountOf<Self>, InstanceId = Self::AssetId, ClassId = Self::AssetId>;
 
         /// The maximum length of a name or symbol stored on-chain.
+        /// TODO(ironman_ch): Why define it as a Get<u32> instead of u32 ?
         #[pallet::constant]
         type StringLimit: Get<u32>;
 
@@ -145,20 +148,32 @@ pub mod pallet {
     /// Total deposit in pot
     #[pallet::storage]
     #[pallet::getter(fn deposit)]
-    pub(super) type Deposit<T: Config> = StorageMap<
+    pub(super) type Deposit<T: Config> = StorageMap<_, Identity, NftInstanceId<T>, BalanceOf<T>>;
+
+    /// Nft's Metadata
+    /// TODO: change hasher
+    #[pallet::storage]
+    pub(super) type NftMetaStore<T: Config> = StorageMap<
         _,
         Identity,
-        T::DecentralizedId, // KOL
-        BalanceOf<T>,
+        NftInstanceId<T>,
+        NftMetaFor<T>,
     >;
 
+    /// Did's preferred Nft.
+    #[pallet::storage]
+    #[pallet::getter(fn preferred_nft_of)]
+    pub(super) type PreferredNft<T: Config> =
+        StorageMap<_, Identity, T::DecentralizedId, NftInstanceId<T>>;
+
     /// Deposits by supporter in pot
+    /// TODO: change hasher
     #[pallet::storage]
     #[pallet::getter(fn deposits)]
     pub(super) type Deposits<T: Config> = StorageDoubleMap<
         _,
         Identity,
-        T::DecentralizedId, // KOL
+        NftInstanceId<T>,
         Identity,
         T::DecentralizedId, // Supporter
         BalanceOf<T>,
@@ -167,7 +182,7 @@ pub mod pallet {
     /// Initial Minting date
     #[pallet::storage]
     #[pallet::getter(fn date)]
-    pub(super) type Date<T: Config> = StorageMap<_, Twox64Concat, T::AssetId, HeightOf<T>>;
+    pub(super) type Date<T: Config> = StorageMap<_, Twox64Concat, NftInstanceId<T>, HeightOf<T>>;
 
     /// Next available class ID
     #[pallet::storage]
@@ -178,14 +193,18 @@ pub mod pallet {
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
         /// NFT fragments Minted \[did, kol, value\]
-        Backed(T::DecentralizedId, T::DecentralizedId, BalanceOf<T>),
-        /// NFT fragments Claimed \[did, kol, value\]
-        Claimed(T::DecentralizedId, T::DecentralizedId, BalanceOf<T>),
-        /// NFT fragments Minted \[kol, class, instance, name, symbol, tokens\]
+        Backed(
+            T::DecentralizedId,
+            T::DecentralizedId,
+            NftInstanceId<T>,
+            BalanceOf<T>,
+        ),
+        /// NFT fragments Claimed \[did, NftInstanceId, value\]
+        Claimed(T::DecentralizedId, NftInstanceId<T>, BalanceOf<T>),
+        /// NFT fragments Minted \[kol, instance, name, symbol, tokens\]
         Minted(
             T::DecentralizedId,
-            T::AssetId,
-            T::AssetId,
+            NftInstanceId<T>,
             Vec<u8>,
             Vec<u8>,
             BalanceOf<T>,
@@ -219,24 +238,33 @@ pub mod pallet {
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {
+
+        /// generate a NftInstance and set it as the did's prefer to show nft in his personal page.
+        pub fn gen_and_set_preferred_nft(
+            origin: OriginFor<T>,
+        ) -> DispatchError {
+            todo!()
+        }
+
         /// Back (support) the KOL.
         #[pallet::weight(<T as Config>::WeightInfo::back())]
         pub fn back(
             origin: OriginFor<T>,
             kol: T::DecentralizedId,
+            instance_id: NftInstanceId<T>,
             #[pallet::compact] value: BalanceOf<T>,
         ) -> DispatchResult {
             let (did, who) = EnsureDid::<T>::ensure_origin(origin)?;
 
             ensure!(kol != did, Error::<T>::YourSelf);
 
-            let meta = Did::<T>::meta(&kol).ok_or(Error::<T>::NotExists)?;
+            let meta = <NftMetaStore<T>>::get(&instance_id).ok_or(Error::<T>::NotExists)?;
 
-            ensure!(meta.nft.is_none(), Error::<T>::Minted);
+            ensure!(!meta.minted, Error::<T>::Minted);
 
             <T as parami_did::Config>::Currency::transfer(&who, &meta.pot, value, KeepAlive)?;
 
-            <Deposit<T>>::mutate(&kol, |maybe| {
+            <Deposit<T>>::mutate(&instance_id, |maybe| {
                 if let Some(deposit) = maybe {
                     deposit.saturating_accrue(value);
                 } else {
@@ -244,7 +272,7 @@ pub mod pallet {
                 }
             });
 
-            <Deposits<T>>::mutate(&kol, &did, |maybe| {
+            <Deposits<T>>::mutate(&instance_id, &did, |maybe| {
                 if let Some(deposit) = maybe {
                     deposit.saturating_accrue(value);
                 } else {
@@ -252,17 +280,19 @@ pub mod pallet {
                 }
             });
 
-            Self::deposit_event(Event::Backed(did, kol, value));
+            Self::deposit_event(Event::Backed(did, kol, instance_id, value));
 
             Ok(())
         }
 
         /// Fragment the NFT and mint token.
-        #[pallet::weight(<T as Config>::WeightInfo::mint(
-            name.len() as u32,
-            symbol.len() as u32
-        ))]
-        pub fn mint(origin: OriginFor<T>, name: Vec<u8>, symbol: Vec<u8>) -> DispatchResult {
+        #[pallet::weight(<T as Config>::WeightInfo::mint(name.len() as u32, symbol.len() as u32))]
+        pub fn mint(
+            origin: OriginFor<T>,
+            instance_id: NftInstanceId<T>,
+            name: Vec<u8>,
+            symbol: Vec<u8>,
+        ) -> DispatchResult {
             let limit = T::StringLimit::get() as usize - 4;
 
             ensure!(
@@ -291,9 +321,8 @@ pub mod pallet {
 
             // 1. ensure funded
 
-            let mut meta = Did::<T>::meta(&did).ok_or(Error::<T>::NotExists)?;
-
-            ensure!(meta.nft.is_none(), Error::<T>::Minted);
+            let mut meta = <NftMetaStore<T>>::get(&instance_id).ok_or(Error::<T>::NotExists)?;
+            ensure!(!meta.minted, Error::<T>::Minted);
 
             let deposit = <T as parami_did::Config>::Currency::free_balance(&meta.pot);
 
@@ -303,67 +332,63 @@ pub mod pallet {
             );
 
             // 2. create NFT token
+            let tid = instance_id;
 
-            let cid = NextClassId::<T>::try_mutate(|id| -> Result<T::AssetId, DispatchError> {
-                let current_id = *id;
-                *id = id.checked_add(&One::one()).ok_or(Error::<T>::Overflow)?;
-                Ok(current_id)
-            })?;
-
-            let tid = T::AssetId::min_value();
-
-            T::Nft::create_class(&cid, &meta.pot, &meta.pot)?;
-            T::Nft::mint_into(&cid, &tid, &meta.pot)?;
+            T::Nft::create_class(&meta.class_id, &meta.pot, &meta.pot)?;
+            T::Nft::mint_into(&meta.class_id, &tid, &meta.pot)?;
 
             // 3. initial minting
 
             let initial = T::InitialMintingValueBase::get();
 
-            T::Assets::create(cid, meta.pot.clone(), true, One::one())?;
-            T::Assets::set(cid, &meta.pot, name.clone(), symbol.clone(), 18)?;
-            T::Assets::mint_into(cid, &meta.pot, initial.saturating_mul(3u32.into()))?;
+            T::Assets::create(tid, meta.pot.clone(), true, One::one())?;
+            T::Assets::set(tid, &meta.pot, name.clone(), symbol.clone(), 18)?;
+            T::Assets::mint_into(tid, &meta.pot, initial.saturating_mul(3u32.into()))?;
 
             // 4. transfer third of initial minting to swap
 
-            T::Swaps::new(&meta.pot, cid)?;
-            T::Swaps::mint(&meta.pot, cid, deposit, deposit, initial, false)?;
+            T::Swaps::new(&meta.pot, tid)?;
+            T::Swaps::mint(&meta.pot, tid, deposit, deposit, initial, false)?;
 
-            meta.nft = Some(cid);
+            // 5. update local variable
+            meta.minted = true;
 
-            Did::<T>::set_meta(&did, meta);
+            // 6. update storage
+            <NftMetaStore<T>>::mutate(&tid, |maybe| {
+                *maybe = Some(meta);
+            });
 
-            <Date<T>>::insert(&cid, minted);
+            <Date<T>>::insert(&tid, minted);
 
-            <Deposits<T>>::mutate(&did, &did, |maybe| {
+            <Deposits<T>>::mutate(&tid, &did, |maybe| {
                 *maybe = Some(deposit);
             });
 
-            Self::deposit_event(Event::Minted(did, cid, tid, name, symbol, initial));
+            Self::deposit_event(Event::Minted(did, tid, name, symbol, initial));
 
             Ok(())
         }
 
         /// Claim the fragments.
         #[pallet::weight(<T as Config>::WeightInfo::claim())]
-        pub fn claim(origin: OriginFor<T>, kol: T::DecentralizedId) -> DispatchResult {
+        pub fn claim(origin: OriginFor<T>, instance_id: NftInstanceId<T>) -> DispatchResult {
             let (did, who) = EnsureDid::<T>::ensure_origin(origin)?;
 
             let height = <frame_system::Pallet<T>>::block_number();
 
-            let meta = Did::<T>::meta(&kol).ok_or(Error::<T>::NotExists)?;
+            let meta = NftMetaStore::<T>::get(&instance_id).ok_or(Error::<T>::NotExists)?;
 
-            let cid = meta.nft.ok_or(Error::<T>::NotExists)?;
-
-            if kol == did {
-                let minted_block_number = <Date<T>>::get(&cid).ok_or(Error::<T>::NotExists)?;
+            if meta.owner == did {
+                let minted_block_number =
+                    <Date<T>>::get(&instance_id).ok_or(Error::<T>::NotExists)?;
                 ensure!(
                     height - minted_block_number >= T::InitialMintingLockupPeriod::get(),
                     Error::<T>::NoToken
                 );
             }
 
-            let total = <Deposit<T>>::get(&kol).ok_or(Error::<T>::NotExists)?;
-            let deposit = <Deposits<T>>::get(&kol, &did).ok_or(Error::<T>::NoToken)?;
+            let total = <Deposit<T>>::get(&instance_id).ok_or(Error::<T>::NotExists)?;
+            let deposit = <Deposits<T>>::get(&instance_id, &did).ok_or(Error::<T>::NoToken)?;
             let initial = T::InitialMintingValueBase::get();
 
             let total: U512 = Self::try_into(total)?;
@@ -374,11 +399,11 @@ pub mod pallet {
 
             let tokens = Self::try_into(tokens)?;
 
-            T::Assets::transfer(cid, &meta.pot, &who, tokens, false)?;
+            T::Assets::transfer(instance_id, &meta.pot, &who, tokens, false)?;
 
-            <Deposits<T>>::remove(&kol, &did);
+            <Deposits<T>>::remove(&instance_id, &did);
 
-            Self::deposit_event(Event::Claimed(did, kol, tokens));
+            Self::deposit_event(Event::Claimed(did, instance_id, tokens));
 
             Ok(())
         }
@@ -386,9 +411,9 @@ pub mod pallet {
 
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
-        pub deposit: Vec<(T::DecentralizedId, BalanceOf<T>)>,
-        pub deposits: Vec<(T::DecentralizedId, T::DecentralizedId, BalanceOf<T>)>,
-        pub next_class_id: T::AssetId,
+        pub next_cid: T::AssetId,
+        pub deposit: Vec<(NftInstanceId<T>, BalanceOf<T>)>,
+        pub deposits: Vec<(NftInstanceId<T>, T::DecentralizedId, BalanceOf<T>)>,
     }
 
     #[cfg(feature = "std")]
@@ -397,7 +422,7 @@ pub mod pallet {
             Self {
                 deposit: Default::default(),
                 deposits: Default::default(),
-                next_class_id: Default::default(),
+                next_cid: Default::default(),
             }
         }
     }
@@ -415,12 +440,12 @@ pub mod pallet {
                 }
             }
 
-            for (kol, deposit) in &self.deposit {
-                <Deposit<T>>::insert(kol, deposit);
+            for (instance_id, deposit) in &self.deposit {
+                <Deposit<T>>::insert(instance_id, deposit);
             }
 
-            for (kol, did, deposit) in &self.deposits {
-                <Deposits<T>>::insert(kol, did, deposit);
+            for (instance_id, did, deposit) in &self.deposits {
+                <Deposits<T>>::insert(instance_id, did, deposit);
             }
         }
     }
