@@ -26,7 +26,7 @@ version = '1.0'
 [dependencies]
 parami-advertiser = { path = '../advertiser', default-features = false, optional = true }
 parami-did = { path = '../did', default-features = false }
-parami-nft = { path = '../nft', default-features = false, optional = true }
+parami-nft = { path = '../nft', default-features = false }
 parami-swap = { path = '../swap', default-features = false, optional = true }
 parami-tag = { path = '../tag', default-features = false, optional = true }
 parami-traits = { path = '../traits', default-features = false }
@@ -57,7 +57,6 @@ default = ['std']
 runtime-benchmarks = [
     'frame-benchmarking',
     'parami-advertiser',
-    'parami-nft',
     'parami-swap',
     'parami-tag',
     'rand',

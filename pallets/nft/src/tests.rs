@@ -1,24 +1,32 @@
+use crate::*;
 use crate::{mock::*, Deposit, Deposits, Error};
 use frame_support::{assert_noop, assert_ok, traits::Hooks};
 
 #[test]
 fn should_back() {
     new_test_ext().execute_with(|| {
-        let meta = Did::meta(&DID_ALICE).unwrap();
 
         assert_ok!(Nft::back(Origin::signed(BOB), DID_ALICE, 50));
 
-        let deposit = <Deposit<Test>>::get(&DID_ALICE);
+        let nft_id = Nft::get_preferred(DID_ALICE).unwrap();
+
+        let meta = <NftMetaStore<Test>>::get(nft_id).unwrap();
+
+        let deposit = <Deposit<Test>>::get(nft_id);
         assert_eq!(deposit, Some(50));
 
-        let deposit = <Deposits<Test>>::get(&DID_ALICE, &DID_BOB);
+        let deposit = <Deposits<Test>>::get(nft_id, &DID_BOB);
         assert_eq!(deposit, Some(50));
 
         assert_eq!(Balances::free_balance(&meta.pot), 50);
 
-        assert_ok!(Nft::back(Origin::signed(CHARLIE), DID_ALICE, 30));
+        assert_ok!(Nft::back(
+            Origin::signed(CHARLIE),
+            DID_ALICE,
+            30
+        ));
 
-        let deposit = <Deposit<Test>>::get(&DID_ALICE);
+        let deposit = <Deposit<Test>>::get(nft_id);
         assert_eq!(deposit, Some(80));
 
         assert_eq!(Balances::free_balance(&meta.pot), 80);
@@ -28,6 +36,7 @@ fn should_back() {
 #[test]
 fn should_fail_when_self() {
     new_test_ext().execute_with(|| {
+
         assert_noop!(
             Nft::back(Origin::signed(ALICE), DID_ALICE, 50),
             Error::<Test>::YourSelf
@@ -38,6 +47,7 @@ fn should_fail_when_self() {
 #[test]
 fn should_fail_when_minted() {
     new_test_ext().execute_with(|| {
+
         assert_ok!(Nft::back(Origin::signed(BOB), DID_ALICE, 2_000_100u128));
 
         assert_ok!(Nft::mint(
@@ -65,8 +75,9 @@ fn should_fail_when_minted() {
 #[test]
 fn should_fail_when_insufficient_balance() {
     new_test_ext().execute_with(|| {
+        let r = Nft::back(Origin::signed(BOB), DID_ALICE, 3_000_100u128);
         assert_noop!(
-            Nft::back(Origin::signed(BOB), DID_ALICE, 3_000_100u128),
+            r,
             pallet_balances::Error::<Test>::InsufficientBalance
         );
     });
@@ -75,7 +86,12 @@ fn should_fail_when_insufficient_balance() {
 #[test]
 fn should_mint() {
     new_test_ext().execute_with(|| {
-        assert_ok!(Nft::back(Origin::signed(BOB), DID_ALICE, 2_000_100u128));
+
+        assert_ok!(Nft::back(
+            Origin::signed(BOB),
+            DID_ALICE,
+            2_000_100u128
+        ));
 
         assert_ok!(Nft::mint(
             Origin::signed(ALICE),
@@ -83,16 +99,14 @@ fn should_mint() {
             b"XTT".to_vec()
         ));
 
-        let meta = Did::meta(&DID_ALICE).unwrap();
-        assert_eq!(meta.nft, Some(0));
-
-        let deposit = <Deposit<Test>>::get(&DID_ALICE);
+        let nft_id: NftIdOf<Test> = Nft::get_preferred(DID_ALICE).unwrap();
+        let deposit = <Deposit<Test>>::get(&nft_id);
         assert_eq!(deposit, Some(2_000_100u128));
 
-        let deposit_bob = <Deposits<Test>>::get(&DID_ALICE, &DID_BOB);
+        let deposit_bob = <Deposits<Test>>::get(nft_id, &DID_BOB);
         assert_eq!(deposit_bob, deposit);
 
-        let deposit_kol = <Deposits<Test>>::get(&DID_ALICE, &DID_ALICE);
+        let deposit_kol = <Deposits<Test>>::get(nft_id, &DID_ALICE);
         assert_eq!(deposit_kol, deposit);
     });
 }
@@ -100,12 +114,15 @@ fn should_mint() {
 #[test]
 fn should_fail_when_insufficient() {
     new_test_ext().execute_with(|| {
+
+        let r = Nft::mint(
+            Origin::signed(ALICE),
+            b"Test Token".to_vec(),
+            b"XTT".to_vec()
+        );
+
         assert_noop!(
-            Nft::mint(
-                Origin::signed(ALICE),
-                b"Test Token".to_vec(),
-                b"XTT".to_vec()
-            ),
+            r,
             Error::<Test>::InsufficientBalance
         );
     });
@@ -114,8 +131,17 @@ fn should_fail_when_insufficient() {
 #[test]
 fn should_claim() {
     new_test_ext().execute_with(|| {
-        assert_ok!(Nft::back(Origin::signed(BOB), DID_ALICE, 2_000_000u128));
-        assert_ok!(Nft::back(Origin::signed(CHARLIE), DID_ALICE, 1_000_000u128));
+
+        assert_ok!(Nft::back(
+            Origin::signed(BOB),
+            DID_ALICE,
+            2_000_000u128
+        ));
+        assert_ok!(Nft::back(
+            Origin::signed(CHARLIE),
+            DID_ALICE,
+            1_000_000u128
+        ));
 
         assert_ok!(Nft::mint(
             Origin::signed(ALICE),
@@ -126,14 +152,16 @@ fn should_claim() {
         assert_ok!(Nft::claim(Origin::signed(BOB), DID_ALICE));
         assert_ok!(Nft::claim(Origin::signed(CHARLIE), DID_ALICE));
 
-        assert_eq!(Assets::balance(0, &BOB), 666_666);
-        assert_eq!(Assets::balance(0, &CHARLIE), 333_333);
+        let nft_id: NftIdOf<Test> = Nft::get_preferred(DID_ALICE).unwrap();
 
-        assert_eq!(<Deposits<Test>>::get(&DID_ALICE, &DID_BOB), None);
-        assert_eq!(<Deposits<Test>>::get(&DID_ALICE, &DID_CHARLIE), None);
+        assert_eq!(Assets::balance(nft_id, &BOB), 666_666);
+        assert_eq!(Assets::balance(nft_id, &CHARLIE), 333_333);
+
+        assert_eq!(<Deposits<Test>>::get(nft_id, &DID_BOB), None);
+        assert_eq!(<Deposits<Test>>::get(nft_id, &DID_CHARLIE), None);
 
         assert_noop!(
-            Nft::claim(Origin::signed(ALICE), DID_ALICE),
+            Nft::claim(Origin::signed(BOB), DID_ALICE),
             Error::<Test>::NoToken
         );
 
@@ -141,16 +169,25 @@ fn should_claim() {
 
         assert_ok!(Nft::claim(Origin::signed(ALICE), DID_ALICE));
 
-        assert_eq!(Assets::balance(0, &ALICE), 1_000_000);
-        assert_eq!(<Deposits<Test>>::get(&DID_ALICE, &DID_ALICE), None);
+        assert_eq!(Assets::balance(nft_id, &ALICE), 1_000_000);
+        assert_eq!(<Deposits<Test>>::get(nft_id, &DID_ALICE), None);
     });
 }
 
 #[test]
 fn should_farming() {
     new_test_ext().execute_with(|| {
-        assert_ok!(Nft::back(Origin::signed(BOB), DID_ALICE, 2_000_000u128));
-        assert_ok!(Nft::back(Origin::signed(CHARLIE), DID_ALICE, 1_000_000u128));
+
+        assert_ok!(Nft::back(
+            Origin::signed(BOB),
+            DID_ALICE,
+            2_000_000u128
+        ));
+        assert_ok!(Nft::back(
+            Origin::signed(CHARLIE),
+            DID_ALICE,
+            1_000_000u128
+        ));
 
         assert_ok!(Nft::mint(
             Origin::signed(ALICE),
@@ -161,9 +198,12 @@ fn should_farming() {
         assert_ok!(Nft::claim(Origin::signed(BOB), DID_ALICE));
         assert_ok!(Nft::claim(Origin::signed(CHARLIE), DID_ALICE));
 
+        let nft_id: NftIdOf<Test> = Nft::get_preferred(DID_ALICE).unwrap();
+        let nft_meta: NftMetaFor<Test> = Nft::get_meta_of(nft_id).unwrap();
+
         assert_ok!(Swap::add_liquidity(
             Origin::signed(BOB),
-            0,
+            nft_meta.token_asset_id,
             500_000,
             1,
             300_000,
@@ -171,7 +211,7 @@ fn should_farming() {
         ));
         assert_ok!(Swap::add_liquidity(
             Origin::signed(CHARLIE),
-            0,
+            nft_meta.token_asset_id,
             400_000,
             1,
             300_000,
@@ -182,7 +222,8 @@ fn should_farming() {
 
         Nft::on_initialize(System::block_number());
 
-        assert_eq!(Assets::balance(0, &BOB), 500_000 + 12);
-        assert_eq!(Assets::balance(0, &CHARLIE), 200_000 + 10);
+        //TODO(ironman_ch): use nft_meta.tokenAssetId instead of nft_id
+        assert_eq!(Assets::balance(nft_meta.token_asset_id, &BOB), 500_000 + 12);
+        assert_eq!(Assets::balance(nft_meta.token_asset_id, &CHARLIE), 200_000 + 10);
     });
 }
