@@ -27,7 +27,7 @@ version = '1.0'
 parami-advertiser = { path = '../advertiser', default-features = false, optional = true }
 parami-did = { path = '../did', default-features = false }
 parami-magic = { path = '../magic', default-features = false }
-parami-nft = { path = '../nft', default-features = false, optional = true }
+parami-nft = { path = '../nft', default-features = false }
 parami-swap = { path = '../swap', default-features = false, optional = true }
 parami-tag = { path = '../tag', default-features = false, optional = true }
 parami-traits = { path = '../traits', default-features = false }
@@ -58,7 +58,6 @@ default = ['std']
 runtime-benchmarks = [
     'frame-benchmarking',
     'parami-advertiser',
-    'parami-nft',
     'parami-swap',
     'parami-tag',
     'rand',
@@ -66,8 +65,9 @@ runtime-benchmarks = [
 
 std = [
     'parami-advertiser/std',
-    'parami-nft/std',
     'parami-did/std',
+    'parami-magic/std',
+    'parami-nft/std',
     'parami-swap/std',
     'parami-tag/std',
     'parami-traits/std',

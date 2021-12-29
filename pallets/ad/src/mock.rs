@@ -224,7 +224,6 @@ impl parami_ad::Config for Test {
     type PalletId = AdPalletId;
     type PayoutBase = PayoutBase;
     type SlotLifetime = SlotLifetime;
-    type Swaps = Swap;
     type Tags = Tag;
     type CallOrigin = parami_did::EnsureDid<Self>;
     type ForceOrigin = EnsureRoot<Self::AccountId>;

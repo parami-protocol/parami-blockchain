@@ -1309,7 +1309,6 @@ impl parami_ad::Config for Runtime {
     type PalletId = AdPalletId;
     type PayoutBase = PayoutBase;
     type SlotLifetime = SlotLifetime;
-    type Swaps = Swap;
     type Tags = Tag;
     type CallOrigin = parami_advertiser::EnsureAdvertiser<Self>;
     type ForceOrigin = EnsureRootOrHalfCouncil;

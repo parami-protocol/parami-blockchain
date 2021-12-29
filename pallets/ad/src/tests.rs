@@ -3,6 +3,7 @@ use frame_support::{
     assert_noop, assert_ok,
     traits::{Currency, Hooks},
 };
+use parami_nft::NftMetaFor;
 use parami_traits::Tags;
 use sp_core::{sr25519, H160};
 use sp_std::collections::btree_map::BTreeMap;
@@ -193,6 +194,10 @@ fn should_bid() {
             b"XTT".to_vec()
         ));
 
+        let nft_id = Nft::get_preferred(DID_ALICE).unwrap();
+
+        let nft_meta: NftMetaFor<Test> = Nft::get_meta_of(nft_id).unwrap();
+
         // ad1
 
         assert_ok!(Ad::create(
@@ -241,9 +246,9 @@ fn should_bid() {
         // ensure: deadline, slot, remain
 
         assert_eq!(<EndtimeOf<Test>>::get(&ad1), Some(43200));
-        assert_eq!(<DeadlineOf<Test>>::get(&DID_ALICE, &ad1), Some(43200));
+        assert_eq!(<DeadlineOf<Test>>::get(nft_id, &ad1), Some(43200));
 
-        let maybe_slot = <SlotOf<Test>>::get(&DID_ALICE);
+        let maybe_slot = <SlotOf<Test>>::get(nft_id);
         assert_ne!(maybe_slot, None);
 
         let meta1 = <Metadata<Test>>::get(&ad1).unwrap();
@@ -251,7 +256,10 @@ fn should_bid() {
         assert_eq!(meta1.remain, 500 - 400);
 
         let slot = maybe_slot.unwrap();
-        assert_eq!(Assets::balance(0, &meta1.pot), slot.tokens);
+        assert_eq!(
+            Assets::balance(nft_meta.token_asset_id, &meta1.pot),
+            slot.tokens
+        );
         assert_eq!(slot.ad, ad1);
         assert_eq!(slot.budget, 400);
         assert_eq!(slot.remain, 400 - 40);
@@ -269,10 +277,10 @@ fn should_bid() {
         // ensure: deadline, slot, remain
 
         assert_eq!(<EndtimeOf<Test>>::get(&ad2), Some(1));
-        assert_eq!(<DeadlineOf<Test>>::get(&DID_ALICE, &ad1), None);
-        assert_eq!(<DeadlineOf<Test>>::get(&DID_ALICE, &ad2), Some(1));
+        assert_eq!(<DeadlineOf<Test>>::get(nft_id, &ad1), None);
+        assert_eq!(<DeadlineOf<Test>>::get(nft_id, &ad2), Some(1));
 
-        let maybe_slot = <SlotOf<Test>>::get(&DID_ALICE);
+        let maybe_slot = <SlotOf<Test>>::get(nft_id);
         assert_ne!(maybe_slot, None);
 
         let meta1 = <Metadata<Test>>::get(&ad1).unwrap();
@@ -285,7 +293,11 @@ fn should_bid() {
 
         let slot = maybe_slot.unwrap();
         assert_eq!(Assets::balance(0, &meta1.pot), 0);
-        assert_eq!(Assets::balance(0, &meta2.pot), slot.tokens);
+
+        assert_eq!(
+            Assets::balance(nft_meta.token_asset_id, &meta2.pot),
+            slot.tokens
+        );
         assert_eq!(slot.ad, ad2);
         assert_eq!(slot.budget, 480);
         assert_eq!(slot.remain, 480 - 48);
@@ -305,6 +317,8 @@ fn should_drawback() {
             b"Test Token".to_vec(),
             b"XTT".to_vec()
         ));
+
+        let instance_id = Nft::get_preferred(DID_ALICE).unwrap();
 
         // create ad
 
@@ -331,7 +345,7 @@ fn should_drawback() {
 
         // ensure slot, remain
 
-        assert_eq!(<SlotOf<Test>>::get(&DID_ALICE), None);
+        assert_eq!(<SlotOf<Test>>::get(instance_id), None);
 
         let meta = <Metadata<Test>>::get(&ad).unwrap();
         assert_eq!(meta.remain, 497);
@@ -374,6 +388,10 @@ fn should_pay() {
             b"XTT".to_vec()
         ));
 
+        let nft_id = Nft::get_preferred(DID_ALICE).unwrap();
+
+        let nft_meta: NftMetaFor<Test> = Nft::get_meta_of(nft_id).unwrap();
+
         // create ad
 
         assert_ok!(Ad::create(
@@ -403,12 +421,15 @@ fn should_pay() {
             None
         ));
 
-        let slot = <SlotOf<Test>>::get(&DID_ALICE).unwrap();
-        assert_eq!(Assets::balance(0, &meta.pot), slot.tokens);
+        let slot = <SlotOf<Test>>::get(nft_id).unwrap();
+        assert_eq!(
+            Assets::balance(nft_meta.token_asset_id, &meta.pot),
+            slot.tokens
+        );
         assert_eq!(slot.remain, 400 - 40);
         assert_eq!(slot.tokens, 19 - 5);
 
-        assert_eq!(Assets::balance(0, &CHARLIE), 5);
+        assert_eq!(Assets::balance(nft_meta.token_asset_id, &CHARLIE), 5);
 
         assert_eq!(Tag::get_score(&DID_CHARLIE, b"Test".to_vec()), 5);
 
@@ -441,6 +462,8 @@ fn should_auto_swap_when_swapped_token_used_up() {
             b"XTT".to_vec()
         ));
 
+        let instance_id = Nft::get_preferred(DID_ALICE).unwrap();
+
         // create ad
 
         assert_ok!(Ad::create(
@@ -471,7 +494,7 @@ fn should_auto_swap_when_swapped_token_used_up() {
             ));
         }
 
-        let slot = <SlotOf<Test>>::get(&DID_ALICE).unwrap();
+        let slot = <SlotOf<Test>>::get(instance_id).unwrap();
         assert_eq!(slot.remain, 400 - 40 * 3);
     });
 }
