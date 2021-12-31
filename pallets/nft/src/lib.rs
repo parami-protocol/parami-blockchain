@@ -151,11 +151,10 @@ pub mod pallet {
     pub(super) type Deposit<T: Config> = StorageMap<_, Identity, NftInstanceId<T>, BalanceOf<T>>;
 
     /// Nft's Metadata
-    /// TODO: change hasher
     #[pallet::storage]
     pub(super) type NftMetaStore<T: Config> = StorageMap<
         _,
-        Identity,
+        Black_2_128_Concat,
         NftInstanceId<T>,
         NftMetaFor<T>,
     >;
@@ -167,12 +166,11 @@ pub mod pallet {
         StorageMap<_, Identity, T::DecentralizedId, NftInstanceId<T>>;
 
     /// Deposits by supporter in pot
-    /// TODO: change hasher
     #[pallet::storage]
     #[pallet::getter(fn deposits)]
     pub(super) type Deposits<T: Config> = StorageDoubleMap<
         _,
-        Identity,
+        Black_2_128_Concat,
         NftInstanceId<T>,
         Identity,
         T::DecentralizedId, // Supporter
@@ -187,7 +185,7 @@ pub mod pallet {
     /// Next available class ID
     #[pallet::storage]
     #[pallet::getter(fn next_cid)]
-    pub(super) type NextClassId<T: Config> = StorageValue<_, T::AssetId, ValueQuery>;
+    pub(super) type NextInstanceId<T: Config> = StorageValue<_, T::AssetId, ValueQuery>;
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -239,11 +237,48 @@ pub mod pallet {
     #[pallet::call]
     impl<T: Config> Pallet<T> {
 
-        /// generate a NftInstance and set it as the did's prefer to show nft in his personal page.
-        pub fn gen_and_set_preferred_nft(
+        /// get_preferred
+        /// return preferred_instance_id of KOL if exists;
+        /// return 0 otherwise;
+        #[pallet::weight(10000)]
+        pub fn get_preferred(
             origin: OriginFor<T>,
-        ) -> DispatchError {
-            todo!()
+            kol: T::DecentralizedId,
+        ) -> DispatchResult {
+            let (did, who) = EnsureDid::<T>::ensure_origin(origin)?;
+            <PreferredNft<T>>::get(&kol)::unwrap_or(0)
+        }
+
+        #[pallet::weight(10000)]
+        pub fn create_preferred_if_not_exist(
+            origin: OriginFor<T>,
+            kol: T::DecentralizedId,
+        ) -> DispatchResult {
+            let (did, who) = EnsureDid::<T>::ensure_origin(origin)?;
+
+            /// generate a NftInstance if KOL's preferred nft not exists
+            let instance_id = if let Some(instance_id) = <PreferredNft<T>>::get(&kol) {
+                instance_id
+            } else {
+                let instance_id = NextInstanceId::<T>::try_mutate(|id| -> Result<T::AssetId, DispatchError> {
+                    let current_id = *id;
+                    *id = id.checked_add(&One::one()).ok_or(Error::<T>::Overflow)?;
+                    Ok(current_id)
+                })?;
+
+                let meta = NftMetaFor::<T> {
+                    owner: kol,
+                    pot: T::PalletId::get().into_sub_account(&kol),
+                    classId: instance_id,
+                    minted: false,
+                };
+                <NftMetaStore<T>>::insert(&instance_id, meta);
+
+                <PreferredNft<T>>::insert(&kol, instance_id);
+                instance_id
+            };
+
+            instance_id
         }
 
         /// Back (support) the KOL.
@@ -257,6 +292,8 @@ pub mod pallet {
             let (did, who) = EnsureDid::<T>::ensure_origin(origin)?;
 
             ensure!(kol != did, Error::<T>::YourSelf);
+
+
 
             let meta = <NftMetaStore<T>>::get(&instance_id).ok_or(Error::<T>::NotExists)?;
 
@@ -430,7 +467,7 @@ pub mod pallet {
     #[pallet::genesis_build]
     impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
         fn build(&self) {
-            <NextClassId<T>>::put(self.next_class_id);
+            <NextInstanceId<T>>::put(self.next_class_id);
 
             let next_class_id: u32 = self.next_class_id.try_into().unwrap_or_default();
             if next_class_id > 0 {
