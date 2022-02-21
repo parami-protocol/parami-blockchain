@@ -12,7 +12,7 @@ pub enum Releases {
 
 impl Default for Releases {
     fn default() -> Self {
-        Releases::V0
+        Releases::V1
     }
 }
 

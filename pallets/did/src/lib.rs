@@ -110,8 +110,12 @@ pub mod pallet {
     /// The inviter's DID of a DID.
     #[pallet::storage]
     #[pallet::getter(fn referrer_of)]
-    pub(super) type ReferrerOf<T: Config> =
-        StorageMap<_, Identity, T::DecentralizedId, T::DecentralizedId>;
+    pub(super) type ReferrerOf<T: Config> = StorageMap<
+        _,
+        Identity,
+        T::DecentralizedId,
+        T::DecentralizedId, // inviter's DID
+    >;
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]

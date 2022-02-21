@@ -14,7 +14,7 @@ pub use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{
     crypto::KeyTypeId,
     u32_trait::{_1, _2, _3, _4, _5},
-    OpaqueMetadata, U512,
+    OpaqueMetadata,
 };
 use sp_io::hashing::blake2_128;
 #[cfg(any(feature = "std", test))]
@@ -174,7 +174,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("parami"),
     impl_name: create_runtime_str!("parami-node"),
     authoring_version: 20,
-    spec_version: 320,
+    spec_version: 321,
     impl_version: 0,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 2,
@@ -1182,7 +1182,7 @@ parameter_types! {
 impl parami_linker::Config for Runtime {
     type Event = Event;
     type ForceOrigin = EnsureRootOrHalfCouncil;
-    type MinimumDeposit = MinimumDeposit;
+    type MinimumDeposit = RegistrarMinimumDeposit;
     type PalletId = LinkerPalletId;
     type PendingLifetime = PendingLifetime;
     type Slash = Treasury;

@@ -163,7 +163,7 @@ pub mod pallet {
         Bid(DidOf<T>, HashOf<T>, BalanceOf<T>),
         /// Advertisement (in slot) deadline reached \[kol, id, value\]
         End(NftIdOf<T>, HashOf<T>, BalanceOf<T>),
-        /// Advertisement payout \[id, nft, visitor, value, referer, value\]
+        /// Advertisement payout \[id, nft, visitor, value, referrer, value\]
         Paid(
             HashOf<T>,
             AssetOf<T>,
@@ -450,7 +450,7 @@ pub mod pallet {
             kol: DidOf<T>,
             visitor: DidOf<T>,
             scores: Vec<(Vec<u8>, i8)>,
-            referer: Option<DidOf<T>>,
+            referrer: Option<DidOf<T>>,
         ) -> DispatchResult {
             ensure!(!scores.is_empty(), Error::<T>::EmptyTags);
 
@@ -484,7 +484,7 @@ pub mod pallet {
 
             let tags = T::Tags::tags_of(&ad);
             let personas = T::Tags::personas_of(&visitor);
-            let length = personas.len();
+            let length = tags.len();
             for (tag, score) in personas {
                 let delta = if tags.contains_key(&tag) {
                     score.saturating_mul(10)
@@ -528,13 +528,13 @@ pub mod pallet {
 
             let account = Did::<T>::lookup_did(visitor).ok_or(Error::<T>::DidNotExists)?;
 
-            let award = if let Some(referer) = referer {
+            let award = if let Some(referrer) = referrer {
                 let rate = meta.reward_rate.into();
                 let award = amount.saturating_mul(rate) / 100u32.into();
 
-                let referer = Did::<T>::lookup_did(referer).ok_or(Error::<T>::DidNotExists)?;
+                let referrer = Did::<T>::lookup_did(referrer).ok_or(Error::<T>::DidNotExists)?;
 
-                <T as Config>::Assets::transfer(slot.nft, &meta.pot, &referer, award, false)?;
+                <T as Config>::Assets::transfer(slot.nft, &meta.pot, &referrer, award, false)?;
 
                 award
             } else {
@@ -551,7 +551,7 @@ pub mod pallet {
 
             <Payout<T>>::insert(&ad, &visitor, height);
 
-            Self::deposit_event(Event::Paid(ad, slot.nft, visitor, reward, referer, award));
+            Self::deposit_event(Event::Paid(ad, slot.nft, visitor, reward, referrer, award));
 
             // 5. drawback if advertiser does not have enough fees
 

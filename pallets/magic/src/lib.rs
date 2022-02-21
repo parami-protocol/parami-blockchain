@@ -78,13 +78,22 @@ pub mod pallet {
     /// map from magic account to controller account
     #[pallet::storage]
     #[pallet::getter(fn controller_of)]
-    pub(super) type ControllerAccountOf<T: Config> =
-        StorageMap<_, Blake2_256, AccountOf<T>, AccountOf<T>>;
+    pub(super) type ControllerAccountOf<T: Config> = StorageMap<
+        _,
+        Blake2_256,
+        AccountOf<T>, // Magic Account
+        AccountOf<T>,
+    >;
 
     /// map from stash account to controller account
     #[pallet::storage]
     #[pallet::getter(fn controller)]
-    pub(super) type Controller<T: Config> = StorageMap<_, Blake2_256, AccountOf<T>, AccountOf<T>>;
+    pub(super) type Controller<T: Config> = StorageMap<
+        _,
+        Blake2_256,
+        AccountOf<T>, // Stash Account
+        AccountOf<T>,
+    >;
 
     /// Storage version of the pallet
     #[pallet::storage]
@@ -102,25 +111,7 @@ pub mod pallet {
     }
 
     #[pallet::hooks]
-    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-        fn on_runtime_upgrade() -> Weight {
-            if <StorageVersion<T>>::get() == types::Releases::V1 {
-                return 0;
-            }
-
-            let mut count = 0;
-
-            for sa in <StableAccountOf<T>>::iter_values() {
-                <Controller<T>>::insert(sa.stash_account, sa.controller_account);
-
-                count += 1;
-            }
-
-            <StorageVersion<T>>::set(types::Releases::V1);
-
-            T::DbWeight::get().reads_writes(count as Weight + 1, count as Weight + 1)
-        }
-    }
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
 
     #[pallet::error]
     pub enum Error<T> {
