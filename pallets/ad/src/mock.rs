@@ -144,7 +144,6 @@ parameter_types! {
 
 impl parami_did::Config for Test {
     type Event = Event;
-    type AssetId = AssetId;
     type Currency = Balances;
     type DecentralizedId = H160;
     type Hashing = Keccak256;
@@ -172,6 +171,7 @@ parameter_types! {
 
 impl parami_nft::Config for Test {
     type Event = Event;
+    type AssetId = AssetId;
     type Assets = Assets;
     type InitialMintingDeposit = InitialMintingDeposit;
     type InitialMintingLockupPeriod = InitialMintingLockupPeriod;
@@ -242,11 +242,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     .unwrap();
 
     parami_did::GenesisConfig::<Test> {
-        ids: vec![
-            (ALICE, DID_ALICE, None),
-            (BOB, DID_BOB, None),
-            (CHARLIE, DID_CHARLIE, None),
-        ],
+        ids: vec![(ALICE, DID_ALICE), (BOB, DID_BOB), (CHARLIE, DID_CHARLIE)],
     }
     .assimilate_storage(&mut t)
     .unwrap();

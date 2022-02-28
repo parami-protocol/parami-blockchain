@@ -1164,7 +1164,6 @@ parameter_types! {
 
 impl parami_did::Config for Runtime {
     type Event = Event;
-    type AssetId = AssetId;
     type Currency = Balances;
     type DecentralizedId = DecentralizedId;
     type Hashing = Keccak256;
@@ -1211,6 +1210,7 @@ parameter_types! {
 
 impl parami_nft::Config for Runtime {
     type Event = Event;
+    type AssetId = AssetId;
     type Assets = Assets;
     type InitialMintingDeposit = InitialMintingDeposit;
     type InitialMintingLockupPeriod = InitialMintingLockupPeriod;

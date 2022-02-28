@@ -26,8 +26,8 @@ use parami_did_utils::derive_storage_key;
 use scale_info::TypeInfo;
 use sp_runtime::{
     traits::{
-        AccountIdConversion, AtLeast32BitUnsigned, Bounded, Hash, LookupError, MaybeDisplay,
-        MaybeMallocSizeOf, MaybeSerializeDeserialize, Member, SimpleBitOps, StaticLookup,
+        Hash, LookupError, MaybeDisplay, MaybeMallocSizeOf, MaybeSerializeDeserialize, Member,
+        SimpleBitOps, StaticLookup,
     },
     MultiAddress,
 };
@@ -37,7 +37,7 @@ use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type HeightOf<T> = <T as frame_system::Config>::BlockNumber;
-type MetaOf<T> = types::Metadata<AccountOf<T>, HeightOf<T>, <T as Config>::AssetId>;
+type MetaOf<T> = types::Metadata<AccountOf<T>, HeightOf<T>>;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -49,15 +49,6 @@ pub mod pallet {
     pub trait Config: frame_system::Config {
         /// The overarching event type
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
-
-        /// Non-Fungible Token and fragments (fungible token) ID type used to store NFT Class ID in metadata
-        type AssetId: Parameter
-            + Member
-            + MaybeSerializeDeserialize
-            + AtLeast32BitUnsigned
-            + Default
-            + Bounded
-            + Copy;
 
         /// The reservable currency trait
         type Currency: NamedReservableCurrency<AccountOf<Self>, ReserveIdentifier = [u8; 8]>;
@@ -180,13 +171,10 @@ pub mod pallet {
 
             // 3. store metadata
 
-            let pot = id.into_sub_account(&did);
-
             <Metadata<T>>::insert(
                 &did,
                 types::Metadata {
                     account: who.clone(),
-                    pot,
                     revoked: false,
                     created,
                     ..Default::default()
@@ -235,8 +223,6 @@ pub mod pallet {
 
             let meta = <Metadata<T>>::get(&did).ok_or(Error::<T>::NotExists)?;
 
-            ensure!(meta.nft.is_none(), Error::<T>::Minted);
-
             <Metadata<T>>::insert(
                 &did,
                 types::Metadata {
@@ -270,8 +256,8 @@ pub mod pallet {
 
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
-        /// \[ account, did, nft\]
-        pub ids: Vec<(AccountOf<T>, T::DecentralizedId, Option<T::AssetId>)>,
+        /// \[ account, did\]
+        pub ids: Vec<(AccountOf<T>, T::DecentralizedId)>,
     }
 
     #[cfg(feature = "std")]
@@ -286,18 +272,16 @@ pub mod pallet {
     #[pallet::genesis_build]
     impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
         fn build(&self) {
-            for (id, did, nft) in &self.ids {
+            for (id, did) in &self.ids {
                 <Metadata<T>>::insert(
                     did,
                     types::Metadata {
                         account: id.clone(),
-                        pot: T::PalletId::get().into_sub_account(&did),
-                        nft: *nft,
                         revoked: false,
                         ..Default::default()
                     },
                 );
-                <DidOf<T>>::insert(&id, did);
+                <DidOf<T>>::insert(id, did);
             }
         }
     }

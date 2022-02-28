@@ -7,10 +7,8 @@ use sp_std::prelude::*;
 
 #[derive(Clone, Decode, Default, Encode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-pub struct Metadata<A, N, T> {
+pub struct Metadata<A, N> {
     pub account: A,
-    pub pot: A,
-    pub nft: Option<T>,
     pub revoked: bool,
     pub created: N,
 }

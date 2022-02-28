@@ -29,7 +29,7 @@ use frame_support::{
 };
 use parami_did::Pallet as Did;
 use parami_magic::Pallet as Magic;
-use parami_nft::{NftMetaFor, Pallet as Nft};
+use parami_nft::{NftIdOf, NftMetaFor, Pallet as Nft};
 use parami_traits::{Swaps, Tags};
 use sp_runtime::{
     traits::{AccountIdConversion, Hash, One, Saturating, Zero},
@@ -40,14 +40,13 @@ use sp_std::prelude::*;
 use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
-type AssetOf<T> = <T as parami_did::Config>::AssetId;
+type AssetOf<T> = <T as parami_nft::Config>::AssetId;
 type BalanceOf<T> = <<T as parami_did::Config>::Currency as Currency<AccountOf<T>>>::Balance;
 type DidOf<T> = <T as parami_did::Config>::DecentralizedId;
 type HashOf<T> = <<T as frame_system::Config>::Hashing as Hash>::Output;
 type HeightOf<T> = <T as frame_system::Config>::BlockNumber;
 type MetaOf<T> = types::Metadata<AccountOf<T>, BalanceOf<T>, DidOf<T>, HashOf<T>, HeightOf<T>>;
 type SlotMetaOf<T> = types::Slot<BalanceOf<T>, HashOf<T>, HeightOf<T>, AssetOf<T>>;
-type NftIdOf<T> = parami_nft::NftIdOf<T>;
 
 #[frame_support::pallet]
 pub mod pallet {

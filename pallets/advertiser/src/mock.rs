@@ -25,7 +25,6 @@ frame_support::construct_runtime!(
 );
 
 pub type DID = <Test as parami_did::Config>::DecentralizedId;
-type AssetId = u64;
 type Balance = u128;
 
 parameter_types! {
@@ -83,7 +82,6 @@ parameter_types! {
 
 impl parami_did::Config for Test {
     type Event = Event;
-    type AssetId = AssetId;
     type Currency = Balances;
     type DecentralizedId = sp_core::H160;
     type Hashing = Keccak256;
@@ -121,8 +119,8 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 
     parami_did::GenesisConfig::<Test> {
         ids: vec![
-            (alice, DID::from_slice(&[0xff; 20]), None),
-            (bob, DID::from_slice(&[0xee; 20]), None),
+            (alice, DID::from_slice(&[0xff; 20])),
+            (bob, DID::from_slice(&[0xee; 20])),
         ],
     }
     .assimilate_storage(&mut t)
