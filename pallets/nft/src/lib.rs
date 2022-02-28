@@ -187,6 +187,7 @@ pub mod pallet {
         Minted(
             T::DecentralizedId,
             NftIdOf<T>,
+            AssetOf<T>,
             Vec<u8>,
             Vec<u8>,
             BalanceOf<T>,
@@ -299,10 +300,11 @@ pub mod pallet {
             // 3. initial minting
 
             let initial = T::InitialMintingValueBase::get();
+            let supply = initial.saturating_mul(3u32.into());
 
             T::Assets::create(tid, meta.pot.clone(), true, One::one())?;
             T::Assets::set(tid, &meta.pot, name.clone(), symbol.clone(), 18)?;
-            T::Assets::mint_into(tid, &meta.pot, initial.saturating_mul(3u32.into()))?;
+            T::Assets::mint_into(tid, &meta.pot, supply)?;
 
             // 4. transfer third of initial minting to swap
 
@@ -321,7 +323,7 @@ pub mod pallet {
                 *maybe = Some(deposit);
             });
 
-            Self::deposit_event(Event::Minted(did, instance_id, name, symbol, initial));
+            Self::deposit_event(Event::Minted(did, instance_id, tid, name, symbol, supply));
 
             Ok(())
         }
