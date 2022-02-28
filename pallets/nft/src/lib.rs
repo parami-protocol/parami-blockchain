@@ -36,7 +36,9 @@ use parami_did::EnsureDid;
 use parami_traits::Swaps;
 use sp_core::U512;
 use sp_runtime::{
-    traits::{AccountIdConversion, AtLeast32BitUnsigned, Bounded, CheckedAdd, One, Saturating},
+    traits::{
+        AccountIdConversion, AtLeast32BitUnsigned, Bounded, CheckedAdd, One, Saturating, Zero,
+    },
     DispatchError, RuntimeDebug,
 };
 use sp_std::{
@@ -425,6 +427,7 @@ pub mod pallet {
         pub deposit: Vec<(NftIdOf<T>, BalanceOf<T>)>,
         pub deposits: Vec<(NftIdOf<T>, T::DecentralizedId, BalanceOf<T>)>,
         pub next_instance_id: NftIdOf<T>,
+        pub nfts: Vec<(NftIdOf<T>, T::DecentralizedId, bool)>,
     }
 
     #[cfg(feature = "std")]
@@ -434,6 +437,7 @@ pub mod pallet {
                 deposit: Default::default(),
                 deposits: Default::default(),
                 next_instance_id: Default::default(),
+                nfts: Default::default(),
             }
         }
     }
@@ -443,20 +447,42 @@ pub mod pallet {
         fn build(&self) {
             <NextNftId<T>>::put(self.next_instance_id);
 
-            let next_class_id: u32 = self.next_instance_id.try_into().unwrap_or_default();
-            if next_class_id > 0 {
-                for token in 0u32..next_class_id {
-                    let token: NftIdOf<T> = token.into();
-                    <Date<T>>::insert(token, T::InitialMintingLockupPeriod::get());
-                }
-            }
-
             for (instance_id, deposit) in &self.deposit {
                 <Deposit<T>>::insert(instance_id, deposit);
             }
 
             for (instance_id, did, deposit) in &self.deposits {
                 <Deposits<T>>::insert(instance_id, did, deposit);
+            }
+
+            for (id, owner, minted) in &self.nfts {
+                let id = *id;
+                let minted = *minted;
+
+                if id >= self.next_instance_id {
+                    panic!("NFT ID must be less than next_instance_id");
+                }
+
+                let pot: AccountOf<T> = T::PalletId::get().into_sub_account(owner);
+
+                let meta = NftMetaFor::<T> {
+                    owner: owner.clone(),
+                    pot: pot.clone(),
+                    class_id: id,
+                    token_asset_id: id,
+                    minted,
+                };
+
+                <NftMetaStore<T>>::insert(id, meta);
+                <PreferredNft<T>>::insert(owner, id);
+
+                if minted {
+                    // MARK: pallet_uniques does not support genesis
+                    T::Nft::create_class(&id, &pot, &pot).unwrap();
+                    T::Nft::mint_into(&id, &id, &pot).unwrap();
+
+                    <Date<T>>::insert(id, HeightOf::<T>::zero());
+                }
             }
         }
     }
