@@ -3,10 +3,16 @@ use super::*;
 #[allow(unused)]
 use crate::Pallet as Swap;
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite, whitelisted_caller};
+use frame_support::traits::fungibles::{Create, Inspect, Mutate};
 use frame_system::RawOrigin;
-use sp_runtime::traits::Saturating;
+use sp_runtime::traits::{Saturating, Zero};
 
 benchmarks! {
+    where_clause {
+        where
+        T::Assets: Create<T::AccountId>
+    }
+
     create {
         let caller: T::AccountId = whitelisted_caller();
 
@@ -17,8 +23,8 @@ benchmarks! {
         T::Assets::create(id, caller.clone(), true, min)?;
     }: _(RawOrigin::Signed(caller), id)
     verify {
-        let meta = <Metadata<T>>::get(id).unwrap();
-        assert_eq!(meta.lp_token_id, T::AssetId::max_value());
+        let meta = <Metadata<T>>::get(id);
+        assert_ne!(meta, None);
     }
 
     add_liquidity {
@@ -50,7 +56,7 @@ benchmarks! {
     }: _(RawOrigin::Signed(caller.clone()), id, pot, min, max, deadline)
     verify {
         let meta = <Metadata<T>>::get(id).unwrap();
-        assert_eq!(T::Assets::balance(meta.lp_token_id, &caller), pot.saturating_mul(2u32.into()));
+        assert_eq!(meta.liquidity, pot.saturating_mul(2u32.into()));
     }
 
     remove_liquidity {
@@ -78,10 +84,10 @@ benchmarks! {
             pot.saturating_mul(2u32.into()),
             deadline,
         )?;
-    }: _(RawOrigin::Signed(caller.clone()), id, pot, min, min, deadline)
+    }: _(RawOrigin::Signed(caller.clone()), id, min, min, deadline)
     verify {
         let meta = <Metadata<T>>::get(id).unwrap();
-        assert_eq!(T::Assets::balance(meta.lp_token_id, &caller), Zero::zero());
+        assert_eq!(meta.liquidity, Zero::zero());
     }
 
     buy_tokens {

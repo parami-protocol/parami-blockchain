@@ -189,7 +189,8 @@ benchmarks! {
         )?;
     }: _(RawOrigin::Signed(caller.clone()), ad, did, pot)
     verify {
-        assert_ne!(<SlotOf<T>>::get(&did), None);
+        let nft = Nft::<T>::preferred_nft_of(&did).unwrap();
+        assert_ne!(<SlotOf<T>>::get(&nft), None);
     }
 
     pay {
@@ -257,8 +258,7 @@ benchmarks! {
     verify {
         use frame_support::traits::fungibles::Inspect;
 
-        let slot = Did::<T>::meta(&slot).unwrap();
-        let nft = slot.nft.unwrap();
+        let nft = Nft::<T>::preferred_nft_of(&slot).unwrap();
 
         let visitor: T::AccountId = account("visitor", 2, 2);
 
