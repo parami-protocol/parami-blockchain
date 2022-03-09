@@ -1190,6 +1190,13 @@ impl parami_linker::Config for Runtime {
     type WeightInfo = parami_linker::weights::SubstrateWeight<Runtime>;
 }
 
+impl parami_zkp::Config for Runtime {
+    type Event = Event;
+    type UnsignedPriority = UnsignedPriority;
+    type ForceOrigin = EnsureRootOrHalfCouncil;
+    type WeightInfo = parami_zkp::weights::SubstrateWeight<Runtime>;
+}
+
 parameter_types! {
     pub const MagicPalletId: PalletId = PalletId(*names::MAGIC);
 }
@@ -1313,6 +1320,7 @@ construct_runtime!(
         Nft: parami_nft::{Pallet, Call, Storage, Config<T>, Event<T>} = 107,
         Swap: parami_swap::{Pallet, Call, Storage, Config<T>, Event<T>} = 108,
         Tag: parami_tag::{Pallet, Call, Storage, Config<T>, Event<T>} = 109,
+        Zkp: parami_zkp,
     }
 );
 

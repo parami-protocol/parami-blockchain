@@ -46,7 +46,7 @@ parami-para-runtime = { path = '../../runtimes/para' }
 parami-did-rpc = { path = '../../pallets/did/rpc' }
 parami-linker = { path = '../../pallets/linker' }
 parami-swap-rpc = { path = '../../pallets/swap/rpc' }
-
+parami-zkp-rpc = { path = '../../pallets/zkp/rpc' }
 # Substrate Dependencies
 frame-benchmarking = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13' }
 frame-benchmarking-cli = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13' }

@@ -20,6 +20,7 @@ impl sc_executor::NativeExecutionDispatch for ExecutorDispatch {
         frame_benchmarking::benchmarking::HostFunctions,
         parami_linker::hashing::HostFunctions, //
         parami_linker::images::HostFunctions,
+        parami_zkp::zkp::HostFunctions,
     );
 
     fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {

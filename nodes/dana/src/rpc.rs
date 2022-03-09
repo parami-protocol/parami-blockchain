@@ -70,6 +70,7 @@ where
     use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApi};
     use parami_did_rpc::{DidApi, DidRpcHandler};
     use parami_swap_rpc::{SwapApi, SwapsRpcHandler};
+    use parami_zkp_rpc::{ZkpApi,ZkpRpcHandler};
     use substrate_frame_rpc_system::{FullSystem, SystemApi};
 
     let mut io = jsonrpc_core::IoHandler::default();
@@ -117,6 +118,6 @@ where
         io.extend_with(did_rpc);
     }
     io.extend_with(SwapApi::to_delegate(SwapsRpcHandler::new(client.clone())));
-
+    io.extend_with(ZkpApi::to_delegate(ZkpRpcHandler::new(client.clone())));
     io
 }

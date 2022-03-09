@@ -1,0 +1,25 @@
+[package]
+authors = ['Parami Devs <info@parami.io>']
+edition = '2021'
+homepage = 'https://parami.io'
+license = 'GPL-3.0-only WITH Classpath-exception-2.0'
+name = 'parami-zkp-rpc'
+publish = false
+repository = 'https://github.com/parami-protocol/parami-blockchain/'
+version = '0.0.1'
+
+[package.metadata.docs.rs]
+targets = ['x86_64-unknown-linux-gnu']
+
+
+[dependencies]
+
+parami-zkp = {path='../../zkp'}
+parking_lot = '0.11'
+jsonrpc-core = '18.0.0'
+jsonrpc-core-client = '18.0.0'
+jsonrpc-derive = '18.0.0'
+
+sp-core = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13' }
+sp-offchain = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13' }
+sp-rpc = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13' }
