@@ -180,6 +180,22 @@ pub mod pallet {
             Ok(())
         }
 
+        #[pallet::weight(0)]
+        pub fn setEk(
+            origin: OriginFor<T>,
+            ek: Vec<u8>,
+        ) -> DispatchResult {
+            let (did, _) = EnsureDid::<T>::ensure_origin(origin)?;
+            // let res = ocw::zkp::verify(ek, challenge, encrypted_pairs, proof, range, cipher_x);
+            // if res {
+            //     Self::deposit_event(Event::<T>::VerifyOk);
+            // } else {
+            //     Self::deposit_event(Event::<T>::VerifyFailed);
+            // }
+            EkOf::<T>::insert(did, ek);
+            Ok(())
+        }
+
         // chain internal use only
         #[pallet::weight(1000)]
         pub fn submit_verify(
@@ -256,7 +272,7 @@ pub mod pallet {
             };
 
             match call {
-                Call::submit_verify { .. } => valid_tx(b"submit_link".to_vec()),
+                Call::submit_verify { .. } => valid_tx(b"submit_verify".to_vec()),
                 _ => InvalidTransaction::Call.into(),
             }
         }
