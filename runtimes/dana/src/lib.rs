@@ -1195,6 +1195,8 @@ impl parami_zkp::Config for Runtime {
     type UnsignedPriority = UnsignedPriority;
     type ForceOrigin = EnsureRootOrHalfCouncil;
     type WeightInfo = parami_zkp::weights::SubstrateWeight<Runtime>;
+    type PalletId = LinkerPalletId;
+    type PendingLifetime = PendingLifetime;
 }
 
 parameter_types! {
@@ -1320,7 +1322,7 @@ construct_runtime!(
         Nft: parami_nft::{Pallet, Call, Storage, Config<T>, Event<T>} = 107,
         Swap: parami_swap::{Pallet, Call, Storage, Config<T>, Event<T>} = 108,
         Tag: parami_tag::{Pallet, Call, Storage, Config<T>, Event<T>} = 109,
-        Zkp: parami_zkp,
+        Zkp: parami_zkp = 110,
     }
 );
 
@@ -1607,7 +1609,7 @@ impl_runtime_apis! {
             list_benchmark!(list, extra, parami_nft, Nft);
             list_benchmark!(list, extra, parami_swap, Swap);
             list_benchmark!(list, extra, parami_tag, Tag);
-
+            list_benchmark!(list, extra, parami_zkp, Zkp);
             let storage_info = AllPalletsWithSystem::storage_info();
 
             return (list, storage_info)
@@ -1653,6 +1655,7 @@ impl_runtime_apis! {
             add_benchmark!(params, batches, parami_nft, Nft);
             add_benchmark!(params, batches, parami_swap, Swap);
             add_benchmark!(params, batches, parami_tag, Tag);
+            add_benchmark!(params, batches, parami_zkp, Zkp);
 
             Ok(batches)
         }

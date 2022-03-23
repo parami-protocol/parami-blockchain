@@ -19,7 +19,7 @@ pub trait ZkpApi {
     ///
     /// the proof result
     #[rpc(name = "zkp_verifier")]
-    fn verifyIt(&self, ek: Vec<u8>, challenge: Vec<u8>, encrypted_paris: Vec<u8>, proof: Vec<u8>, range: Vec<u8>, cipher_x: Vec<u8>) -> Result<bool>;
+    fn verify_it(&self, ek: Vec<u8>, json: Vec<u8>) -> Result<bool>;
 
     /// Encrypt something
     ///
@@ -53,8 +53,9 @@ impl<C> ZkpRpcHandler<C>
 impl<C> ZkpApi for ZkpRpcHandler<C>
     where C: Send + Sync + 'static
 {
-    fn verifyIt(&self, ek: Vec<u8>, challenge: Vec<u8>, encrypted_paris: Vec<u8>, proof: Vec<u8>, range: Vec<u8>, cipher_x: Vec<u8>) -> Result<bool> {
-        Ok(ocw::zkp::verify(ek, challenge, encrypted_paris, proof, range, cipher_x))
+    fn verify_it(&self, ek: Vec<u8>, json: Vec<u8>) -> Result<bool> {
+        let (result, _range) = ocw::zkp::verify(ek, json);
+        Ok(result)
     }
 
     fn encrypt(&self, ek: Vec<u8>, data: Vec<u8>) -> Result<Vec<u8>> {

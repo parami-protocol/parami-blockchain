@@ -43,7 +43,7 @@ sp-std = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v
 frame-benchmarking = { git = 'https://github.com/paritytech/substrate', default-features = false, optional = true, branch = 'polkadot-v0.9.13' }
 frame-support = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }
 frame-system = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }
-paillier = { optional= true, git ='https://github.com/RightFS/rust-paillier.git', branch = 'master'}
+paillier = { optional= true, git ='https://github.com/RightFS/rust-paillier.git', branch = 'fix_js'}
 bincode = { version = "1.3.3", optional = true}
 [dev-dependencies]
 parami-tag = { path = '../tag' }
@@ -58,7 +58,6 @@ default = ['std']
 runtime-benchmarks = ['frame-benchmarking', 'hex/alloc']
 
 std = [
-    'parami-did/std',
     'parami-traits/std',
     'paillier',
     'hex/std',
@@ -67,19 +66,15 @@ std = [
     'serde_json',
     'bincode',
     'tracing/std',
-
     'scale-info/std',
-
     'sp-core/std',
     'sp-io/std',
     'sp-runtime-interface/std',
     'sp-runtime/std',
     'sp-std/std',
-
     'frame-benchmarking/std',
     'frame-support/std',
     'frame-system/std',
-
 ]
 
 try-runtime = ['frame-support/try-runtime']

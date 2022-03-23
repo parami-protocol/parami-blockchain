@@ -92,7 +92,7 @@ pallet-membership = { git = 'https://github.com/paritytech/substrate', branch = 
 pallet-mmr = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }
 pallet-multisig = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }
 pallet-offences = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }
-pallet-offences-benchmarking = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false, optional = true }
+# pallet-offences-benchmarking = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false, optional = true }
 pallet-randomness-collective-flip = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }
 pallet-recovery = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }
 pallet-scheduler = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }
@@ -132,7 +132,7 @@ std = [
     'parami-swap-rpc-runtime-api/std',
     'parami-tag/std',
     'parami-traits/std',
-
+    'parami-zkp/std',
     'sp-api/std',
     'sp-block-builder/std',
     'sp-consensus-aura/std',
@@ -202,7 +202,7 @@ runtime-benchmarks = [
     'parami-nft/runtime-benchmarks',
     'parami-swap/runtime-benchmarks',
     'parami-tag/runtime-benchmarks',
-
+    'parami-zkp/runtime-benchmarks',
     'sp-runtime/runtime-benchmarks',
 
     'frame-benchmarking',
@@ -224,7 +224,7 @@ runtime-benchmarks = [
     'pallet-membership/runtime-benchmarks',
     'pallet-mmr/runtime-benchmarks',
     'pallet-multisig/runtime-benchmarks',
-    'pallet-offences-benchmarking',
+    #'pallet-offences-benchmarking',
     'pallet-offences/runtime-benchmarks',
     'pallet-scheduler/runtime-benchmarks',
     'pallet-session-benchmarking',
