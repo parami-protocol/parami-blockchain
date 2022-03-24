@@ -28,7 +28,7 @@ use frame_support::{
     PalletId,
 };
 use parami_did::Pallet as Did;
-use parami_nft::{NftIdOf, NftMetaFor, Pallet as Nft};
+use parami_nft::Pallet as Nft;
 use parami_traits::{Accounts, Swaps, Tags};
 use sp_runtime::{
     traits::{AccountIdConversion, Hash, One, Saturating, Zero},
@@ -122,7 +122,7 @@ pub mod pallet {
     pub(super) type DeadlineOf<T: Config> = StorageDoubleMap<
         _,
         Twox64Concat,
-        NftIdOf<T>, // KOL NFT ID
+        AssetOf<T>, // KOL NFT ID
         Identity,
         HashOf<T>,
         HeightOf<T>,
@@ -131,12 +131,12 @@ pub mod pallet {
     /// Slot of a NFT
     #[pallet::storage]
     #[pallet::getter(fn slot_of)]
-    pub(super) type SlotOf<T: Config> = StorageMap<_, Twox64Concat, NftIdOf<T>, SlotMetaOf<T>>;
+    pub(super) type SlotOf<T: Config> = StorageMap<_, Twox64Concat, AssetOf<T>, SlotMetaOf<T>>;
 
     /// Slots of an advertisement
     #[pallet::storage]
     #[pallet::getter(fn slots_of)]
-    pub(super) type SlotsOf<T: Config> = StorageMap<_, Identity, HashOf<T>, Vec<NftIdOf<T>>>;
+    pub(super) type SlotsOf<T: Config> = StorageMap<_, Identity, HashOf<T>, Vec<AssetOf<T>>>;
 
     /// Payouts of an advertisement
     #[pallet::storage]
@@ -160,9 +160,9 @@ pub mod pallet {
         /// Advertisement updated \[id\]
         Updated(HashOf<T>),
         /// Advertiser bid for slot \[kol, id, value\]
-        Bid(DidOf<T>, HashOf<T>, BalanceOf<T>),
+        Bid(AssetOf<T>, HashOf<T>, BalanceOf<T>),
         /// Advertisement (in slot) deadline reached \[kol, id, value\]
-        End(NftIdOf<T>, HashOf<T>, BalanceOf<T>),
+        End(AssetOf<T>, HashOf<T>, BalanceOf<T>),
         /// Advertisement payout \[id, nft, visitor, value, referrer, value\]
         Paid(
             HashOf<T>,
@@ -173,12 +173,12 @@ pub mod pallet {
             BalanceOf<T>,
         ),
         /// Swap Triggered \[id, kol, remain\]
-        SwapTriggered(HashOf<T>, DidOf<T>, BalanceOf<T>),
+        SwapTriggered(HashOf<T>, AssetOf<T>, BalanceOf<T>),
     }
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-        fn on_initialize(n: HeightOf<T>) -> Weight {
+        fn on_initialize(n: BlockNumberFor<T>) -> Weight {
             Self::begin_block(n).unwrap_or_else(|e| {
                 sp_runtime::print(e);
                 0
@@ -361,7 +361,7 @@ pub mod pallet {
         pub fn bid(
             origin: OriginFor<T>,
             ad: HashOf<T>,
-            kol: DidOf<T>,
+            nft: AssetOf<T>,
             #[pallet::compact] value: BalanceOf<T>,
         ) -> DispatchResult {
             let (did, _) = T::CallOrigin::ensure_origin(origin)?;
@@ -375,15 +375,14 @@ pub mod pallet {
 
             ensure!(meta.remain >= value, Error::<T>::InsufficientBalance);
 
-            let preferred_nft_id = Nft::<T>::get_preferred(kol).ok_or(Error::<T>::NotMinted)?;
-            let nft_meta = Nft::<T>::get_meta_of(preferred_nft_id).ok_or(Error::<T>::NotMinted)?;
+            let nft_meta = Nft::<T>::meta(nft).ok_or(Error::<T>::NotMinted)?;
 
             ensure!(nft_meta.minted, Error::<T>::NotMinted);
 
             let created = <frame_system::Pallet<T>>::block_number();
 
             // 1. check slot of kol
-            let slot = <SlotOf<T>>::get(&preferred_nft_id);
+            let slot = <SlotOf<T>>::get(nft);
 
             // 2. if slot is used
             // require a 20% increase of current budget
@@ -398,7 +397,7 @@ pub mod pallet {
                     Error::<T>::Underbid
                 );
 
-                let _ = Self::drawback(preferred_nft_id, &slot)?;
+                let _ = Self::drawback(nft, &slot)?;
             }
 
             // 3. update slot
@@ -412,7 +411,7 @@ pub mod pallet {
             };
 
             let mut slot = types::Slot {
-                nft: preferred_nft_id,
+                nft,
                 budget: value,
                 remain: value,
                 tokens: Zero::zero(),
@@ -420,11 +419,11 @@ pub mod pallet {
                 ad,
             };
 
-            Self::swap_by_10percent(kol, &meta, &nft_meta, &mut slot, One::one())?;
+            Self::swap_by_10percent(&meta, nft_meta.token_asset_id, &mut slot, One::one())?;
 
-            <SlotOf<T>>::insert(preferred_nft_id, &slot);
+            <SlotOf<T>>::insert(nft, &slot);
 
-            <DeadlineOf<T>>::insert(preferred_nft_id, &ad, deadline);
+            <DeadlineOf<T>>::insert(nft, &ad, deadline);
 
             meta.remain.saturating_reduce(value);
 
@@ -432,13 +431,13 @@ pub mod pallet {
 
             <SlotsOf<T>>::mutate(&ad, |maybe| {
                 if let Some(slots) = maybe {
-                    slots.push(preferred_nft_id);
+                    slots.push(nft);
                 } else {
-                    *maybe = Some(vec![preferred_nft_id]);
+                    *maybe = Some(vec![nft]);
                 }
             });
 
-            Self::deposit_event(Event::Bid(kol, ad, value));
+            Self::deposit_event(Event::Bid(nft, ad, value));
 
             Ok(())
         }
@@ -447,7 +446,7 @@ pub mod pallet {
         pub fn pay(
             origin: OriginFor<T>,
             ad: HashOf<T>,
-            kol: DidOf<T>,
+            nft: AssetOf<T>,
             visitor: DidOf<T>,
             scores: Vec<(Vec<u8>, i8)>,
             referrer: Option<DidOf<T>>,
@@ -463,19 +462,17 @@ pub mod pallet {
 
             let meta = Self::ensure_owned(did, ad)?;
 
-            let preferred_nft_id = Nft::<T>::get_preferred(kol).ok_or(Error::<T>::NotMinted)?;
-
-            let nft_meta = Nft::<T>::get_meta_of(preferred_nft_id).ok_or(Error::<T>::NotMinted)?;
+            let nft_meta = Nft::<T>::meta(nft).ok_or(Error::<T>::NotMinted)?;
             ensure!(nft_meta.minted, Error::<T>::NotMinted);
 
-            let deadline = <DeadlineOf<T>>::get(preferred_nft_id, &ad) //
+            let deadline = <DeadlineOf<T>>::get(nft, &ad) //
                 .ok_or(Error::<T>::NotExists)?;
             ensure!(deadline > height, Error::<T>::Deadline);
 
             ensure!(!<Payout<T>>::contains_key(&ad, &visitor), Error::<T>::Paid);
 
             // 1. get slot, check current ad
-            let mut slot = <SlotOf<T>>::get(preferred_nft_id).ok_or(Error::<T>::NotExists)?;
+            let mut slot = <SlotOf<T>>::get(nft).ok_or(Error::<T>::NotExists)?;
             ensure!(slot.ad == ad, Error::<T>::Underbid);
 
             // 2. scoring visitor
@@ -508,9 +505,9 @@ pub mod pallet {
                 // if tokens is not enough, swap tokens
 
                 // swap 10% of current budget, at least cover current payout
-                Self::swap_by_10percent(kol, &meta, &nft_meta, &mut slot, amount)?;
+                Self::swap_by_10percent(&meta, nft_meta.token_asset_id, &mut slot, amount)?;
 
-                <SlotOf<T>>::insert(preferred_nft_id, &slot);
+                <SlotOf<T>>::insert(nft, &slot);
             }
 
             ensure!(slot.tokens >= amount, Error::<T>::InsufficientTokens);
@@ -547,7 +544,7 @@ pub mod pallet {
 
             slot.tokens.saturating_reduce(amount);
 
-            <SlotOf<T>>::insert(preferred_nft_id, &slot);
+            <SlotOf<T>>::insert(nft, &slot);
 
             <Payout<T>>::insert(&ad, &visitor, height);
 
@@ -556,7 +553,7 @@ pub mod pallet {
             // 5. drawback if advertiser does not have enough fees
 
             if T::Accounts::fee_account_balance(&who) < T::MinimumFeeBalance::get() {
-                let _ = Self::drawback(preferred_nft_id, &slot);
+                let _ = Self::drawback(nft, &slot);
             }
 
             Ok(())
@@ -666,7 +663,7 @@ impl<T: Config> Pallet<T> {
         Ok(T::DbWeight::get().reads_writes(read as Weight, write as Weight))
     }
 
-    fn drawback(nft_id: NftIdOf<T>, slot: &SlotMetaOf<T>) -> Result<BalanceOf<T>, DispatchError> {
+    fn drawback(nft: AssetOf<T>, slot: &SlotMetaOf<T>) -> Result<BalanceOf<T>, DispatchError> {
         let mut meta = <Metadata<T>>::get(slot.ad).ok_or(Error::<T>::NotExists)?;
 
         let amount = T::Swaps::token_in(
@@ -682,17 +679,17 @@ impl<T: Config> Pallet<T> {
 
         <Metadata<T>>::insert(slot.ad, meta);
 
-        <SlotOf<T>>::remove(nft_id);
+        <SlotOf<T>>::remove(nft);
 
         <SlotsOf<T>>::mutate(slot.ad, |maybe| {
             if let Some(slots) = maybe {
-                slots.retain(|x| *x != nft_id);
+                slots.retain(|x| *x != nft);
             }
         });
 
-        <DeadlineOf<T>>::remove(nft_id, slot.ad);
+        <DeadlineOf<T>>::remove(nft, slot.ad);
 
-        Self::deposit_event(Event::End(nft_id, slot.ad, amount));
+        Self::deposit_event(Event::End(nft, slot.ad, amount));
 
         Ok(amount)
     }
@@ -705,26 +702,19 @@ impl<T: Config> Pallet<T> {
     }
 
     fn swap_by_10percent(
-        kol: DidOf<T>,
         meta: &MetaOf<T>,
-        nft_meta: &NftMetaFor<T>,
+        token: AssetOf<T>,
         slot: &mut SlotMetaOf<T>,
         least: BalanceOf<T>,
     ) -> DispatchResult {
         // swap per 10%
         let amount = slot.budget / 10u32.into();
-        let tokens = T::Swaps::quote_in(
-            meta.pot.clone(),
-            nft_meta.token_asset_id,
-            amount,
-            least,
-            false,
-        )?;
+        let tokens = T::Swaps::quote_in(meta.pot.clone(), token, amount, least, false)?;
 
         slot.remain.saturating_reduce(amount);
         slot.tokens.saturating_accrue(tokens);
 
-        Self::deposit_event(Event::SwapTriggered(slot.ad, kol, slot.remain));
+        Self::deposit_event(Event::SwapTriggered(slot.ad, token, slot.remain));
 
         Ok(())
     }

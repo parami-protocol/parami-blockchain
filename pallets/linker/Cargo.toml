@@ -25,6 +25,7 @@ version = '1.0'
 
 [dependencies]
 parami-did = { path = '../did', default-features = false }
+parami-primitives = { path = '../../primitives', default-features = false }
 parami-traits = { path = '../traits', default-features = false }
 
 base58 = '0.2'
@@ -59,6 +60,7 @@ runtime-benchmarks = ['frame-benchmarking', 'hex/alloc']
 
 std = [
     'parami-did/std',
+    'parami-primitives/std',
     'parami-traits/std',
 
     'hex/std',

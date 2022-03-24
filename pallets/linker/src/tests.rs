@@ -1,9 +1,7 @@
-use crate::{
-    mock::*, ocw::USER_AGENT, types::AccountType, Config, Error, Linked, LinksOf, PendingOf,
-    Registrar,
-};
+use crate::{mock::*, ocw::USER_AGENT, Config, Error, Linked, LinksOf, PendingOf, Registrar};
 use codec::Decode;
 use frame_support::{assert_noop, assert_ok, traits::Hooks};
+use parami_primitives::Network;
 use sp_core::offchain::{testing, OffchainWorkerExt, TransactionPoolExt};
 
 macro_rules! assert_ok_eq {
@@ -38,11 +36,11 @@ fn should_link() {
 
         assert_ok!(Linker::insert_pending(
             DID_ALICE,
-            AccountType::Telegram,
+            Network::Telegram,
             profile.clone(),
         ));
 
-        let maybe_pending = <PendingOf<Test>>::get(AccountType::Telegram, &DID_ALICE);
+        let maybe_pending = <PendingOf<Test>>::get(Network::Telegram, &DID_ALICE);
         assert_ne!(maybe_pending, None);
 
         let pending = maybe_pending.unwrap();
@@ -51,20 +49,17 @@ fn should_link() {
 
         assert_ok!(Linker::insert_link(
             DID_ALICE,
-            AccountType::Telegram,
+            Network::Telegram,
             profile.clone(),
             DID_ALICE,
         ));
 
-        assert_eq!(
-            <PendingOf<Test>>::get(AccountType::Telegram, &DID_ALICE),
-            None
-        );
+        assert_eq!(<PendingOf<Test>>::get(Network::Telegram, &DID_ALICE), None);
 
-        assert!(<Linked<Test>>::get(AccountType::Telegram, &profile));
+        assert!(<Linked<Test>>::get(Network::Telegram, &profile));
 
         assert_eq!(
-            <LinksOf<Test>>::get(&DID_ALICE, AccountType::Telegram),
+            <LinksOf<Test>>::get(&DID_ALICE, Network::Telegram),
             Some(profile)
         );
     })
@@ -74,12 +69,12 @@ fn should_link() {
 fn should_fail_when_exists() {
     new_test_ext().execute_with(|| {
         assert_noop!(
-            Linker::insert_pending(DID_ALICE, AccountType::Polkadot, POLKA.to_vec()),
+            Linker::insert_pending(DID_ALICE, Network::Polkadot, POLKA.to_vec()),
             Error::<Test>::Exists
         );
 
         assert_noop!(
-            Linker::insert_pending(DID_BOB, AccountType::Polkadot, POLKA.to_vec()),
+            Linker::insert_pending(DID_BOB, Network::Polkadot, POLKA.to_vec()),
             Error::<Test>::Exists
         );
     })
@@ -122,7 +117,7 @@ fn should_ocw_submit() {
     t.register_extension(TransactionPoolExt::new(pool));
 
     t.execute_with(|| {
-        Linker::ocw_submit_link(DID_ALICE, AccountType::Telegram, Vec::<u8>::new(), false);
+        Linker::ocw_submit_link(DID_ALICE, Network::Telegram, Vec::<u8>::new(), false);
 
         let tx = state.write().transactions.pop().unwrap();
 
@@ -130,7 +125,7 @@ fn should_ocw_submit() {
             tx,
             Call::Linker(crate::Call::submit_link {
                 did: DID_ALICE,
-                site: AccountType::Telegram,
+                site: Network::Telegram,
                 profile: Vec::<u8>::new(),
                 validated: false,
             })
@@ -146,15 +141,15 @@ fn should_submit() {
         assert_ok!(Linker::submit_link(
             Origin::none(),
             DID_ALICE,
-            AccountType::Telegram,
+            Network::Telegram,
             profile.clone(),
             true,
         ));
 
-        assert!(<Linked<Test>>::get(AccountType::Telegram, &profile));
+        assert!(<Linked<Test>>::get(Network::Telegram, &profile));
 
         assert_eq!(
-            <LinksOf<Test>>::get(&DID_ALICE, AccountType::Telegram),
+            <LinksOf<Test>>::get(&DID_ALICE, Network::Telegram),
             Some(profile)
         );
     })
@@ -167,27 +162,21 @@ fn should_submit_when_pending() {
 
         assert_ok!(Linker::link_sociality(
             Origin::signed(ALICE),
-            AccountType::Telegram,
+            Network::Telegram,
             profile.clone(),
         ));
 
-        assert_ne!(
-            <PendingOf<Test>>::get(AccountType::Telegram, &DID_ALICE),
-            None
-        );
+        assert_ne!(<PendingOf<Test>>::get(Network::Telegram, &DID_ALICE), None);
 
         assert_ok!(Linker::submit_link(
             Origin::none(),
             DID_ALICE,
-            AccountType::Telegram,
+            Network::Telegram,
             profile.clone(),
             false,
         ));
 
-        assert_eq!(
-            <PendingOf<Test>>::get(AccountType::Telegram, &DID_ALICE),
-            None
-        );
+        assert_eq!(<PendingOf<Test>>::get(Network::Telegram, &DID_ALICE), None);
     })
 }
 
@@ -219,7 +208,7 @@ fn should_link_sociality() {
     t.execute_with(|| {
         assert_ok!(Linker::link_sociality(
             Origin::signed(ALICE),
-            AccountType::Telegram,
+            Network::Telegram,
             profile.clone(),
         ));
 
@@ -233,8 +222,8 @@ fn should_link_sociality() {
             tx,
             Call::Linker(crate::Call::submit_link {
                 did: DID_ALICE,
-                site: AccountType::Telegram,
-                profile: Vec::new(),
+                site: Network::Telegram,
+                profile: profile,
                 validated: false,
             })
         );
@@ -331,15 +320,15 @@ fn should_link_crypto() {
 
         assert_ok!(Linker::link_crypto(
             Origin::signed(ALICE),
-            AccountType::Unknown,
+            Network::Unknown,
             address.clone(),
             signature,
         ));
 
-        assert!(<Linked<Test>>::get(AccountType::Unknown, &address));
+        assert!(<Linked<Test>>::get(Network::Unknown, &address));
 
         assert_eq!(
-            <LinksOf<Test>>::get(&DID_ALICE, AccountType::Unknown),
+            <LinksOf<Test>>::get(&DID_ALICE, Network::Unknown),
             Some(address)
         );
     });
@@ -358,7 +347,7 @@ fn should_recover_btc() {
         sig.copy_from_slice(&signature);
 
         assert_ok_eq!(Linker::recover_address(
-            AccountType::Bitcoin,
+            Network::Bitcoin,
             address.clone(),
             sig,
             MESSAGE.to_vec()
@@ -379,7 +368,7 @@ fn should_recover_btc_segwit() {
         sig.copy_from_slice(&signature);
 
         assert_ok_eq!(Linker::recover_address(
-            AccountType::Bitcoin,
+            Network::Bitcoin,
             address.clone(),
             sig,
             MESSAGE.to_vec()
@@ -400,7 +389,7 @@ fn should_recover_dot() {
         sig.copy_from_slice(&signature);
 
         assert_ok_eq!(Linker::recover_address(
-            AccountType::Polkadot,
+            Network::Polkadot,
             address.clone(),
             sig,
             MESSAGE.to_vec()
@@ -423,7 +412,7 @@ fn should_recover_eth() {
 
         assert_ok_eq!(
             Linker::recover_address(
-                AccountType::Ethereum,
+                Network::Ethereum,
                 address.clone(),
                 sig,
                 MESSAGE.to_vec()
@@ -446,7 +435,7 @@ fn should_recover_sol() {
         sig.copy_from_slice(&signature);
 
         assert_ok_eq!(Linker::recover_address(
-            AccountType::Solana,
+            Network::Solana,
             address.clone(),
             sig,
             MESSAGE.to_vec()
@@ -467,7 +456,7 @@ fn should_recover_trx() {
         sig.copy_from_slice(&signature);
 
         assert_ok_eq!(Linker::recover_address(
-            AccountType::Tron,
+            Network::Tron,
             address.clone(),
             sig,
             MESSAGE.to_vec()
@@ -505,7 +494,7 @@ fn should_link_via_registrar() {
             Linker::submit_link(
                 Origin::signed(BOB),
                 DID_ALICE,
-                AccountType::Telegram,
+                Network::Telegram,
                 profile.clone(),
                 true
             ),
@@ -519,7 +508,7 @@ fn should_link_via_registrar() {
         assert_ok!(Linker::submit_link(
             Origin::signed(ALICE),
             DID_ALICE,
-            AccountType::Telegram,
+            Network::Telegram,
             profile.clone(),
             true
         ));
@@ -539,7 +528,7 @@ fn should_force_unlink() {
         assert_ok!(Linker::force_unlink(
             Origin::root(),
             DID_ALICE,
-            AccountType::Polkadot,
+            Network::Polkadot,
         ));
     })
 }

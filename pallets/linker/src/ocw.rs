@@ -1,6 +1,6 @@
-use crate::{did, types, Call, Config, Error, Pallet, PendingOf};
+use crate::{did, types, Call, Config, Error, HeightOf, Pallet, PendingOf};
 use codec::Encode;
-use frame_system::offchain::{CreateSignedTransaction, SubmitTransaction};
+use frame_system::offchain::{SendTransactionTypes, SubmitTransaction};
 use sp_runtime::{
     offchain::{http, Duration},
     DispatchError,
@@ -49,9 +49,9 @@ macro_rules! submit_unsigned {
     };
 }
 
-impl<T: Config + CreateSignedTransaction<Call<T>>> Pallet<T> {
-    pub fn ocw_begin_block(block_number: T::BlockNumber) -> Result<(), DispatchError> {
-        use types::AccountType::*;
+impl<T: Config + SendTransactionTypes<Call<T>>> Pallet<T> {
+    pub fn ocw_begin_block(block_number: HeightOf<T>) -> Result<(), DispatchError> {
+        use parami_primitives::Network::*;
 
         for site in [Telegram, Twitter] {
             let pending = <PendingOf<T>>::iter_prefix(site);
@@ -59,9 +59,9 @@ impl<T: Config + CreateSignedTransaction<Call<T>>> Pallet<T> {
             for (did, task) in pending {
                 if task.deadline <= block_number {
                     // call to remove
-                    Self::ocw_submit_link(did, site, Vec::<u8>::new(), false);
+                    Self::ocw_submit_link(did, site, task.task, false);
 
-                    Err(Error::<T>::Deadline)?
+                    return Err(Error::<T>::Deadline)?;
                 }
 
                 if task.created < block_number {
@@ -69,7 +69,7 @@ impl<T: Config + CreateSignedTransaction<Call<T>>> Pallet<T> {
                     continue;
                 }
 
-                let profile = sp_std::str::from_utf8(&task.profile) //
+                let profile = sp_std::str::from_utf8(&task.task) //
                     .map_err(|_| Error::<T>::HttpFetchingError)?;
 
                 let result = match site {
@@ -77,14 +77,14 @@ impl<T: Config + CreateSignedTransaction<Call<T>>> Pallet<T> {
                     Twitter => Self::ocw_verify_twitter(did, profile),
                     _ => {
                         // drop unsupported sites
-                        Self::ocw_submit_link(did, site, Vec::<u8>::new(), false);
+                        Self::ocw_submit_link(did, site, task.task, false);
 
                         continue;
                     }
                 };
 
                 if let Ok(()) = result {
-                    Self::ocw_submit_link(did, site, task.profile, true);
+                    Self::ocw_submit_link(did, site, task.task, true);
                 }
             }
         }
@@ -94,7 +94,7 @@ impl<T: Config + CreateSignedTransaction<Call<T>>> Pallet<T> {
 
     pub(crate) fn ocw_submit_link(
         did: T::DecentralizedId,
-        site: types::AccountType,
+        site: parami_primitives::Network,
         profile: Vec<u8>,
         validated: bool,
     ) {

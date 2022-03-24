@@ -1,19 +1,16 @@
-use crate::{self as parami_linker, types::AccountType};
+use crate as parami_linker;
 use frame_support::{parameter_types, traits::GenesisBuild, PalletId};
 use frame_system::{self as system, EnsureRoot};
-use sp_core::{
-    sr25519::{self, Signature},
-    H160, H256,
-};
+use parami_primitives::Network;
+use sp_core::{sr25519, H160, H256};
 use sp_runtime::{
     testing::{Header, TestXt},
-    traits::{BlakeTwo256, Extrinsic as ExtrinsicT, IdentifyAccount, Keccak256, Verify},
+    traits::{BlakeTwo256, Keccak256},
 };
 
 type UncheckedExtrinsic = system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = system::mocking::MockBlock<Test>;
 
-type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::AccountId;
 pub type Extrinsic = TestXt<Call, ()>;
 
 pub const POLKA: &[u8] = b"5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY";
@@ -79,31 +76,12 @@ impl system::Config for Test {
     type OnSetCode = ();
 }
 
-impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Test
-where
-    Call: From<LocalCall>,
-{
-    fn create_transaction<C: frame_system::offchain::AppCrypto<Self::Public, Self::Signature>>(
-        call: Call,
-        _public: <Signature as Verify>::Signer,
-        _account: AccountId,
-        nonce: u64,
-    ) -> Option<(Call, <Extrinsic as ExtrinsicT>::SignaturePayload)> {
-        Some((call, (nonce, ())))
-    }
-}
-
 impl<LocalCall> frame_system::offchain::SendTransactionTypes<LocalCall> for Test
 where
     Call: From<LocalCall>,
 {
     type OverarchingCall = Call;
     type Extrinsic = Extrinsic;
-}
-
-impl frame_system::offchain::SigningTypes for Test {
-    type Public = <Signature as Verify>::Signer;
-    type Signature = Signature;
 }
 
 parameter_types! {
@@ -188,7 +166,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     .unwrap();
 
     parami_linker::GenesisConfig::<Test> {
-        links: vec![(DID_ALICE, AccountType::Polkadot, POLKA.to_vec())],
+        links: vec![(DID_ALICE, Network::Polkadot, POLKA.to_vec())],
         registrars: vec![DID_ALICE],
     }
     .assimilate_storage(&mut t)

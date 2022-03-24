@@ -19,6 +19,7 @@ mod benchmarking;
 mod btc;
 mod did;
 mod impls;
+mod migrations;
 mod ocw;
 mod types;
 mod witness;
@@ -26,11 +27,12 @@ mod witness;
 use frame_support::{
     dispatch::{DispatchResult, DispatchResultWithPostInfo},
     ensure,
-    traits::{Currency, NamedReservableCurrency, OnUnbalanced},
+    traits::{Currency, NamedReservableCurrency, OnUnbalanced, StorageVersion},
     PalletId,
 };
-use frame_system::offchain::CreateSignedTransaction;
+use frame_system::offchain::SendTransactionTypes;
 use parami_did::{EnsureDid, Pallet as Did};
+use parami_primitives::{Network, Task};
 use parami_traits::Tags;
 use sp_runtime::traits::Hash;
 use sp_std::prelude::*;
@@ -42,7 +44,11 @@ type BalanceOf<T> = <CurrencyOf<T> as Currency<AccountOf<T>>>::Balance;
 type CurrencyOf<T> = <T as parami_did::Config>::Currency;
 type DidOf<T> = <T as parami_did::Config>::DecentralizedId;
 type HashOf<T> = <<T as frame_system::Config>::Hashing as Hash>::Output;
+type HeightOf<T> = <T as frame_system::Config>::BlockNumber;
 type NegativeImbOf<T> = <CurrencyOf<T> as Currency<AccountOf<T>>>::NegativeImbalance;
+type TaskOf<T> = Task<Vec<u8>, HeightOf<T>>;
+
+const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -54,7 +60,7 @@ pub mod pallet {
     pub trait Config:
         frame_system::Config
         + parami_did::Config //
-        + CreateSignedTransaction<Call<Self>>
+        + SendTransactionTypes<Call<Self>>
     {
         /// The overarching event type
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
@@ -69,7 +75,7 @@ pub mod pallet {
 
         /// Lifetime of a pending account
         #[pallet::constant]
-        type PendingLifetime: Get<Self::BlockNumber>;
+        type PendingLifetime: Get<HeightOf<Self>>;
 
         /// Handler for the unbalanced reduction when slashing an registrar
         type Slash: OnUnbalanced<NegativeImbOf<Self>>;
@@ -89,6 +95,7 @@ pub mod pallet {
     }
 
     #[pallet::pallet]
+    #[pallet::storage_version(STORAGE_VERSION)]
     #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(_);
 
@@ -100,7 +107,7 @@ pub mod pallet {
         Identity,
         DidOf<T>,
         Twox64Concat,
-        types::AccountType,
+        Network,
         Vec<u8>, //
     >;
 
@@ -110,10 +117,10 @@ pub mod pallet {
     pub(super) type PendingOf<T: Config> = StorageDoubleMap<
         _,
         Twox64Concat,
-        types::AccountType,
+        Network,
         Identity,
         DidOf<T>,
-        types::Pending<T::BlockNumber>,
+        TaskOf<T>, //
     >;
 
     /// Linked accounts
@@ -122,7 +129,7 @@ pub mod pallet {
     pub(super) type Linked<T: Config> = StorageDoubleMap<
         _,
         Twox64Concat,
-        types::AccountType,
+        Network, //
         Blake2_256,
         Vec<u8>,
         bool,
@@ -138,9 +145,9 @@ pub mod pallet {
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
         /// Account linked \[did, type, account, by\]
-        AccountLinked(DidOf<T>, types::AccountType, Vec<u8>, DidOf<T>),
+        AccountLinked(DidOf<T>, Network, Vec<u8>, DidOf<T>),
         /// Account unlinked \[did, type, by\]
-        AccountUnlinked(DidOf<T>, types::AccountType, DidOf<T>),
+        AccountUnlinked(DidOf<T>, Network, DidOf<T>),
         /// Registrar was blocked \[id\]
         Blocked(DidOf<T>),
         /// Registrar deposited \[id, value\]
@@ -148,18 +155,22 @@ pub mod pallet {
         /// Registrar was trusted \[id\]
         Trusted(DidOf<T>),
         /// Pending link failed \[did, type, account\]
-        ValidationFailed(DidOf<T>, types::AccountType, Vec<u8>),
+        ValidationFailed(DidOf<T>, Network, Vec<u8>),
     }
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-        fn offchain_worker(block_number: T::BlockNumber) {
+        fn offchain_worker(block_number: BlockNumberFor<T>) {
             match Self::ocw_begin_block(block_number) {
                 Ok(_) => {}
                 Err(e) => {
                     tracing::error!("An error occurred in OCW: {:?}", e);
                 }
             }
+        }
+
+        fn on_runtime_upgrade() -> Weight {
+            migrations::migrate::<T>()
         }
     }
 
@@ -190,7 +201,7 @@ pub mod pallet {
         #[pallet::weight(<T as Config>::WeightInfo::link_sociality(profile.len() as u32))]
         pub fn link_sociality(
             origin: OriginFor<T>,
-            site: types::AccountType,
+            site: Network,
             profile: Vec<u8>,
         ) -> DispatchResult {
             let (did, _) = EnsureDid::<T>::ensure_origin(origin)?;
@@ -212,7 +223,7 @@ pub mod pallet {
         #[pallet::weight(<T as Config>::WeightInfo::link_crypto())]
         pub fn link_crypto(
             origin: OriginFor<T>,
-            crypto: types::AccountType,
+            crypto: Network,
             address: Vec<u8>,
             signature: types::Signature,
         ) -> DispatchResult {
@@ -233,7 +244,7 @@ pub mod pallet {
         pub fn submit_link(
             origin: OriginFor<T>,
             did: DidOf<T>,
-            site: types::AccountType,
+            site: Network,
             profile: Vec<u8>,
             validated: bool,
         ) -> DispatchResultWithPostInfo {
@@ -304,11 +315,7 @@ pub mod pallet {
         }
 
         #[pallet::weight(<T as Config>::WeightInfo::force_unlink())]
-        pub fn force_unlink(
-            origin: OriginFor<T>,
-            did: DidOf<T>,
-            site: types::AccountType,
-        ) -> DispatchResult {
+        pub fn force_unlink(origin: OriginFor<T>, did: DidOf<T>, site: Network) -> DispatchResult {
             T::ForceOrigin::ensure_origin(origin)?;
 
             let link = <LinksOf<T>>::get(&did, site).ok_or(Error::<T>::NotExists)?;
@@ -368,7 +375,7 @@ pub mod pallet {
 
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
-        pub links: Vec<(DidOf<T>, types::AccountType, Vec<u8>)>,
+        pub links: Vec<(DidOf<T>, Network, Vec<u8>)>,
         pub registrars: Vec<DidOf<T>>,
     }
 

@@ -3,12 +3,14 @@ use frame_support::{parameter_types, traits::GenesisBuild, PalletId};
 use frame_system::{self as system, EnsureRoot};
 use sp_core::{sr25519, H160, H256};
 use sp_runtime::{
-    testing::Header,
+    testing::{Header, TestXt},
     traits::{BlakeTwo256, Keccak256},
 };
 
 type UncheckedExtrinsic = system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = system::mocking::MockBlock<Test>;
+
+pub type Extrinsic = TestXt<Call, ()>;
 
 pub const ALICE: sr25519::Public = sr25519::Public([1; 32]);
 pub const BOB: sr25519::Public = sr25519::Public([2; 32]);
@@ -68,6 +70,14 @@ impl system::Config for Test {
     type SystemWeightInfo = ();
     type SS58Prefix = SS58Prefix;
     type OnSetCode = ();
+}
+
+impl<LocalCall> frame_system::offchain::SendTransactionTypes<LocalCall> for Test
+where
+    Call: From<LocalCall>,
+{
+    type OverarchingCall = Call;
+    type Extrinsic = Extrinsic;
 }
 
 parameter_types! {
@@ -166,6 +176,7 @@ parameter_types! {
     pub const InitialMintingDeposit: Balance = 1_000_000;
     pub const InitialMintingLockupPeriod: BlockNumber = 5;
     pub const InitialMintingValueBase: Balance = 1_000_000;
+    pub const PendingLifetime: BlockNumber = 5;
 }
 
 impl parami_nft::Config for Test {
@@ -176,6 +187,7 @@ impl parami_nft::Config for Test {
     type InitialMintingLockupPeriod = InitialMintingLockupPeriod;
     type InitialMintingValueBase = InitialMintingValueBase;
     type Nft = Uniques;
+    type PendingLifetime = PendingLifetime;
     type StringLimit = StringLimit;
     type Swaps = Swap;
     type WeightInfo = ();
@@ -194,6 +206,15 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 
     parami_did::GenesisConfig::<Test> {
         ids: vec![(ALICE, DID_ALICE), (BOB, DID_BOB), (CHARLIE, DID_CHARLIE)],
+    }
+    .assimilate_storage(&mut t)
+    .unwrap();
+
+    parami_nft::GenesisConfig::<Test> {
+        deposit: Default::default(),
+        deposits: Default::default(),
+        next_instance_id: 1,
+        nfts: vec![(0, DID_ALICE, false)],
     }
     .assimilate_storage(&mut t)
     .unwrap();

@@ -27,8 +27,8 @@ benchmarks! {
         let did = Did::<T>::did_of(&kol).unwrap();
     }: _(RawOrigin::Signed(caller), did, pot)
     verify {
-        let nft = <PreferredNft<T>>::get(&did).unwrap();
-        let meta = <NftMetaStore<T>>::get(&nft).unwrap();
+        let nft = <Preferred<T>>::get(&did).unwrap();
+        let meta = <Metadata<T>>::get(&nft).unwrap();
         assert_eq!(T::Currency::free_balance(&meta.pot), pot);
     }
 
@@ -58,8 +58,8 @@ benchmarks! {
         Nft::<T>::back(RawOrigin::Signed(supporter).into(), did, pot)?;
     }: _(RawOrigin::Signed(caller), name, symbol)
     verify {
-        let nft = <PreferredNft<T>>::get(&did).unwrap();
-        let meta = <NftMetaStore<T>>::get(&nft).unwrap();
+        let nft = <Preferred<T>>::get(&did).unwrap();
+        let meta = <Metadata<T>>::get(&nft).unwrap();
         assert!(meta.minted);
     }
 
@@ -85,7 +85,7 @@ benchmarks! {
         Nft::<T>::mint(RawOrigin::Signed(kol).into(), b"Test Token".to_vec(), b"XTT".to_vec())?;
     }: _(RawOrigin::Signed(caller.clone()), did)
     verify {
-        let nft = <PreferredNft<T>>::get(&did).unwrap();
+        let nft = <Preferred<T>>::get(&did).unwrap();
         assert!(T::Assets::balance(nft, &caller) > Zero::zero());
     }
 }

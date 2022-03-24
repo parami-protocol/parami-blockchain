@@ -1208,6 +1208,7 @@ parameter_types! {
     pub const InitialMintingDeposit: Balance = 1_000 * DOLLARS;
     pub const InitialMintingLockupPeriod: BlockNumber = 6 * 30 * DAYS;
     pub const InitialMintingValueBase: Balance = 1_000_000 * DOLLARS;
+    pub const NftPendingLifetime: BlockNumber = 5;
 }
 
 impl parami_nft::Config for Runtime {
@@ -1218,6 +1219,7 @@ impl parami_nft::Config for Runtime {
     type InitialMintingLockupPeriod = InitialMintingLockupPeriod;
     type InitialMintingValueBase = InitialMintingValueBase;
     type Nft = Uniques;
+    type PendingLifetime = NftPendingLifetime;
     type StringLimit = StringLimit;
     type Swaps = Swap;
     type WeightInfo = parami_nft::weights::SubstrateWeight<Runtime>;

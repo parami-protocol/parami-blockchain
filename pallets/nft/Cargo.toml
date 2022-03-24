@@ -26,10 +26,13 @@ version = '1.0'
 
 [dependencies]
 parami-did = { path = '../did', default-features = false }
+parami-primitives = { path = '../../primitives', default-features = false }
 parami-traits = { path = '../traits', default-features = false }
 parami-swap = { path = '../swap', default-features = false, optional = true }
 
+hex = { version = '0.4', default-features = false, optional = true }
 serde = { version = '1.0', optional = true }
+tracing = { version = '0.1', default-features = false }
 
 sp-core = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }
 sp-runtime = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }
@@ -49,14 +52,17 @@ pallet-uniques = { git = 'https://github.com/paritytech/substrate', branch = 'po
 [features]
 default = ['std']
 
-runtime-benchmarks = ['frame-benchmarking', 'parami-swap']
+runtime-benchmarks = ['frame-benchmarking', 'parami-swap', 'hex/alloc']
 
 std = [
     'parami-did/std',
+    'parami-primitives/std',
     'parami-swap/std',
     'parami-traits/std',
 
+    'hex/std',
     'serde',
+    'tracing/std',
 
     'codec/std',
     'scale-info/std',

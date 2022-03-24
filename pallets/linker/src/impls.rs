@@ -6,6 +6,7 @@ use crate::{
 use base58::ToBase58;
 use codec::Encode;
 use frame_support::ensure;
+use parami_primitives::{Network, Task};
 use sp_runtime::{DispatchError, DispatchResult};
 use sp_std::prelude::*;
 
@@ -16,8 +17,8 @@ macro_rules! is_task {
 }
 
 impl<T: Config> Pallet<T> {
-    fn ensure_profile(did: &DidOf<T>, site: types::AccountType, profile: &[u8]) -> DispatchResult {
-        use types::AccountType::*;
+    fn ensure_profile(did: &DidOf<T>, site: Network, profile: &[u8]) -> DispatchResult {
+        use Network::*;
 
         ensure!(!<LinksOf<T>>::contains_key(did, site), Error::<T>::Exists);
         ensure!(
@@ -26,7 +27,8 @@ impl<T: Config> Pallet<T> {
         );
 
         match site {
-            Binance | Bitcoin | Eosio | Ethereum | Kusama | Polkadot | Solana | Tron | Unknown => {}
+            Binance | Bitcoin | Eosio | Ethereum | Kusama | Polkadot | Solana | Tron | Near
+            | Unknown => {}
 
             Discord if is_task!(profile, b"https://discordapp.com/users/") => {}
             Facebook if is_task!(profile, b"https://www.facebook.com/") => {}
@@ -57,11 +59,7 @@ impl<T: Config> Pallet<T> {
         bytes
     }
 
-    pub fn veto_pending(
-        did: DidOf<T>,
-        site: types::AccountType,
-        profile: Vec<u8>,
-    ) -> DispatchResult {
+    pub fn veto_pending(did: DidOf<T>, site: Network, profile: Vec<u8>) -> DispatchResult {
         <PendingOf<T>>::remove(site, &did);
 
         Self::deposit_event(Event::<T>::ValidationFailed(did, site, profile));
@@ -71,7 +69,7 @@ impl<T: Config> Pallet<T> {
 
     pub fn insert_link(
         did: DidOf<T>,
-        site: types::AccountType,
+        site: Network,
         profile: Vec<u8>,
         registrar: DidOf<T>,
     ) -> DispatchResult {
@@ -88,11 +86,7 @@ impl<T: Config> Pallet<T> {
         Ok(())
     }
 
-    pub fn insert_pending(
-        did: DidOf<T>,
-        site: types::AccountType,
-        profile: Vec<u8>,
-    ) -> DispatchResult {
+    pub fn insert_pending(did: DidOf<T>, site: Network, profile: Vec<u8>) -> DispatchResult {
         use frame_support::traits::Get;
         use sp_runtime::traits::Saturating;
 
@@ -110,8 +104,8 @@ impl<T: Config> Pallet<T> {
         <PendingOf<T>>::insert(
             site,
             &did,
-            types::Pending {
-                profile,
+            Task {
+                task: profile,
                 deadline,
                 created,
             },
@@ -121,12 +115,12 @@ impl<T: Config> Pallet<T> {
     }
 
     pub fn recover_address(
-        crypto: types::AccountType,
+        crypto: Network,
         address: Vec<u8>,
         signature: types::Signature,
         bytes: Vec<u8>,
     ) -> Result<Vec<u8>, DispatchError> {
-        use types::AccountType::*;
+        use Network::*;
 
         match crypto {
             Unknown => Ok(address),

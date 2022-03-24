@@ -5732,6 +5732,7 @@ dependencies = [
  "num-traits",
  "pallet-balances",
  "parami-did",
+ "parami-primitives",
  "parami-tag",
  "parami-traits",
  "parity-scale-codec",
@@ -5772,10 +5773,12 @@ dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
+ "hex",
  "pallet-assets",
  "pallet-balances",
  "pallet-uniques",
  "parami-did",
+ "parami-primitives",
  "parami-swap",
  "parami-traits",
  "parity-scale-codec",
@@ -5785,6 +5788,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
+ "tracing",
 ]
 
 [[package]]
@@ -5957,6 +5961,7 @@ name = "parami-primitives"
 version = "3.0.0"
 dependencies = [
  "parity-scale-codec",
+ "scale-info",
  "serde",
  "sp-core",
  "sp-runtime",

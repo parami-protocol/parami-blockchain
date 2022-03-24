@@ -3,7 +3,6 @@ use frame_support::{
     assert_noop, assert_ok,
     traits::{Currency, Hooks},
 };
-use parami_nft::NftMetaFor;
 use parami_traits::Tags;
 use sp_core::{sr25519, H160};
 use sp_std::collections::btree_map::BTreeMap;
@@ -186,17 +185,18 @@ fn should_bid() {
     new_test_ext().execute_with(|| {
         // 1. prepare
 
-        assert_ok!(Nft::back(Origin::signed(BOB), DID_ALICE, 2_000_100u128));
+        let nft = Nft::preferred(DID_ALICE).unwrap();
+
+        assert_ok!(Nft::back(Origin::signed(BOB), nft, 2_000_100u128));
 
         assert_ok!(Nft::mint(
             Origin::signed(ALICE),
+            nft,
             b"Test Token".to_vec(),
             b"XTT".to_vec()
         ));
 
-        let nft_id = Nft::get_preferred(DID_ALICE).unwrap();
-
-        let nft_meta: NftMetaFor<Test> = Nft::get_meta_of(nft_id).unwrap();
+        let nft_meta = Nft::meta(nft).unwrap();
 
         // ad1
 
@@ -237,18 +237,18 @@ fn should_bid() {
         // 2. bob bid for ad1
 
         assert_noop!(
-            Ad::bid(Origin::signed(BOB), ad1, DID_ALICE, 600),
+            Ad::bid(Origin::signed(BOB), ad1, nft, 600),
             Error::<Test>::InsufficientBalance
         );
 
-        assert_ok!(Ad::bid(Origin::signed(BOB), ad1, DID_ALICE, 400));
+        assert_ok!(Ad::bid(Origin::signed(BOB), ad1, nft, 400));
 
         // ensure: deadline, slot, remain
 
         assert_eq!(<EndtimeOf<Test>>::get(&ad1), Some(43200));
-        assert_eq!(<DeadlineOf<Test>>::get(nft_id, &ad1), Some(43200));
+        assert_eq!(<DeadlineOf<Test>>::get(nft, &ad1), Some(43200));
 
-        let maybe_slot = <SlotOf<Test>>::get(nft_id);
+        let maybe_slot = <SlotOf<Test>>::get(nft);
         assert_ne!(maybe_slot, None);
 
         let meta1 = <Metadata<Test>>::get(&ad1).unwrap();
@@ -268,19 +268,19 @@ fn should_bid() {
         // 3. charlie bid for ad2
 
         assert_noop!(
-            Ad::bid(Origin::signed(CHARLIE), ad2, DID_ALICE, 400),
+            Ad::bid(Origin::signed(CHARLIE), ad2, nft, 400),
             Error::<Test>::Underbid
         );
 
-        assert_ok!(Ad::bid(Origin::signed(CHARLIE), ad2, DID_ALICE, 480));
+        assert_ok!(Ad::bid(Origin::signed(CHARLIE), ad2, nft, 480));
 
         // ensure: deadline, slot, remain
 
         assert_eq!(<EndtimeOf<Test>>::get(&ad2), Some(1));
-        assert_eq!(<DeadlineOf<Test>>::get(nft_id, &ad1), None);
-        assert_eq!(<DeadlineOf<Test>>::get(nft_id, &ad2), Some(1));
+        assert_eq!(<DeadlineOf<Test>>::get(nft, &ad1), None);
+        assert_eq!(<DeadlineOf<Test>>::get(nft, &ad2), Some(1));
 
-        let maybe_slot = <SlotOf<Test>>::get(nft_id);
+        let maybe_slot = <SlotOf<Test>>::get(nft);
         assert_ne!(maybe_slot, None);
 
         let meta1 = <Metadata<Test>>::get(&ad1).unwrap();
@@ -310,15 +310,16 @@ fn should_drawback() {
     new_test_ext().execute_with(|| {
         // 1. prepare
 
-        assert_ok!(Nft::back(Origin::signed(BOB), DID_ALICE, 2_000_100u128));
+        let nft = Nft::preferred(DID_ALICE).unwrap();
+
+        assert_ok!(Nft::back(Origin::signed(BOB), nft, 2_000_100u128));
 
         assert_ok!(Nft::mint(
             Origin::signed(ALICE),
+            nft,
             b"Test Token".to_vec(),
             b"XTT".to_vec()
         ));
-
-        let instance_id = Nft::get_preferred(DID_ALICE).unwrap();
 
         // create ad
 
@@ -335,7 +336,7 @@ fn should_drawback() {
 
         // bid
 
-        assert_ok!(Ad::bid(Origin::signed(BOB), ad, DID_ALICE, 400));
+        assert_ok!(Ad::bid(Origin::signed(BOB), ad, nft, 400));
 
         // 2. step in
 
@@ -345,7 +346,7 @@ fn should_drawback() {
 
         // ensure slot, remain
 
-        assert_eq!(<SlotOf<Test>>::get(instance_id), None);
+        assert_eq!(<SlotOf<Test>>::get(nft), None);
 
         let meta = <Metadata<Test>>::get(&ad).unwrap();
         assert_eq!(meta.remain, 497);
@@ -378,17 +379,18 @@ fn should_pay() {
     new_test_ext().execute_with(|| {
         // 1. prepare
 
-        assert_ok!(Nft::back(Origin::signed(BOB), DID_ALICE, 2_000_100u128));
+        let nft = Nft::preferred(DID_ALICE).unwrap();
+
+        assert_ok!(Nft::back(Origin::signed(BOB), nft, 2_000_100u128));
 
         assert_ok!(Nft::mint(
             Origin::signed(ALICE),
+            nft,
             b"Test Token".to_vec(),
             b"XTT".to_vec()
         ));
 
-        let nft_id = Nft::get_preferred(DID_ALICE).unwrap();
-
-        let nft_meta: NftMetaFor<Test> = Nft::get_meta_of(nft_id).unwrap();
+        let nft_meta = Nft::meta(nft).unwrap();
 
         // create ad
 
@@ -406,20 +408,20 @@ fn should_pay() {
 
         // bid
 
-        assert_ok!(Ad::bid(Origin::signed(BOB), ad, DID_ALICE, 400));
+        assert_ok!(Ad::bid(Origin::signed(BOB), ad, nft, 400));
 
         // 2. pay
 
         assert_ok!(Ad::pay(
             Origin::signed(BOB),
             ad,
-            DID_ALICE,
+            nft,
             DID_CHARLIE,
             vec![(vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8], 5)],
             None
         ));
 
-        let slot = <SlotOf<Test>>::get(nft_id).unwrap();
+        let slot = <SlotOf<Test>>::get(nft).unwrap();
         assert_eq!(
             Assets::balance(nft_meta.token_asset_id, &meta.pot),
             slot.tokens
@@ -438,7 +440,7 @@ fn should_pay() {
             Ad::pay(
                 Origin::signed(BOB),
                 ad,
-                DID_ALICE,
+                nft,
                 DID_CHARLIE,
                 vec![(vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8], 5)],
                 None
@@ -453,15 +455,16 @@ fn should_auto_swap_when_swapped_token_used_up() {
     new_test_ext().execute_with(|| {
         // 1. prepare
 
-        assert_ok!(Nft::back(Origin::signed(BOB), DID_ALICE, 2_000_100u128));
+        let nft = Nft::preferred(DID_ALICE).unwrap();
+
+        assert_ok!(Nft::back(Origin::signed(BOB), nft, 2_000_100u128));
 
         assert_ok!(Nft::mint(
             Origin::signed(ALICE),
+            nft,
             b"Test Token".to_vec(),
             b"XTT".to_vec()
         ));
-
-        let instance_id = Nft::get_preferred(DID_ALICE).unwrap();
 
         // create ad
 
@@ -478,7 +481,7 @@ fn should_auto_swap_when_swapped_token_used_up() {
 
         // bid
 
-        assert_ok!(Ad::bid(Origin::signed(BOB), ad, DID_ALICE, 400));
+        assert_ok!(Ad::bid(Origin::signed(BOB), ad, nft, 400));
 
         // 2. pay to 9 users, 5 tokens each
         let viewer_dids = make_dids(9u8);
@@ -488,14 +491,14 @@ fn should_auto_swap_when_swapped_token_used_up() {
             assert_ok!(Ad::pay(
                 Origin::signed(BOB),
                 ad,
-                DID_ALICE,
+                nft,
                 *viewer_did,
                 vec![(vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8], 5)],
                 None
             ));
         }
 
-        let slot = <SlotOf<Test>>::get(instance_id).unwrap();
+        let slot = <SlotOf<Test>>::get(nft).unwrap();
         assert_eq!(slot.remain, 400 - 40 * 3);
     });
 }

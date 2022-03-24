@@ -154,6 +154,7 @@ parameter_types! {
     pub const InitialMintingDeposit: Balance = 1_000_000;
     pub const InitialMintingLockupPeriod: BlockNumber = 5;
     pub const InitialMintingValueBase: Balance = 1_000_000;
+    pub const PendingLifetime: BlockNumber = 5;
 }
 
 impl parami_nft::Config for Test {
@@ -164,6 +165,7 @@ impl parami_nft::Config for Test {
     type InitialMintingLockupPeriod = InitialMintingLockupPeriod;
     type InitialMintingValueBase = InitialMintingValueBase;
     type Nft = Uniques;
+    type PendingLifetime = PendingLifetime;
     type StringLimit = StringLimit;
     type Swaps = Swap;
     type WeightInfo = ();
@@ -257,6 +259,15 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         ],
         personas: vec![(DID_CHARLIE, vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8], 5)],
         ..Default::default()
+    }
+    .assimilate_storage(&mut t)
+    .unwrap();
+
+    parami_nft::GenesisConfig::<Test> {
+        deposit: Default::default(),
+        deposits: Default::default(),
+        next_instance_id: 1,
+        nfts: vec![(0, DID_ALICE, false)],
     }
     .assimilate_storage(&mut t)
     .unwrap();
