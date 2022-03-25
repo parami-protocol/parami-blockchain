@@ -124,7 +124,7 @@ version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cab112f0a86d568ea0e627cc1d6be74a1e9cd55214684db5561995f6dad897c6"
 dependencies = [
- "num-traits",
+ "num-traits 0.2.14",
 ]
 
 [[package]]
@@ -539,6 +539,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "bit-vec"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f59bbe95d4e52a6398ec21238d31577f2b28a9d86807f06ca59d191d8440d0bb"
+
+[[package]]
 name = "bitflags"
 version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -850,7 +856,7 @@ checksum = "670ad68c9088c2a963aaa298cb369688cf3f9465ce5e2d4ca10e6e0098a1ce73"
 dependencies = [
  "libc",
  "num-integer",
- "num-traits",
+ "num-traits 0.2.14",
  "time",
  "winapi 0.3.9",
 ]
@@ -1958,7 +1964,7 @@ dependencies = [
  "futures 0.3.21",
  "futures-timer 3.0.2",
  "log",
- "num-traits",
+ "num-traits 0.2.14",
  "parity-scale-codec",
  "parking_lot 0.11.2",
  "scale-info",
@@ -2249,6 +2255,12 @@ dependencies = [
  "libc",
  "winapi 0.3.9",
 ]
+
+[[package]]
+name = "fuchsia-cprng"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a06f77d526c1a601b7c4cdd98f54b5eaabffc14d5f2f0296febdc7f357c6d3ba"
 
 [[package]]
 name = "fuchsia-zircon"
@@ -2812,7 +2824,7 @@ dependencies = [
  "jpeg-decoder",
  "num-iter",
  "num-rational 0.3.2",
- "num-traits",
+ "num-traits 0.2.14",
  "png",
  "scoped_threadpool",
  "tiff",
@@ -2888,7 +2900,7 @@ version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "276ec31bcb4a9ee45f58bec6f9ec700ae4cf4f4f8f2fa7e06cb406bd5ffdd770"
 dependencies = [
- "num-traits",
+ "num-traits 0.2.14",
 ]
 
 [[package]]
@@ -4349,7 +4361,7 @@ dependencies = [
  "nalgebra-macros",
  "num-complex",
  "num-rational 0.4.0",
- "num-traits",
+ "num-traits 0.2.14",
  "rand 0.8.5",
  "rand_distr",
  "simba",
@@ -4426,7 +4438,7 @@ checksum = "090c7f9998ee0ff65aa5b723e4009f7b217707f1fb5ea551329cc4d6231fb304"
 dependencies = [
  "autocfg",
  "num-integer",
- "num-traits",
+ "num-traits 0.2.14",
 ]
 
 [[package]]
@@ -4435,7 +4447,7 @@ version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "26873667bbbb7c5182d4a37c1add32cdf09f841af72da53318fdb81543c15085"
 dependencies = [
- "num-traits",
+ "num-traits 0.2.14",
 ]
 
 [[package]]
@@ -4455,7 +4467,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2cc698a63b549a70bc047073d2949cce27cd1c7b0a4a862d08a8031bc2801db"
 dependencies = [
  "autocfg",
- "num-traits",
+ "num-traits 0.2.14",
 ]
 
 [[package]]
@@ -4466,7 +4478,7 @@ checksum = "b2021c8337a54d21aca0d59a92577a029af9431cb59b909b03252b9c164fad59"
 dependencies = [
  "autocfg",
  "num-integer",
- "num-traits",
+ "num-traits 0.2.14",
 ]
 
 [[package]]
@@ -4478,7 +4490,7 @@ dependencies = [
  "autocfg",
  "num-bigint",
  "num-integer",
- "num-traits",
+ "num-traits 0.2.14",
 ]
 
 [[package]]
@@ -4489,7 +4501,7 @@ checksum = "12ac428b1cb17fce6f731001d307d351ec70a6d202fc2e60f7d4c5e42d8f4f07"
 dependencies = [
  "autocfg",
  "num-integer",
- "num-traits",
+ "num-traits 0.2.14",
 ]
 
 [[package]]
@@ -4500,7 +4512,16 @@ checksum = "d41702bd167c2df5520b384281bc111a4b5efcf7fbc4c9c222c815b07e0a6a6a"
 dependencies = [
  "autocfg",
  "num-integer",
- "num-traits",
+ "num-traits 0.2.14",
+]
+
+[[package]]
+name = "num-traits"
+version = "0.1.43"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "92e5113e9fd4cc14ded8e499429f396a20f98c772a47cc8622a736e1ec843c31"
+dependencies = [
+ "num-traits 0.2.14",
 ]
 
 [[package]]
@@ -4587,7 +4608,7 @@ version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3305af35278dd29f46fcdd139e0b1fbfae2153f0e5928b39b035542dd31e37b7"
 dependencies = [
- "num-traits",
+ "num-traits 0.2.14",
 ]
 
 [[package]]
@@ -4597,6 +4618,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ff55baddef9e4ad00f88b6c743a2a8062d4c6ade126c2a528644b8e444d52ce"
 dependencies = [
  "stable_deref_trait",
+]
+
+[[package]]
+name = "paillier"
+version = "0.2.1-alpha.0"
+source = "git+https://github.com/RightFS/rust-paillier.git?branch=fix_js#75223991af4c605b19ddbe7011089e527b096f5c"
+dependencies = [
+ "bincode",
+ "bit-vec",
+ "num-traits 0.1.43",
+ "rand 0.5.6",
+ "rayon",
+ "ring",
+ "rust-gmp",
+ "rustc-serialize",
+ "serde",
+ "serde_derive",
+ "serde_json",
 ]
 
 [[package]]
@@ -5561,6 +5600,7 @@ dependencies = [
  "parami-did-rpc",
  "parami-linker",
  "parami-swap-rpc",
+ "parami-zkp",
  "rand 0.7.3",
  "sc-basic-authorship",
  "sc-chain-spec",
@@ -5656,6 +5696,7 @@ dependencies = [
  "parami-tag",
  "parami-traits",
  "parami-xassets",
+ "parami-zkp",
  "parity-scale-codec",
  "scale-info",
  "serde",
@@ -5729,7 +5770,7 @@ dependencies = [
  "hex",
  "image",
  "libsecp256k1 0.6.0",
- "num-traits",
+ "num-traits 0.2.14",
  "pallet-balances",
  "parami-did",
  "parami-tag",
@@ -5812,6 +5853,7 @@ dependencies = [
  "parami-linker",
  "parami-para-runtime",
  "parami-swap-rpc",
+ "parami-zkp",
  "parity-scale-codec",
  "polkadot-cli",
  "polkadot-parachain",
@@ -6015,7 +6057,7 @@ dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
- "num-traits",
+ "num-traits 0.2.14",
  "pallet-balances",
  "parami-advertiser",
  "parami-did",
@@ -6057,6 +6099,33 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
+]
+
+[[package]]
+name = "parami-zkp"
+version = "0.0.1"
+dependencies = [
+ "base58",
+ "bincode",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "hex",
+ "num-traits 0.2.14",
+ "paillier",
+ "parami-did",
+ "parami-traits",
+ "parity-scale-codec",
+ "ripemd160",
+ "scale-info",
+ "serde",
+ "serde_json",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-runtime-interface",
+ "sp-std",
+ "tracing",
 ]
 
 [[package]]
@@ -7683,6 +7752,19 @@ checksum = "643f8f41a8ebc4c5dc4515c82bb8abd397b527fc20fd681b7c011c2aee5d44fb"
 
 [[package]]
 name = "rand"
+version = "0.5.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c618c47cd3ebd209790115ab837de41425723956ad3ce2e6a7f09890947cacb9"
+dependencies = [
+ "cloudabi",
+ "fuchsia-cprng",
+ "libc",
+ "rand_core 0.3.1",
+ "winapi 0.3.9",
+]
+
+[[package]]
+name = "rand"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a6b1679d49b24bbfe0c803429aa1874472f50d9b363131f0e89fc356b544d03"
@@ -7728,6 +7810,21 @@ dependencies = [
 
 [[package]]
 name = "rand_core"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a6fdeb83b075e8266dcc8762c22776f6877a63111121f5f8c7411e5be7eed4b"
+dependencies = [
+ "rand_core 0.4.2",
+]
+
+[[package]]
+name = "rand_core"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9c33a3c44ca05fa6f1807d8e6743f3824e8509beca625669633be0acbdf509dc"
+
+[[package]]
+name = "rand_core"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90bde5296fc891b0cef12a6d03ddccc162ce7b2aff54160af9338f8d40df6d19"
@@ -7750,7 +7847,7 @@ version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32cb0b9bc82b0a0876c2dd994a7e7a2683d3e7390ca40e6886785ef0c7e3ee31"
 dependencies = [
- "num-traits",
+ "num-traits 0.2.14",
  "rand 0.8.5",
 ]
 
@@ -8036,6 +8133,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "rust-gmp"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3ddf28998d5730b96a9fe188557953de503d77ff403ae175ad1417921e5d906"
+dependencies = [
+ "libc",
+ "num-traits 0.1.43",
+]
+
+[[package]]
 name = "rustc-demangle"
 version = "0.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8052,6 +8159,12 @@ name = "rustc-hex"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3e75f6a532d0fd9f7f13144f392b6ad56a32696bfcd9c78f797f16bbb6f072d6"
+
+[[package]]
+name = "rustc-serialize"
+version = "0.3.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dcf128d1287d2ea9d80910b5f1120d0b8eede3fbf1abe91c40d39ea7d51e6fda"
 
 [[package]]
 name = "rustc_version"
@@ -8411,7 +8524,7 @@ dependencies = [
  "merlin",
  "num-bigint",
  "num-rational 0.2.4",
- "num-traits",
+ "num-traits 0.2.14",
  "parity-scale-codec",
  "parking_lot 0.11.2",
  "rand 0.7.3",
@@ -9395,7 +9508,7 @@ checksum = "8e82063457853d00243beda9952e910b82593e4b07ae9f721b9278a99a0d3d5c"
 dependencies = [
  "approx",
  "num-complex",
- "num-traits",
+ "num-traits 0.2.14",
  "paste",
 ]
 
@@ -9541,7 +9654,7 @@ version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.13#afb74de23dfe2994e7ce38c0870efb9734e966f7"
 dependencies = [
  "integer-sqrt",
- "num-traits",
+ "num-traits 0.2.14",
  "parity-scale-codec",
  "scale-info",
  "serde",
@@ -9709,7 +9822,7 @@ dependencies = [
  "libsecp256k1 0.7.0",
  "log",
  "merlin",
- "num-traits",
+ "num-traits 0.2.14",
  "parity-scale-codec",
  "parity-util-mem",
  "parking_lot 0.11.2",
@@ -10045,7 +10158,7 @@ source = "git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.13#af
 dependencies = [
  "hash-db",
  "log",
- "num-traits",
+ "num-traits 0.2.14",
  "parity-scale-codec",
  "parking_lot 0.11.2",
  "rand 0.7.3",
@@ -10265,7 +10378,7 @@ dependencies = [
  "approx",
  "lazy_static",
  "nalgebra",
- "num-traits",
+ "num-traits 0.2.14",
  "rand 0.8.5",
 ]
 
@@ -11185,7 +11298,7 @@ dependencies = [
  "libm",
  "memory_units",
  "num-rational 0.2.4",
- "num-traits",
+ "num-traits 0.2.14",
  "parity-wasm 0.42.2",
  "wasmi-validation",
 ]

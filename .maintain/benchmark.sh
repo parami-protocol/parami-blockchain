@@ -9,7 +9,7 @@ echo "Benchmarking ${pallet} steps ${steps} repeat ${repeat}..."
 ./target/release/parami benchmark \
 --chain=dev \
 --execution=wasm \
---wasm-execution=compiled \
+--wasm-execution=interpreted-i-know-what-i-do \
 --pallet="parami_${pallet}" \
 --extrinsic='*' \
 --steps=$steps \
