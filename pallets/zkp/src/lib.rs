@@ -59,9 +59,6 @@ pub mod pallet {
         #[pallet::constant]
         type PendingLifetime: Get<Self::BlockNumber>;
 
-        /// The origin which may forcibly trust or block a registrar
-        type ForceOrigin: EnsureOrigin<Self::Origin>;
-
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
     }
@@ -112,18 +109,13 @@ pub mod pallet {
         Vec<u8>,//key
     >;
 
-    /// DID of a registrar
-    #[pallet::storage]
-    #[pallet::getter(fn registrar)]
-    pub(super) type Registrar<T: Config> = StorageMap<_, Identity, DidOf<T>, bool>;
-
     #[pallet::event]
     #[pallet::generate_deposit(pub (super) fn deposit_event)]
     pub enum Event<T: Config> {
-        /// Verify proof Ok \[did, verify_by\]
-        VerifyOk(DidOf<T>, DidOf<T>),
-        /// Verify proof Failed \[did, verify_by\]
-        VerifyFailed(DidOf<T>, DidOf<T>),
+        /// Verify proof Ok \[did\]
+        VerifyOk(DidOf<T>),
+        /// Verify proof Failed \[did\]
+        VerifyFailed(DidOf<T>),
     }
 
     #[pallet::error]
@@ -192,9 +184,9 @@ pub mod pallet {
         ) -> DispatchResultWithPostInfo {
             ensure_none(origin);
             if result {
-                Self::insert_verified(did, ipfs, range, DidOf::<T>::default())?;
+                Self::insert_verified(did, ipfs, range)?;
             } else {
-                Self::veto_pending(did, ipfs, range, DidOf::<T>::default())?;
+                Self::veto_pending(did, ipfs, range)?;
             }
 
             Ok(().into())

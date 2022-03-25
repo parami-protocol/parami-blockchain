@@ -1194,7 +1194,6 @@ impl parami_linker::Config for Runtime {
 impl parami_zkp::Config for Runtime {
     type Event = Event;
     type UnsignedPriority = UnsignedPriority;
-    type ForceOrigin = EnsureRootOrHalfCouncil;
     type WeightInfo = parami_zkp::weights::SubstrateWeight<Runtime>;
     type PalletId = LinkerPalletId;
     type PendingLifetime = PendingLifetime;

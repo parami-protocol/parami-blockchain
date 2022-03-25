@@ -14,7 +14,6 @@ impl<T: Config> Pallet<T> {
         did: DidOf<T>,
         ipfs: Vec<u8>,
         range: Vec<u8>,
-        registrar: DidOf<T>,
     ) -> DispatchResult {
         <PendingTasks<T>>::remove( &ipfs);
         let created = <frame_system::Pallet<T>>::block_number();
@@ -23,7 +22,7 @@ impl<T: Config> Pallet<T> {
             range,
             created,
         });
-        Self::deposit_event(Event::<T>::VerifyFailed(did, registrar));
+        Self::deposit_event(Event::<T>::VerifyFailed(did));
         Ok(())
     }
 
@@ -31,7 +30,6 @@ impl<T: Config> Pallet<T> {
         did: DidOf<T>,
         ipfs: Vec<u8>,
         range: Vec<u8>,
-        registrar: DidOf<T>,
     ) -> DispatchResult {
         <PendingTasks<T>>::remove(&ipfs);
         let created = <frame_system::Pallet<T>>::block_number();
@@ -40,7 +38,7 @@ impl<T: Config> Pallet<T> {
             range,
             created,
         });
-        Self::deposit_event(Event::<T>::VerifyOk(did, registrar));
+        Self::deposit_event(Event::<T>::VerifyOk(did));
         Ok(())
     }
 
