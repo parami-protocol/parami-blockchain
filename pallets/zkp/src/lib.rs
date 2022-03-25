@@ -184,28 +184,16 @@ pub mod pallet {
         // todo: we need add some authentication for this call
         #[pallet::weight(1000)]
         pub fn submit_verify(
-            _origin: OriginFor<T>,
+            origin: OriginFor<T>,
             did: DidOf<T>,
             ipfs: Vec<u8>,
             range: Vec<u8>,
             result: bool,
         ) -> DispatchResultWithPostInfo {
-            // let registrar = if let Err(_) = ensure_none(origin.clone()) {
-            //     let (registrar, _) = EnsureDid::<T>::ensure_origin(origin)?;
-            //     ensure!(
-            //         <Registrar<T>>::get(&registrar) == Some(true),
-            //         Error::<T>::Blocked
-            //     );
-            //     registrar
-            // } else {
-            //     DidOf::<T>::default()
-            // };
-
+            ensure_none(origin);
             if result {
-                // Self::insert_verified(did, ipfs, registrar)?;
                 Self::insert_verified(did, ipfs, range, DidOf::<T>::default())?;
             } else {
-                // Self::veto_pending(did, ipfs, registrar)?;
                 Self::veto_pending(did, ipfs, range, DidOf::<T>::default())?;
             }
 
@@ -213,46 +201,22 @@ pub mod pallet {
         }
     }
 
-    // #[pallet::genesis_config]
-    // pub struct GenesisConfig<T: Config> {
-    //     pub eks: Vec<(DidOf<T>, Vec<u8>)>,
-    //     pub verified: Vec<(DidOf<T>,Vec<u8)>,
-    // }
-    //
-    // #[cfg(feature = "std")]
-    // impl<T: Config> Default for GenesisConfig<T> {
-    //     fn default() -> Self {
-    //         Self {
-    //             eks: Default::default(),
-    //             verified: Default::default(),
-    //         }
-    //     }
-    // }
-    // #[pallet::genesis_build]
-    // impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
-    //     fn build(&self) {
-    //         for (did, typ, dat) in &self.links {
-    //             <LinksOf<T>>::insert(did, typ, dat);
-    //             <Linked<T>>::insert(typ, dat, true);
-    //         }
-    //
-    //         for registrar in &self.registrars {
-    //             <Registrar<T>>::insert(registrar, true);
-    //         }
-    //     }
-    // }
-
     #[pallet::validate_unsigned]
     impl<T: Config> ValidateUnsigned for Pallet<T> {
         type Call = Call<T>;
 
-        fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+        fn validate_unsigned(source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+            match source {
+                TransactionSource::Local | TransactionSource::InBlock => { /* allowed */ }
+                _ => return InvalidTransaction::Call.into(),
+            };
+
             let valid_tx = |provide| {
                 ValidTransaction::with_tag_prefix("zkp")
                     .priority(T::UnsignedPriority::get())
                     .and_provides([&provide])
                     .longevity(3)
-                    .propagate(true)
+                    .propagate(false)
                     .build()
             };
 
