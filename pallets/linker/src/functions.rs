@@ -6,7 +6,7 @@ use crate::{
 use base58::ToBase58;
 use codec::Encode;
 use frame_support::ensure;
-use parami_primitives::{Network, Task};
+use parami_traits::types::{Network, Task};
 use sp_runtime::{DispatchError, DispatchResult};
 use sp_std::prelude::*;
 

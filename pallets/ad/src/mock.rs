@@ -29,11 +29,12 @@ frame_support::construct_runtime!(
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
         Uniques: pallet_uniques::{Pallet, Storage, Event<T>},
 
-        Ad: parami_ad::{Pallet, Call, Storage, Event<T>},
         Did: parami_did::{Pallet, Call, Storage, Config<T>, Event<T>},
         Nft: parami_nft::{Pallet, Call, Storage, Event<T>},
+        Ocw: parami_ocw::{Pallet},
         Swap: parami_swap::{Pallet, Call, Storage, Event<T>},
         Tag: parami_tag::{Pallet, Call, Storage, Config<T>, Event<T>},
+        Ad: parami_ad::{Pallet, Call, Storage, Event<T>},
     }
 );
 
@@ -170,6 +171,8 @@ impl parami_nft::Config for Test {
     type Swaps = Swap;
     type WeightInfo = ();
 }
+
+impl parami_ocw::Config for Test {}
 
 parameter_types! {
     pub const SwapPalletId: PalletId = PalletId(*b"prm/swap");

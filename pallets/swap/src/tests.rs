@@ -315,18 +315,16 @@ fn should_buy_currency() {
 
 #[test]
 fn should_swap_in_piecewisely() {
-    use sp_core::U512;
+    let mut input_reserve = 1_000_000_000_000_000_000_000_000u128;
+    let mut output_reserve = 1_000_000_000_000_000_000_000_000u128;
 
-    let mut input_reserve = U512::from(1_000_000_000_000_000_000_000_000u128);
-    let mut output_reserve = U512::from(1_000_000_000_000_000_000_000_000u128);
+    let input = 300_000_000_000_000_000_000_000u128;
+    let obtain_once = Swap::price_sell(input, input_reserve, output_reserve).unwrap();
 
-    let input = U512::from(300_000_000_000_000_000_000_000u128);
-    let obtain_once = Swap::calculate_price_sell(input, input_reserve, output_reserve);
-
-    let mut obtain_quintuple = U512::zero();
+    let mut obtain_quintuple = 0;
     {
-        let input = U512::from(100_000_000_000_000_000_000_000u128);
-        let obtain = Swap::calculate_price_sell(input, input_reserve, output_reserve);
+        let input = 100_000_000_000_000_000_000_000u128;
+        let obtain = Swap::price_sell(input, input_reserve, output_reserve).unwrap();
 
         input_reserve += input;
         output_reserve -= obtain;
@@ -334,8 +332,8 @@ fn should_swap_in_piecewisely() {
         obtain_quintuple += obtain;
     }
     {
-        let input = U512::from(110_000_000_000_000_000_000_000u128);
-        let obtain = Swap::calculate_price_sell(input, input_reserve, output_reserve);
+        let input = 110_000_000_000_000_000_000_000u128;
+        let obtain = Swap::price_sell(input, input_reserve, output_reserve).unwrap();
 
         input_reserve += input;
         output_reserve -= obtain;
@@ -343,11 +341,8 @@ fn should_swap_in_piecewisely() {
         obtain_quintuple += obtain;
     }
     {
-        let input = U512::from(90_000_000_000_000_000_000_000u128);
-        let obtain = Swap::calculate_price_sell(input, input_reserve, output_reserve);
-
-        input_reserve += input;
-        output_reserve -= obtain;
+        let input = 90_000_000_000_000_000_000_000u128;
+        let obtain = Swap::price_sell(input, input_reserve, output_reserve).unwrap();
 
         obtain_quintuple += obtain;
     }
@@ -357,18 +352,16 @@ fn should_swap_in_piecewisely() {
 
 #[test]
 fn should_swap_out_piecewisely() {
-    use sp_core::U512;
+    let mut input_reserve = 1_000_000_000_000_000_000_000_000u128;
+    let mut output_reserve = 1_000_000_000_000_000_000_000_000u128;
 
-    let mut input_reserve = U512::from(1_000_000_000_000_000_000_000_000u128);
-    let mut output_reserve = U512::from(1_000_000_000_000_000_000_000_000u128);
+    let output = 300_000_000_000_000_000_000_000u128;
+    let coast_once = Swap::price_buy(output, input_reserve, output_reserve).unwrap();
 
-    let output = U512::from(300_000_000_000_000_000_000_000u128);
-    let coast_once = Swap::calculate_price_buy(output, input_reserve, output_reserve);
-
-    let mut coast_quintuple = U512::zero();
+    let mut coast_quintuple = 0;
     {
-        let output = U512::from(100_000_000_000_000_000_000_000u128);
-        let coast = Swap::calculate_price_buy(output, input_reserve, output_reserve);
+        let output = 100_000_000_000_000_000_000_000u128;
+        let coast = Swap::price_buy(output, input_reserve, output_reserve).unwrap();
 
         input_reserve += coast;
         output_reserve -= output;
@@ -376,8 +369,8 @@ fn should_swap_out_piecewisely() {
         coast_quintuple += coast;
     }
     {
-        let output = U512::from(90_000_000_000_000_000_000_000u128);
-        let coast = Swap::calculate_price_buy(output, input_reserve, output_reserve);
+        let output = 90_000_000_000_000_000_000_000u128;
+        let coast = Swap::price_buy(output, input_reserve, output_reserve).unwrap();
 
         input_reserve += coast;
         output_reserve -= output;
@@ -385,8 +378,8 @@ fn should_swap_out_piecewisely() {
         coast_quintuple += coast;
     }
     {
-        let output = U512::from(81_000_000_000_000_000_000_000u128);
-        let coast = Swap::calculate_price_buy(output, input_reserve, output_reserve);
+        let output = 81_000_000_000_000_000_000_000u128;
+        let coast = Swap::price_buy(output, input_reserve, output_reserve).unwrap();
 
         input_reserve += coast;
         output_reserve -= output;
@@ -394,11 +387,8 @@ fn should_swap_out_piecewisely() {
         coast_quintuple += coast;
     }
     {
-        let output = U512::from(29_000_000_000_000_000_000_000u128);
-        let coast = Swap::calculate_price_buy(output, input_reserve, output_reserve);
-
-        input_reserve += coast;
-        output_reserve -= output;
+        let output = 29_000_000_000_000_000_000_000u128;
+        let coast = Swap::price_buy(output, input_reserve, output_reserve).unwrap();
 
         coast_quintuple += coast;
     }

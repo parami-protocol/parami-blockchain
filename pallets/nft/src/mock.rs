@@ -39,8 +39,9 @@ frame_support::construct_runtime!(
         Uniques: pallet_uniques::{Pallet, Storage, Event<T>},
 
         Did: parami_did::{Pallet, Call, Storage, Config<T>, Event<T>},
-        Nft: parami_nft::{Pallet, Call, Storage, Event<T>},
+        Ocw: parami_ocw::{Pallet},
         Swap: parami_swap::{Pallet, Call, Storage, Event<T>},
+        Nft: parami_nft::{Pallet, Call, Storage, Event<T>},
     }
 );
 
@@ -165,6 +166,8 @@ impl parami_did::Config for Test {
     type WeightInfo = ();
 }
 
+impl parami_ocw::Config for Test {}
+
 parameter_types! {
     pub const SwapPalletId: PalletId = PalletId(*b"prm/swap");
 }
@@ -224,7 +227,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         nfts: vec![(0, DID_ALICE, false), (1, DID_ALICE, false)],
         externals: vec![(
             1,
-            parami_primitives::Network::Ethereum,
+            parami_traits::types::Network::Ethereum,
             NAMESPACE.to_vec(),
             vec![0x01],
             DID_ALICE,

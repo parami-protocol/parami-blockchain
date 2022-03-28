@@ -1,7 +1,7 @@
 use crate as parami_linker;
 use frame_support::{parameter_types, traits::GenesisBuild, PalletId};
 use frame_system::{self as system, EnsureRoot};
-use parami_primitives::Network;
+use parami_traits::types::Network;
 use sp_core::{sr25519, H160, H256};
 use sp_runtime::{
     testing::{Header, TestXt},
@@ -38,6 +38,7 @@ frame_support::construct_runtime!(
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 
         Did: parami_did::{Pallet, Call, Storage, Config<T>, Event<T>},
+        Ocw: parami_ocw::{Pallet},
         Tag: parami_tag::{Pallet, Call, Storage, Config<T>, Event<T>},
         Linker: parami_linker::{Pallet, Call, Storage, Config<T>, Event<T>},
     }
@@ -114,6 +115,8 @@ impl parami_did::Config for Test {
     type PalletId = DidPalletId;
     type WeightInfo = ();
 }
+
+impl parami_ocw::Config for Test {}
 
 parameter_types! {
     pub const SubmissionFee: Balance = 1;

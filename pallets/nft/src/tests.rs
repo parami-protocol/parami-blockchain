@@ -1,6 +1,6 @@
 use crate::{mock::*, Account, Deposit, Deposits, Error, Metadata, Porting};
 use frame_support::{assert_noop, assert_ok};
-use parami_primitives::Network;
+use parami_traits::types::Network;
 
 #[test]
 fn should_import() {

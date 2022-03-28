@@ -18,7 +18,8 @@ mod benchmarking;
 
 mod btc;
 mod did;
-mod impls;
+mod functions;
+mod impl_links;
 mod migrations;
 mod ocw;
 mod types;
@@ -32,8 +33,10 @@ use frame_support::{
 };
 use frame_system::offchain::SendTransactionTypes;
 use parami_did::{EnsureDid, Pallet as Did};
-use parami_primitives::{Network, Task};
-use parami_traits::Tags;
+use parami_traits::{
+    types::{Network, Task},
+    Tags,
+};
 use sp_runtime::traits::Hash;
 use sp_std::prelude::*;
 
@@ -59,7 +62,8 @@ pub mod pallet {
     #[pallet::config]
     pub trait Config:
         frame_system::Config
-        + parami_did::Config //
+        + parami_did::Config
+        + parami_ocw::Config
         + SendTransactionTypes<Call<Self>>
     {
         /// The overarching event type
@@ -180,7 +184,6 @@ pub mod pallet {
         Deadline,
         ExistentialDeposit,
         Exists,
-        HttpFetchingError,
         InvalidAddress,
         InvalidSignature,
         NotExists,

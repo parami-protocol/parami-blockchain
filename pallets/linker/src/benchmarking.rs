@@ -6,7 +6,7 @@ use frame_benchmarking::{account, benchmarks, impl_benchmark_test_suite, whiteli
 use frame_support::traits::Get;
 use frame_system::RawOrigin;
 use parami_did::Pallet as Did;
-use parami_primitives::Network;
+use parami_traits::types::Network;
 use sp_runtime::traits::{Bounded, Saturating};
 
 benchmarks! {

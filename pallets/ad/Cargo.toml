@@ -42,6 +42,8 @@ frame-support = { git = 'https://github.com/paritytech/substrate', branch = 'pol
 frame-system = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }
 
 [dev-dependencies]
+parami-ocw = { path = '../ocw' }
+
 sp-io = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13' }
 
 pallet-assets = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13' }

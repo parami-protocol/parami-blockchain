@@ -1,19 +1,14 @@
 use crate::{did, types, Call, Config, Error, HeightOf, Pallet, PendingOf};
 use codec::Encode;
+use frame_support::dispatch::DispatchResult;
 use frame_system::offchain::{SendTransactionTypes, SubmitTransaction};
-use sp_runtime::{
-    offchain::{http, Duration},
-    DispatchError,
-};
+use parami_ocw::{submit_unsigned, Pallet as Ocw};
 use sp_runtime_interface::runtime_interface;
 use sp_std::prelude::*;
 
-pub const USER_AGENT: &str =
-    "GoogleBot (compatible; ParamiValidator/1.0; +http://parami.io/validator/)";
-
 #[runtime_interface]
 pub trait Images {
-    fn decode_jpeg(data: Vec<u8>) -> Option<types::RawImage> {
+    fn decode_jpeg(data: &[u8]) -> Option<types::RawImage> {
         #[cfg(feature = "std")]
         {
             use image::io::Reader as ImageReader;
@@ -43,15 +38,9 @@ pub trait Images {
     }
 }
 
-macro_rules! submit_unsigned {
-    ($call:expr) => {
-        SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction($call.into())
-    };
-}
-
 impl<T: Config + SendTransactionTypes<Call<T>>> Pallet<T> {
-    pub fn ocw_begin_block(block_number: HeightOf<T>) -> Result<(), DispatchError> {
-        use parami_primitives::Network::*;
+    pub fn ocw_begin_block(block_number: HeightOf<T>) -> DispatchResult {
+        use parami_traits::types::Network::*;
 
         for site in [Telegram, Twitter] {
             let pending = <PendingOf<T>>::iter_prefix(site);
@@ -69,8 +58,7 @@ impl<T: Config + SendTransactionTypes<Call<T>>> Pallet<T> {
                     continue;
                 }
 
-                let profile = sp_std::str::from_utf8(&task.task) //
-                    .map_err(|_| Error::<T>::HttpFetchingError)?;
+                let profile = sp_std::str::from_utf8(&task.task).unwrap_or_default();
 
                 let result = match site {
                     Telegram => Self::ocw_verify_telegram(did, profile),
@@ -92,9 +80,9 @@ impl<T: Config + SendTransactionTypes<Call<T>>> Pallet<T> {
         Ok(())
     }
 
-    pub(crate) fn ocw_submit_link(
+    pub(super) fn ocw_submit_link(
         did: T::DecentralizedId,
-        site: parami_primitives::Network,
+        site: parami_traits::types::Network,
         profile: Vec<u8>,
         validated: bool,
     ) {
@@ -108,89 +96,63 @@ impl<T: Config + SendTransactionTypes<Call<T>>> Pallet<T> {
         let _ = submit_unsigned!(call);
     }
 
-    pub(crate) fn ocw_verify_telegram<U: AsRef<str>>(
+    pub(super) fn ocw_verify_telegram<U: AsRef<str>>(
         did: T::DecentralizedId,
         profile: U,
-    ) -> Result<(), DispatchError> {
-        let res = Self::ocw_fetch(profile)?;
+    ) -> DispatchResult {
+        let res = Ocw::<T>::ocw_fetch(profile)?;
 
-        let res = sp_std::str::from_utf8(&res).map_err(|_| Error::<T>::HttpFetchingError)?;
+        let res = sp_std::str::from_utf8(&res).unwrap_or_default();
 
         let res = res.replace(" ", "");
 
         let start = res
             .find("<metaproperty=\"og:image\"content=\"")
-            .ok_or(Error::<T>::HttpFetchingError)?
+            .ok_or(Error::<T>::InvalidSignature)?
             + 33;
         let end = res[start..]
             .find("\"")
-            .ok_or(Error::<T>::HttpFetchingError)?;
+            .ok_or(Error::<T>::InvalidSignature)?;
 
         let avatar = &res[start..start + end];
 
         Self::ocw_check_avatar(avatar, did)
     }
 
-    pub(crate) fn ocw_verify_twitter<U: AsRef<str>>(
+    pub(super) fn ocw_verify_twitter<U: AsRef<str>>(
         did: T::DecentralizedId,
         profile: U,
-    ) -> Result<(), DispatchError> {
-        let res = Self::ocw_fetch(profile)?;
+    ) -> DispatchResult {
+        let res = Ocw::<T>::ocw_fetch(profile)?;
 
-        let res = sp_std::str::from_utf8(&res).map_err(|_| Error::<T>::HttpFetchingError)?;
+        let res = sp_std::str::from_utf8(&res).unwrap_or_default();
 
         let res = res.replace(" ", "");
 
         let start = res
             .find("<imgclass=\"ProfileAvatar-image\"src=\"")
-            .ok_or(Error::<T>::HttpFetchingError)?
+            .ok_or(Error::<T>::InvalidSignature)?
             + 36;
         let end = res[start..]
             .find("\"")
-            .ok_or(Error::<T>::HttpFetchingError)?;
+            .ok_or(Error::<T>::InvalidSignature)?;
 
         let avatar = &res[start..start + end];
 
         Self::ocw_check_avatar(avatar, did)
     }
 
-    pub(crate) fn ocw_check_avatar<U: AsRef<str>>(
+    pub(self) fn ocw_check_avatar<U: AsRef<str>>(
         avatar: U,
         did: T::DecentralizedId,
-    ) -> Result<(), DispatchError> {
-        let res = Self::ocw_fetch(avatar)?;
+    ) -> DispatchResult {
+        let res = Ocw::<T>::ocw_fetch(avatar)?;
 
         let did = did.encode();
 
-        match did::parse(res) {
+        match did::parse(&res) {
             Some(res) if res == did => Ok(()),
             _ => Err(Error::<T>::InvalidSignature)?,
         }
-    }
-
-    pub(crate) fn ocw_fetch<U: AsRef<str>>(url: U) -> Result<Vec<u8>, DispatchError> {
-        let url = url.as_ref();
-
-        let deadline = sp_io::offchain::timestamp().add(Duration::from_millis(3_000));
-
-        let request = http::Request::get(url);
-
-        let pending = request
-            .add_header("User-Agent", USER_AGENT)
-            .deadline(deadline)
-            .send()
-            .map_err(|_| Error::<T>::HttpFetchingError)?;
-
-        let response = pending
-            .try_wait(deadline)
-            .map_err(|_| Error::<T>::HttpFetchingError)?
-            .map_err(|_| Error::<T>::HttpFetchingError)?;
-
-        if response.code != 200 {
-            tracing::warn!("Unexpected status code: {}", response.code);
-            Err(Error::<T>::HttpFetchingError)?
-        }
-
-        Ok(response.body().collect::<Vec<u8>>())
     }
 }

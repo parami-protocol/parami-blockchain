@@ -1,7 +1,8 @@
-use crate::{mock::*, ocw::USER_AGENT, Config, Error, Linked, LinksOf, PendingOf, Registrar};
+use crate::{mock::*, Config, Error, Linked, LinksOf, PendingOf, Registrar};
 use codec::Decode;
 use frame_support::{assert_noop, assert_ok, traits::Hooks};
-use parami_primitives::Network;
+use parami_ocw::USER_AGENT;
+use parami_traits::types::Network;
 use sp_core::offchain::{testing, OffchainWorkerExt, TransactionPoolExt};
 
 macro_rules! assert_ok_eq {
@@ -78,33 +79,6 @@ fn should_fail_when_exists() {
             Error::<Test>::Exists
         );
     })
-}
-
-#[test]
-fn should_ocw_fetch() {
-    let url: String = "https://example.com".into();
-
-    let (offchain, state) = testing::TestOffchainExt::new();
-    let mut t = new_test_ext();
-    t.register_extension(OffchainWorkerExt::new(offchain));
-
-    {
-        let mut state = state.write();
-        state.expect_request(testing::PendingRequest {
-            method: "GET".into(),
-            uri: url.clone(),
-            headers: vec![("User-Agent".into(), USER_AGENT.into())],
-            response: Some(b"Example Domain".to_vec()),
-            sent: true,
-            ..Default::default()
-        });
-    }
-
-    t.execute_with(|| {
-        let result = Linker::ocw_fetch(url).unwrap();
-
-        assert_eq!(result, b"Example Domain".to_vec());
-    });
 }
 
 #[test]

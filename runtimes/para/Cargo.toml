@@ -42,6 +42,7 @@ parami-did = { path = '../../pallets/did', default-features = false }
 parami-linker = { path = '../../pallets/linker', default-features = false }
 parami-magic = { path = '../../pallets/magic', default-features = false }
 parami-nft = { path = '../../pallets/nft', default-features = false }
+parami-ocw = { path = '../../pallets/ocw', default-features = false }
 parami-swap = { path = '../../pallets/swap', default-features = false }
 parami-swap-rpc-runtime-api = { path = '../../pallets/swap/rpc/runtime-api', default-features = false }
 parami-tag = { path = '../../pallets/tag', default-features = false }
@@ -148,6 +149,7 @@ std = [
     'parami-linker/std',
     'parami-magic/std',
     'parami-nft/std',
+    'parami-ocw/std',
     'parami-swap/std',
     'parami-swap-rpc-runtime-api/std',
     'parami-tag/std',

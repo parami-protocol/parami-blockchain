@@ -1432,6 +1432,8 @@ impl parami_nft::Config for Runtime {
     type WeightInfo = parami_nft::weights::SubstrateWeight<Runtime>;
 }
 
+impl parami_ocw::Config for Runtime {}
+
 parameter_types! {
     pub const InitialFarmingReward: Balance = 100 * DOLLARS;
     pub const SwapPalletId: PalletId = PalletId(*names::SWAP);

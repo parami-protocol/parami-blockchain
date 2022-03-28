@@ -28,7 +28,7 @@ mod v2 {
         generate_storage_alias, migration::remove_storage_prefix, traits::PalletInfoAccess,
         Identity, RuntimeDebug, Twox64Concat,
     };
-    use parami_primitives::Network;
+    use parami_traits::types::Network;
     use scale_info::TypeInfo;
     use sp_std::prelude::Vec;
 
