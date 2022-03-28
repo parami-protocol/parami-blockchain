@@ -268,6 +268,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         deposits: Default::default(),
         next_instance_id: 1,
         nfts: vec![(0, DID_ALICE, false)],
+        externals: Default::default(),
     }
     .assimilate_storage(&mut t)
     .unwrap();

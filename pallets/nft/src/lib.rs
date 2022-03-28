@@ -58,8 +58,8 @@ type BalanceOf<T> = <<T as parami_did::Config>::Currency as Currency<AccountOf<T
 type DidOf<T> = <T as parami_did::Config>::DecentralizedId;
 type ExternalOf<T> = types::External<DidOf<T>>;
 type HeightOf<T> = <T as frame_system::Config>::BlockNumber;
-type MetaOf<T> = types::Metadata<DidOf<T>, AccountOf<T>, NftIdOf<T>, AssetOf<T>>;
-type NftIdOf<T> = AssetOf<T>;
+type MetaOf<T> = types::Metadata<DidOf<T>, AccountOf<T>, NftOf<T>, AssetOf<T>>;
+type NftOf<T> = <T as Config>::AssetId;
 type TaskOf<T> = Task<ExternalOf<T>, HeightOf<T>>;
 
 const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -109,8 +109,8 @@ pub mod pallet {
         type InitialMintingValueBase: Get<BalanceOf<Self>>;
 
         /// The NFT trait to create, mint non-fungible token
-        type Nft: NftCreate<AccountOf<Self>, InstanceId = NftIdOf<Self>, ClassId = NftIdOf<Self>>
-            + NftMutate<AccountOf<Self>, InstanceId = NftIdOf<Self>, ClassId = NftIdOf<Self>>;
+        type Nft: NftCreate<AccountOf<Self>, InstanceId = NftOf<Self>, ClassId = NftOf<Self>>
+            + NftMutate<AccountOf<Self>, InstanceId = NftOf<Self>, ClassId = NftOf<Self>>;
 
         /// Lifetime of a pending task
         #[pallet::constant]
@@ -139,14 +139,14 @@ pub mod pallet {
 
     /// Total deposit in pot
     #[pallet::storage]
-    pub(super) type Deposit<T: Config> = StorageMap<_, Twox64Concat, NftIdOf<T>, BalanceOf<T>>;
+    pub(super) type Deposit<T: Config> = StorageMap<_, Twox64Concat, NftOf<T>, BalanceOf<T>>;
 
     /// Deposits by supporter in pot
     #[pallet::storage]
     pub(super) type Deposits<T: Config> = StorageDoubleMap<
         _,
         Twox64Concat,
-        NftIdOf<T>,
+        NftOf<T>,
         Identity,
         T::DecentralizedId, // Supporter
         BalanceOf<T>,
@@ -164,14 +164,26 @@ pub mod pallet {
         TaskOf<T>,
     >;
 
+    /// Ported NFTs
+    #[pallet::storage]
+    pub(super) type Ported<T: Config> = StorageNMap<
+        _,
+        (
+            NMapKey<Twox64Concat, Network>,
+            NMapKey<Blake2_128, Vec<u8>>, // Namespace
+            NMapKey<Blake2_128, Vec<u8>>, // Token
+        ),
+        NftOf<T>,
+    >;
+
     /// Imported NFTs
     #[pallet::storage]
-    pub(super) type External<T: Config> = StorageMap<_, Twox64Concat, NftIdOf<T>, ExternalOf<T>>;
+    pub(super) type External<T: Config> = StorageMap<_, Twox64Concat, NftOf<T>, ExternalOf<T>>;
 
     /// Metadata
     #[pallet::storage]
     #[pallet::getter(fn meta)]
-    pub(super) type Metadata<T: Config> = StorageMap<_, Twox64Concat, NftIdOf<T>, MetaOf<T>>;
+    pub(super) type Metadata<T: Config> = StorageMap<_, Twox64Concat, NftOf<T>, MetaOf<T>>;
 
     /// The non-fungible token held by any given account
     #[pallet::storage]
@@ -180,41 +192,41 @@ pub mod pallet {
         Identity,
         T::DecentralizedId, // owner
         Twox64Concat,
-        NftIdOf<T>,
+        NftOf<T>,
         bool,
     >;
 
     /// Did's preferred Nft.
     #[pallet::storage]
     #[pallet::getter(fn preferred)]
-    pub(super) type Preferred<T: Config> = StorageMap<_, Identity, T::DecentralizedId, NftIdOf<T>>;
+    pub(super) type Preferred<T: Config> = StorageMap<_, Identity, T::DecentralizedId, NftOf<T>>;
 
     /// Initial Minting date
     #[pallet::storage]
-    pub(super) type Date<T: Config> = StorageMap<_, Twox64Concat, NftIdOf<T>, HeightOf<T>>;
+    pub(super) type Date<T: Config> = StorageMap<_, Twox64Concat, NftOf<T>, HeightOf<T>>;
 
     #[pallet::type_value]
-    pub(crate) fn DefaultId<T: Config>() -> NftIdOf<T> {
+    pub(crate) fn DefaultId<T: Config>() -> NftOf<T> {
         One::one()
     }
 
     /// Next available class ID
     #[pallet::storage]
-    pub(super) type NextClassId<T: Config> = StorageValue<_, NftIdOf<T>, ValueQuery, DefaultId<T>>;
+    pub(super) type NextClassId<T: Config> = StorageValue<_, NftOf<T>, ValueQuery, DefaultId<T>>;
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
         /// NFT Created \[did, instance\]
-        Created(T::DecentralizedId, NftIdOf<T>),
+        Created(T::DecentralizedId, NftOf<T>),
         /// NFT fragments Minted \[did, instance, value\]
-        Backed(T::DecentralizedId, NftIdOf<T>, BalanceOf<T>),
+        Backed(T::DecentralizedId, NftOf<T>, BalanceOf<T>),
         /// NFT fragments Claimed \[did, instance, value\]
-        Claimed(T::DecentralizedId, NftIdOf<T>, BalanceOf<T>),
+        Claimed(T::DecentralizedId, NftOf<T>, BalanceOf<T>),
         /// NFT fragments Minted \[kol, instance, token, name, symbol, tokens\]
         Minted(
             T::DecentralizedId,
-            NftIdOf<T>,
+            NftOf<T>,
             AssetOf<T>,
             Vec<u8>,
             Vec<u8>,
@@ -263,7 +275,12 @@ pub mod pallet {
             let (owner, _) = EnsureDid::<T>::ensure_origin(origin)?;
 
             ensure!(
-                <Porting<T>>::get((network, &namespace, &token)).is_none(),
+                !<Porting<T>>::contains_key((network, &namespace, &token)),
+                Error::<T>::Exists
+            );
+
+            ensure!(
+                !<Ported<T>>::contains_key((network, &namespace, &token)),
                 Error::<T>::Exists
             );
 
@@ -294,7 +311,7 @@ pub mod pallet {
         pub fn kick(origin: OriginFor<T>) -> DispatchResult {
             let (owner, _) = EnsureDid::<T>::ensure_origin(origin)?;
 
-            let id = <NextClassId<T>>::try_mutate(|id| -> Result<NftIdOf<T>, DispatchError> {
+            let id = <NextClassId<T>>::try_mutate(|id| -> Result<NftOf<T>, DispatchError> {
                 let current_id = *id;
                 *id = id.checked_add(&One::one()).ok_or(Error::<T>::Overflow)?;
                 Ok(current_id)
@@ -328,7 +345,7 @@ pub mod pallet {
         #[pallet::weight(<T as Config>::WeightInfo::back())]
         pub fn back(
             origin: OriginFor<T>,
-            nft: NftIdOf<T>,
+            nft: NftOf<T>,
             #[pallet::compact] value: BalanceOf<T>,
         ) -> DispatchResult {
             let (did, who) = EnsureDid::<T>::ensure_origin(origin)?;
@@ -367,7 +384,7 @@ pub mod pallet {
         #[pallet::weight(<T as Config>::WeightInfo::mint(name.len() as u32, symbol.len() as u32))]
         pub fn mint(
             origin: OriginFor<T>,
-            nft: NftIdOf<T>,
+            nft: NftOf<T>,
             name: Vec<u8>,
             symbol: Vec<u8>,
         ) -> DispatchResult {
@@ -445,7 +462,7 @@ pub mod pallet {
 
         /// Claim the fragments.
         #[pallet::weight(<T as Config>::WeightInfo::claim())]
-        pub fn claim(origin: OriginFor<T>, nft: NftIdOf<T>) -> DispatchResult {
+        pub fn claim(origin: OriginFor<T>, nft: NftOf<T>) -> DispatchResult {
             let (did, who) = EnsureDid::<T>::ensure_origin(origin)?;
 
             let height = <frame_system::Pallet<T>>::block_number();
@@ -472,7 +489,7 @@ pub mod pallet {
 
             let tokens = Self::try_into(tokens)?;
 
-            T::Assets::transfer(nft, &meta.pot, &who, tokens, false)?;
+            T::Assets::transfer(meta.token_asset_id, &meta.pot, &who, tokens, false)?;
 
             <Deposits<T>>::remove(nft, &did);
 
@@ -484,10 +501,11 @@ pub mod pallet {
 
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
-        pub deposit: Vec<(NftIdOf<T>, BalanceOf<T>)>,
-        pub deposits: Vec<(NftIdOf<T>, T::DecentralizedId, BalanceOf<T>)>,
-        pub next_instance_id: NftIdOf<T>,
-        pub nfts: Vec<(NftIdOf<T>, T::DecentralizedId, bool)>,
+        pub deposit: Vec<(NftOf<T>, BalanceOf<T>)>,
+        pub deposits: Vec<(NftOf<T>, T::DecentralizedId, BalanceOf<T>)>,
+        pub next_instance_id: NftOf<T>,
+        pub nfts: Vec<(NftOf<T>, T::DecentralizedId, bool)>,
+        pub externals: Vec<(NftOf<T>, Network, Vec<u8>, Vec<u8>, T::DecentralizedId)>,
     }
 
     #[cfg(feature = "std")]
@@ -498,6 +516,7 @@ pub mod pallet {
                 deposits: Default::default(),
                 next_instance_id: Default::default(),
                 nfts: Default::default(),
+                externals: Default::default(),
             }
         }
     }
@@ -547,6 +566,24 @@ pub mod pallet {
 
                     <Date<T>>::insert(id, HeightOf::<T>::zero());
                 }
+            }
+
+            for (id, network, namespace, token, owner) in &self.externals {
+                let id = *id;
+                let network = *network;
+                let owner = *owner;
+
+                <Ported<T>>::insert((network, namespace.clone(), token.clone()), id);
+
+                <External<T>>::insert(
+                    id,
+                    types::External {
+                        network,
+                        namespace: namespace.clone(),
+                        token: token.clone(),
+                        owner,
+                    },
+                );
             }
         }
     }

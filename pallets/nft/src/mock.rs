@@ -20,6 +20,13 @@ pub const DID_ALICE: H160 = H160([0xff; 20]);
 pub const DID_BOB: H160 = H160([0xee; 20]);
 pub const DID_CHARLIE: H160 = H160([0xdd; 20]);
 
+pub const NAMESPACE: [u8; 20] = [
+    0x06, 0x01, 0x2c, 0x8c, 0xf9, 0x7B, 0xEa, 0xD5, 0xde, 0xAe, 0x23, 0x70, 0x70, 0xF9, 0x58, 0x7f,
+    0x8E, 0x7A, 0x26, 0x6d,
+];
+
+pub const NEXT_INSTANCE_ID: AssetId = 2;
+
 frame_support::construct_runtime!(
     pub enum Test where
         Block = Block,
@@ -213,8 +220,15 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     parami_nft::GenesisConfig::<Test> {
         deposit: Default::default(),
         deposits: Default::default(),
-        next_instance_id: 1,
-        nfts: vec![(0, DID_ALICE, false)],
+        next_instance_id: NEXT_INSTANCE_ID,
+        nfts: vec![(0, DID_ALICE, false), (1, DID_ALICE, false)],
+        externals: vec![(
+            1,
+            parami_primitives::Network::Ethereum,
+            NAMESPACE.to_vec(),
+            vec![0x01],
+            DID_ALICE,
+        )],
     }
     .assimilate_storage(&mut t)
     .unwrap();

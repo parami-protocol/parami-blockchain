@@ -39,13 +39,13 @@ use sp_std::prelude::*;
 use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
-type AssetOf<T> = <T as parami_nft::Config>::AssetId;
+type NftOf<T> = <T as parami_nft::Config>::AssetId;
 type BalanceOf<T> = <<T as parami_did::Config>::Currency as Currency<AccountOf<T>>>::Balance;
 type DidOf<T> = <T as parami_did::Config>::DecentralizedId;
 type HashOf<T> = <<T as frame_system::Config>::Hashing as Hash>::Output;
 type HeightOf<T> = <T as frame_system::Config>::BlockNumber;
 type MetaOf<T> = types::Metadata<AccountOf<T>, BalanceOf<T>, DidOf<T>, HashOf<T>, HeightOf<T>>;
-type SlotMetaOf<T> = types::Slot<BalanceOf<T>, HashOf<T>, HeightOf<T>, AssetOf<T>>;
+type SlotMetaOf<T> = types::Slot<BalanceOf<T>, HashOf<T>, HeightOf<T>, NftOf<T>>;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -122,7 +122,7 @@ pub mod pallet {
     pub(super) type DeadlineOf<T: Config> = StorageDoubleMap<
         _,
         Twox64Concat,
-        AssetOf<T>, // KOL NFT ID
+        NftOf<T>, // KOL NFT ID
         Identity,
         HashOf<T>,
         HeightOf<T>,
@@ -131,12 +131,12 @@ pub mod pallet {
     /// Slot of a NFT
     #[pallet::storage]
     #[pallet::getter(fn slot_of)]
-    pub(super) type SlotOf<T: Config> = StorageMap<_, Twox64Concat, AssetOf<T>, SlotMetaOf<T>>;
+    pub(super) type SlotOf<T: Config> = StorageMap<_, Twox64Concat, NftOf<T>, SlotMetaOf<T>>;
 
     /// Slots of an advertisement
     #[pallet::storage]
     #[pallet::getter(fn slots_of)]
-    pub(super) type SlotsOf<T: Config> = StorageMap<_, Identity, HashOf<T>, Vec<AssetOf<T>>>;
+    pub(super) type SlotsOf<T: Config> = StorageMap<_, Identity, HashOf<T>, Vec<NftOf<T>>>;
 
     /// Payouts of an advertisement
     #[pallet::storage]
@@ -160,20 +160,20 @@ pub mod pallet {
         /// Advertisement updated \[id\]
         Updated(HashOf<T>),
         /// Advertiser bid for slot \[kol, id, value\]
-        Bid(AssetOf<T>, HashOf<T>, BalanceOf<T>),
+        Bid(NftOf<T>, HashOf<T>, BalanceOf<T>),
         /// Advertisement (in slot) deadline reached \[kol, id, value\]
-        End(AssetOf<T>, HashOf<T>, BalanceOf<T>),
+        End(NftOf<T>, HashOf<T>, BalanceOf<T>),
         /// Advertisement payout \[id, nft, visitor, value, referrer, value\]
         Paid(
             HashOf<T>,
-            AssetOf<T>,
+            NftOf<T>,
             DidOf<T>,
             BalanceOf<T>,
             Option<DidOf<T>>,
             BalanceOf<T>,
         ),
         /// Swap Triggered \[id, kol, remain\]
-        SwapTriggered(HashOf<T>, AssetOf<T>, BalanceOf<T>),
+        SwapTriggered(HashOf<T>, NftOf<T>, BalanceOf<T>),
     }
 
     #[pallet::hooks]
@@ -361,7 +361,7 @@ pub mod pallet {
         pub fn bid(
             origin: OriginFor<T>,
             ad: HashOf<T>,
-            nft: AssetOf<T>,
+            nft: NftOf<T>,
             #[pallet::compact] value: BalanceOf<T>,
         ) -> DispatchResult {
             let (did, _) = T::CallOrigin::ensure_origin(origin)?;
@@ -446,7 +446,7 @@ pub mod pallet {
         pub fn pay(
             origin: OriginFor<T>,
             ad: HashOf<T>,
-            nft: AssetOf<T>,
+            nft: NftOf<T>,
             visitor: DidOf<T>,
             scores: Vec<(Vec<u8>, i8)>,
             referrer: Option<DidOf<T>>,
@@ -663,7 +663,7 @@ impl<T: Config> Pallet<T> {
         Ok(T::DbWeight::get().reads_writes(read as Weight, write as Weight))
     }
 
-    fn drawback(nft: AssetOf<T>, slot: &SlotMetaOf<T>) -> Result<BalanceOf<T>, DispatchError> {
+    fn drawback(nft: NftOf<T>, slot: &SlotMetaOf<T>) -> Result<BalanceOf<T>, DispatchError> {
         let mut meta = <Metadata<T>>::get(slot.ad).ok_or(Error::<T>::NotExists)?;
 
         let amount = T::Swaps::token_in(
@@ -703,7 +703,7 @@ impl<T: Config> Pallet<T> {
 
     fn swap_by_10percent(
         meta: &MetaOf<T>,
-        token: AssetOf<T>,
+        token: NftOf<T>,
         slot: &mut SlotMetaOf<T>,
         least: BalanceOf<T>,
     ) -> DispatchResult {

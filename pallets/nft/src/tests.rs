@@ -1,15 +1,12 @@
-use crate::*;
-use crate::{mock::*, Account, Deposit, Deposits, Error, Porting};
+use crate::{mock::*, Account, Deposit, Deposits, Error, Metadata, Porting};
 use frame_support::{assert_noop, assert_ok};
+use parami_primitives::Network;
 
 #[test]
 fn should_import() {
     new_test_ext().execute_with(|| {
-        let namespace = "06012c8cf97BEaD5deAe237070F9587f8E7A266d";
-        let namespace = hex::decode(namespace).unwrap();
-
-        let token = "01";
-        let token = hex::decode(token).unwrap();
+        let namespace = NAMESPACE.to_vec();
+        let token = vec![0x02];
 
         assert_ok!(Nft::port(
             Origin::signed(BOB),
@@ -32,6 +29,49 @@ fn should_import() {
 }
 
 #[test]
+fn should_fail_when_imported() {
+    new_test_ext().execute_with(|| {
+        let namespace = NAMESPACE.to_vec();
+        let token = vec![0x01];
+
+        assert_noop!(
+            Nft::port(
+                Origin::signed(BOB),
+                Network::Ethereum,
+                namespace,
+                token.clone()
+            ),
+            Error::<Test>::Exists
+        );
+    });
+}
+
+#[test]
+fn should_fail_when_importing() {
+    new_test_ext().execute_with(|| {
+        let namespace = NAMESPACE.to_vec();
+        let token = vec![0x02];
+
+        assert_ok!(Nft::port(
+            Origin::signed(BOB),
+            Network::Ethereum,
+            namespace.clone(),
+            token.clone(),
+        ));
+
+        assert_noop!(
+            Nft::port(
+                Origin::signed(ALICE),
+                Network::Ethereum,
+                namespace,
+                token.clone()
+            ),
+            Error::<Test>::Exists
+        );
+    });
+}
+
+#[test]
 fn should_create() {
     new_test_ext().execute_with(|| {
         assert_ok!(Nft::kick(Origin::signed(BOB)));
@@ -46,9 +86,9 @@ fn should_create() {
 
         let meta = maybe_meta.unwrap();
         assert_eq!(meta.owner, DID_BOB);
-        assert_eq!(meta.class_id, 1);
+        assert_eq!(meta.class_id, NEXT_INSTANCE_ID);
         assert_eq!(meta.minted, false);
-        assert_eq!(meta.token_asset_id, 1);
+        assert_eq!(meta.token_asset_id, NEXT_INSTANCE_ID);
 
         assert_eq!(<Account<Test>>::get(&DID_BOB, nft), Some(true));
     });
