@@ -9,8 +9,8 @@ pub mod weights;
 // #[cfg(test)]
 // mod mock;
 
-//#[cfg(test)]
-//mod tests;
+#[cfg(test)]
+mod tests;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
@@ -24,7 +24,7 @@ use frame_support::{
     traits::{Currency},
     PalletId,
 };
-use frame_system::offchain::CreateSignedTransaction;
+use frame_system::offchain::SendTransactionTypes;
 use parami_did::{EnsureDid};
 use sp_runtime::traits::Hash;
 use sp_std::prelude::*;
@@ -43,7 +43,7 @@ pub mod pallet {
     pub trait Config:
     frame_system::Config
     + parami_did::Config //
-    + CreateSignedTransaction<Call<Self>> {
+    + SendTransactionTypes<Call<Self>> {
         /// The overarching event type
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 

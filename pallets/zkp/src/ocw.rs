@@ -1,4 +1,4 @@
-use frame_system::offchain::{CreateSignedTransaction, SubmitTransaction};
+use frame_system::offchain::{SendTransactionTypes, SubmitTransaction};
 use sp_runtime::{
     offchain::{http, Duration},
     DispatchError,
@@ -66,7 +66,7 @@ macro_rules! submit_unsigned {
     };
 }
 
-impl<T: Config + CreateSignedTransaction<Call<T>>> Pallet<T> {
+impl<T: Config + SendTransactionTypes<Call<T>>> Pallet<T> {
     pub fn ocw_begin_block(block_number: T::BlockNumber) -> Result<(), DispatchError> {
         let pending = <PendingTasks<T>>::iter();
 
