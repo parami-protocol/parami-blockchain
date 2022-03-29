@@ -117,6 +117,5 @@ where
         io.extend_with(did_rpc);
     }
     io.extend_with(SwapApi::to_delegate(SwapsRpcHandler::new(client.clone())));
-
     io
 }

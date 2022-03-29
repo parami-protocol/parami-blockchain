@@ -45,7 +45,7 @@ parami-swap = { path = '../../pallets/swap', default-features = false }
 parami-swap-rpc-runtime-api = { path = '../../pallets/swap/rpc/runtime-api', default-features = false }
 parami-tag = { path = '../../pallets/tag', default-features = false }
 parami-traits = { path = '../../pallets/traits', default-features = false }
-
+parami-zkp = { path ='../../pallets/zkp', default-features = false }
 # Substrate Dependencies
 ## Substrate Primitive Dependencies
 sp-api = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }
@@ -131,7 +131,7 @@ std = [
     'parami-swap-rpc-runtime-api/std',
     'parami-tag/std',
     'parami-traits/std',
-
+    'parami-zkp/std',
     'sp-api/std',
     'sp-block-builder/std',
     'sp-consensus-aura/std',
@@ -201,7 +201,7 @@ runtime-benchmarks = [
     'parami-nft/runtime-benchmarks',
     'parami-swap/runtime-benchmarks',
     'parami-tag/runtime-benchmarks',
-
+    'parami-zkp/runtime-benchmarks',
     'sp-runtime/runtime-benchmarks',
 
     'frame-benchmarking',
