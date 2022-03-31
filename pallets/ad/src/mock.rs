@@ -6,9 +6,12 @@ use sp_runtime::{
     testing::Header,
     traits::{BlakeTwo256, Keccak256},
 };
+use sp_runtime::testing::TestXt;
 
 type UncheckedExtrinsic = system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = system::mocking::MockBlock<Test>;
+
+pub type Extrinsic = TestXt<Call, ()>;
 
 pub const ALICE: sr25519::Public = sr25519::Public([1; 32]);
 pub const BOB: sr25519::Public = sr25519::Public([2; 32]);
@@ -164,12 +167,19 @@ impl parami_nft::Config for Test {
     type Assets = Assets;
     type InitialMintingDeposit = InitialMintingDeposit;
     type InitialMintingLockupPeriod = InitialMintingLockupPeriod;
-    type InitialMintingValueBase = InitialMintingValueBase;
     type Nft = Uniques;
     type PendingLifetime = PendingLifetime;
     type StringLimit = StringLimit;
     type Swaps = Swap;
     type WeightInfo = ();
+}
+
+impl<LocalCall> frame_system::offchain::SendTransactionTypes<LocalCall> for Test
+    where
+        Call: From<LocalCall>,
+{
+    type OverarchingCall = Call;
+    type Extrinsic = Extrinsic;
 }
 
 impl parami_ocw::Config for Test {}
@@ -270,7 +280,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         deposit: Default::default(),
         deposits: Default::default(),
         next_instance_id: 1,
-        nfts: vec![(0, DID_ALICE, false)],
+        nfts: vec![(0, DID_ALICE, false, 1_000_000, 1_000_000, 1_000_000, 7_000_000)],
         externals: Default::default(),
     }
     .assimilate_storage(&mut t)

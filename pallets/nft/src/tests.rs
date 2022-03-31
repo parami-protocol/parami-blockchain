@@ -74,7 +74,13 @@ fn should_fail_when_importing() {
 #[test]
 fn should_create() {
     new_test_ext().execute_with(|| {
-        assert_ok!(Nft::kick(Origin::signed(BOB)));
+        assert_ok!(Nft::kick(
+            Origin::signed(BOB),
+            1_000_000,
+            1_000_000,
+            1_000_000,
+            7_000_000,
+        ));
 
         let maybe_nft = Nft::preferred(DID_BOB);
         assert_ne!(maybe_nft, None);

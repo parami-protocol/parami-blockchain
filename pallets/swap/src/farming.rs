@@ -24,6 +24,7 @@ pub trait FarmingCurve<T: Config> {
         staked_height: HeightOf<T>,
         current_height: HeightOf<T>,
         total_supply: BalanceOf<T>,
+        initial_quote: BalanceOf<T>,
     ) -> BalanceOf<T>;
 }
 
@@ -33,29 +34,32 @@ impl<T: Config> FarmingCurve<T> for () {
         _staked_height: HeightOf<T>,
         _current_height: HeightOf<T>,
         _total_supply: BalanceOf<T>,
+        _initial_mint: BalanceOf<T>,
     ) -> BalanceOf<T> {
         Zero::zero()
     }
 }
 
-pub struct LinearFarmingCurve<T, I, B>(PhantomData<(T, I, B)>);
-impl<T, InitialFarmingReward, InitialMintingValueBase> FarmingCurve<T>
-    for LinearFarmingCurve<T, InitialFarmingReward, InitialMintingValueBase>
+pub struct LinearFarmingCurve<T, I>(PhantomData<(T, I)>);
+impl<T, InitialFarmingReward> FarmingCurve<T>
+    for LinearFarmingCurve<T, InitialFarmingReward>
 where
     T: Config,
     T::BlockNumber: From<u32> + Into<U512>,
     <T::Currency as Currency<T::AccountId>>::Balance: From<u32> + Into<U512> + TryFrom<U512>,
     InitialFarmingReward: Get<BalanceOf<T>>,
-    InitialMintingValueBase: Get<BalanceOf<T>>,
 {
+    ///TODO(ironman_ch): change this calculate algorithm into percentage calculation.
     fn calculate_farming_reward(
         created_height: HeightOf<T>,
         staked_height: HeightOf<T>,
         current_height: HeightOf<T>,
         total_supply: BalanceOf<T>,
+        initial_quote: BalanceOf<T>,
     ) -> BalanceOf<T> {
         let multiplier = BalanceOf::<T>::from(10u32);
-        if total_supply >= InitialMintingValueBase::get().saturating_mul(multiplier) {
+        //TODO(ironman_ch): if total_supply >= initial_mint* 10, what will happen ?
+        if total_supply >= initial_quote.saturating_mul(multiplier) {
             return Zero::zero();
         }
 
@@ -127,6 +131,7 @@ impl<T: Config> Pallet<T> {
             claimed, // last claimed
             height,
             supply,
+            meta.initial_quote,
         );
 
         let reward: U512 = Self::try_into(reward)?;

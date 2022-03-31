@@ -13,10 +13,14 @@ pub struct External<Did> {
 }
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default, TypeInfo)]
-pub struct Metadata<Did, AccountId, NftClassId, AssetId> {
+pub struct Metadata<Did, AccountId, NftClassId, AssetId, Balance> {
     pub owner: Did,
     pub pot: AccountId,
     pub class_id: NftClassId,
     pub minted: bool,
     pub token_asset_id: AssetId,
+    pub swap_init_quote_reservation: Balance, // farming initial quote value
+    pub back_up_reservation: Balance,
+    pub own_reservation: Balance,
+    pub farming_reward_reservation: Balance, // reserved farming reward value
 }

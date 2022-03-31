@@ -1207,7 +1207,6 @@ impl parami_magic::Config for Runtime {
 parameter_types! {
     pub const InitialMintingDeposit: Balance = 1_000 * DOLLARS;
     pub const InitialMintingLockupPeriod: BlockNumber = 6 * 30 * DAYS;
-    pub const InitialMintingValueBase: Balance = 1_000_000 * DOLLARS;
     pub const NftPendingLifetime: BlockNumber = 5;
 }
 
@@ -1217,7 +1216,6 @@ impl parami_nft::Config for Runtime {
     type Assets = Assets;
     type InitialMintingDeposit = InitialMintingDeposit;
     type InitialMintingLockupPeriod = InitialMintingLockupPeriod;
-    type InitialMintingValueBase = InitialMintingValueBase;
     type Nft = Uniques;
     type PendingLifetime = NftPendingLifetime;
     type StringLimit = StringLimit;
@@ -1237,7 +1235,7 @@ impl parami_swap::Config for Runtime {
     type AssetId = AssetId;
     type Assets = Assets;
     type Currency = Balances;
-    type FarmingCurve = LinearFarmingCurve<Runtime, InitialFarmingReward, InitialMintingValueBase>;
+    type FarmingCurve = LinearFarmingCurve<Runtime, InitialFarmingReward>;
     type PalletId = SwapPalletId;
     type WeightInfo = parami_swap::weights::SubstrateWeight<Runtime>;
 }

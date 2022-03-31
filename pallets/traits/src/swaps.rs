@@ -71,7 +71,11 @@ pub trait Swaps {
     /// # Returns
     ///
     /// wether the swap pair was created or not
-    fn new(token_id: Self::AssetId) -> DispatchResult;
+    fn new(
+        token_id: Self::AssetId,
+        initial_quote: Self::QuoteBalance,
+        farming_reward_quote: Self::QuoteBalance,
+    ) -> DispatchResult;
 
     /// Get pot account ID for a given pair
     ///

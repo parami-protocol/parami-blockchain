@@ -42,16 +42,22 @@ impl<T: Config> Swaps for Pallet<T> {
         <Provider<T>>::get(token_id, who)
     }
 
-    fn new(token_id: Self::AssetId) -> DispatchResult<()> {
+    fn new(
+        token_id: Self::AssetId,
+        initial_quote: Self::QuoteBalance,
+        farming_reward_quote: Self::QuoteBalance,
+    ) -> DispatchResult<()> {
         ensure!(!<Metadata<T>>::contains_key(token_id), Error::<T>::Exists);
 
         let created = <frame_system::Pallet<T>>::block_number();
-
+        //TODO(ironman_ch): add migration for this change
         <Metadata<T>>::insert(
             token_id,
             types::Swap {
                 created,
                 liquidity: Zero::zero(),
+                initial_quote,
+                farming_reward_quote,
             },
         );
 
@@ -78,6 +84,7 @@ impl<T: Config> Swaps for Pallet<T> {
         who: Self::AccountId,
         token_id: Self::AssetId,
         currency: Self::QuoteBalance,
+        //TODO(ironman_ch): what's this min_liquidity used to ?
         min_liquidity: Self::TokenBalance,
         max_tokens: Self::TokenBalance,
         keep_alive: bool,

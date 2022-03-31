@@ -10,7 +10,7 @@ fn should_create() {
     new_test_ext().execute_with(|| {
         let token = 1;
 
-        assert_ok!(Swap::create(Origin::signed(ALICE), token));
+        assert_ok!(Swap::create(Origin::signed(ALICE), token, 1_000_000, 7_000_000));
 
         let maybe_meta = <Metadata<Test>>::get(&token);
         assert_ne!(maybe_meta, None);
@@ -24,10 +24,10 @@ fn should_fail_when_exists() {
     new_test_ext().execute_with(|| {
         let token = 1;
 
-        assert_ok!(Swap::create(Origin::signed(ALICE), token));
+        assert_ok!(Swap::create(Origin::signed(ALICE), token, 1_000_000, 7_000_000));
 
         assert_noop!(
-            Swap::create(Origin::signed(ALICE), token),
+            Swap::create(Origin::signed(ALICE), token, 1_000_000, 7_000_000),
             Error::<Test>::Exists
         );
     });
@@ -38,7 +38,7 @@ fn should_add_liquidity() {
     new_test_ext().execute_with(|| {
         let token = 1;
 
-        assert_ok!(Swap::create(Origin::signed(ALICE), token));
+        assert_ok!(Swap::create(Origin::signed(ALICE), token, 1_000_000, 7_000_000));
 
         assert_ok!(Swap::add_liquidity(
             Origin::signed(ALICE),
@@ -107,7 +107,7 @@ fn should_remove_liquidity() {
     new_test_ext().execute_with(|| {
         let token = 1;
 
-        assert_ok!(Swap::create(Origin::signed(ALICE), token));
+        assert_ok!(Swap::create(Origin::signed(ALICE), token, 1_000_000, 7_000_000));
 
         assert_noop!(
             Swap::remove_liquidity(Origin::signed(ALICE), 0, 200, 20, 100),
@@ -162,7 +162,7 @@ fn should_buy_tokens() {
     new_test_ext().execute_with(|| {
         let token = 1;
 
-        assert_ok!(Swap::create(Origin::signed(ALICE), token));
+        assert_ok!(Swap::create(Origin::signed(ALICE), token, 1_000_000, 7_000_000));
 
         assert_ok!(Swap::add_liquidity(
             Origin::signed(ALICE),
@@ -197,7 +197,7 @@ fn should_sell_tokens() {
     new_test_ext().execute_with(|| {
         let token = 1;
 
-        assert_ok!(Swap::create(Origin::signed(ALICE), token));
+        assert_ok!(Swap::create(Origin::signed(ALICE), token, 1_000_000, 7_000_000));
 
         assert_ok!(Swap::add_liquidity(
             Origin::signed(ALICE),
@@ -234,7 +234,7 @@ fn should_sell_currency() {
     new_test_ext().execute_with(|| {
         let token = 1;
 
-        assert_ok!(Swap::create(Origin::signed(ALICE), token));
+        assert_ok!(Swap::create(Origin::signed(ALICE), token, 1_000_000, 7_000_000));
 
         assert_ok!(Swap::add_liquidity(
             Origin::signed(ALICE),
@@ -275,7 +275,7 @@ fn should_buy_currency() {
     new_test_ext().execute_with(|| {
         let token = 1;
 
-        assert_ok!(Swap::create(Origin::signed(ALICE), token));
+        assert_ok!(Swap::create(Origin::signed(ALICE), token, 1_000_000, 7_000_000));
 
         assert_ok!(Swap::add_liquidity(
             Origin::signed(ALICE),
@@ -410,7 +410,7 @@ fn should_not_overflow_when_calculating_price() {
             3_000_000_000_000_000_000_000_000_000u128
         ));
 
-        assert_ok!(Swap::create(Origin::signed(ALICE), token));
+        assert_ok!(Swap::create(Origin::signed(ALICE), token, 1_000_000, 7_000_000));
 
         assert_ok!(Swap::add_liquidity(
             Origin::signed(ALICE),

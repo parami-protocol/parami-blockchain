@@ -1,5 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
+extern crate core;
+
 pub use farming::{FarmingCurve, LinearFarmingCurve};
 pub use pallet::*;
 
@@ -46,7 +48,9 @@ type LiquidityOf<T> = types::Liquidity<AccountOf<T>, BalanceOf<T>, HeightOf<T>, 
 
 #[frame_support::pallet]
 pub mod pallet {
+    use core::panicking::panic;
     use super::*;
+    use frame_support::metadata::StorageEntryModifier::Default;
     use frame_support::pallet_prelude::*;
     use frame_system::pallet_prelude::*;
 
@@ -185,14 +189,17 @@ pub mod pallet {
         /// # Arguments
         ///
         /// * `token_id` - The Asset ID
+        /// TODO(ironman_ch): add sudo auth
         #[pallet::weight(T::WeightInfo::create())]
         pub fn create(
             origin: OriginFor<T>,
             #[pallet::compact] token_id: AssetOf<T>,
+            #[pallet::compact] initial_quote: BalanceOf<T>,
+            #[pallet::compact] reward_quote: BalanceOf<T>,
         ) -> DispatchResult {
             ensure_signed(origin)?;
 
-            Self::new(token_id)?;
+            Self::new(token_id, initial_quote, reward_quote)?;
 
             Ok(())
         }
@@ -206,17 +213,31 @@ pub mod pallet {
         /// * `min_liquidity` - The minimum amount of liquidity to be minted
         /// * `max_tokens` - The maximum amount of tokens to be involved in the swap
         /// * `deadline` - The block number at which the swap should be invalidated
+        /// TODO(ironman_ch): add sudo auth
         #[pallet::weight(T::WeightInfo::add_liquidity())]
         pub fn add_liquidity(
-            _origin: OriginFor<T>,
-            #[pallet::compact] _token_id: AssetOf<T>,
-            #[pallet::compact] _currency: BalanceOf<T>,
-            #[pallet::compact] _min_liquidity: BalanceOf<T>,
-            #[pallet::compact] _max_tokens: BalanceOf<T>,
-            _deadline: HeightOf<T>,
+            origin: OriginFor<T>,
+            #[pallet::compact] token_id: AssetOf<T>,
+            #[pallet::compact] currency: BalanceOf<T>,
+            #[pallet::compact] min_liquidity: BalanceOf<T>,
+            #[pallet::compact] max_tokens: BalanceOf<T>,
+            deadline: HeightOf<T>,
         ) -> DispatchResult {
-            // MARK: add_liquidity is disabled on staging network
-            Err(Error::<T>::Deadline)?
+            let height = <frame_system::Pallet<T>>::block_number();
+            ensure!(deadline > height, Error::<T>::Deadline);
+
+            let who = ensure_signed(origin)?;
+
+            let _ = Self::mint(
+                who,
+                token_id,
+                currency,
+                min_liquidity,
+                max_tokens,
+                true, // keep alive
+            )?;
+
+            Ok(())
         }
 
         /// Remove Liquidity
@@ -366,6 +387,7 @@ pub mod pallet {
     pub struct GenesisConfig<T: Config> {
         pub liquidities: Vec<(AssetOf<T>, AssetOf<T>, BalanceOf<T>, AccountOf<T>)>,
         pub next_token_id: AssetOf<T>,
+        pub metas: Vec<(AssetOf<T>, HeightOf<T>, BalanceOf<T>, BalanceOf<T>, BalanceOf<T>)>,
     }
 
     #[cfg(feature = "std")]
@@ -374,6 +396,7 @@ pub mod pallet {
             Self {
                 liquidities: Default::default(),
                 next_token_id: Default::default(),
+                metas: Default::default(),
             }
         }
     }
@@ -382,6 +405,21 @@ pub mod pallet {
     impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
         fn build(&self) {
             <NextTokenId<T>>::put(self.next_token_id);
+
+            for (token_id, created, liquidity, initial_quote, farming_reward_quote) in &self.metas {
+                <Metadata<T>>::mutate(token_id, |maybe| {
+                    if let Some(meta) = maybe {
+                        panic!(format!("token already exist with token_id = {:?}", token_id));
+                    } else {
+                        *maybe = Some(types::Swap {
+                            created,
+                            liquidity,
+                            initial_quote,
+                            farming_reward_quote,
+                        });
+                    }
+                });
+            }
 
             for (id, token_id, amount, owner) in &self.liquidities {
                 let id = *id;
@@ -405,17 +443,6 @@ pub mod pallet {
 
                 <Provider<T>>::mutate(token_id, owner, |holding| {
                     holding.saturating_accrue(amount);
-                });
-
-                <Metadata<T>>::mutate(token_id, |maybe| {
-                    if let Some(meta) = maybe {
-                        meta.liquidity.saturating_accrue(amount);
-                    } else {
-                        *maybe = Some(types::Swap {
-                            liquidity: amount,
-                            ..Default::default()
-                        });
-                    }
                 });
             }
         }

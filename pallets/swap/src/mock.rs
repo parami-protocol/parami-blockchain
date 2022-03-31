@@ -114,6 +114,7 @@ impl parami_swap::FarmingCurve<Test> for FarmingCurve {
         _staked_height: BlockNumber,
         _current_height: BlockNumber,
         _total_supply: Balance,
+        _initial_quote: Balance,
     ) -> Balance {
         100
     }

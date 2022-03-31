@@ -21,7 +21,7 @@ benchmarks! {
         let id = T::AssetId::min_value();
 
         T::Assets::create(id, caller.clone(), true, min)?;
-    }: _(RawOrigin::Signed(caller), id)
+    }: _(RawOrigin::Signed(caller), id, 1_000_000u32.into(), 7_000_000u32.into())
     verify {
         let meta = <Metadata<T>>::get(id);
         assert_ne!(meta, None);
@@ -43,7 +43,7 @@ benchmarks! {
         T::Currency::make_free_balance_be(&caller, pot.saturating_mul(5u32.into()));
         T::Assets::mint_into(id, &caller, pot.saturating_mul(5u32.into()))?;
 
-        Swap::<T>::create(RawOrigin::Signed(caller.clone()).into(), id)?;
+        Swap::<T>::create(RawOrigin::Signed(caller.clone()).into(), id, 1_000_000u32.into(), 7_000_000u32.into())?;
 
         Swap::<T>::add_liquidity(
             RawOrigin::Signed(caller.clone()).into(),
@@ -74,7 +74,7 @@ benchmarks! {
         T::Currency::make_free_balance_be(&caller, pot.saturating_mul(5u32.into()));
         T::Assets::mint_into(id, &caller, pot.saturating_mul(5u32.into()))?;
 
-        Swap::<T>::create(RawOrigin::Signed(caller.clone()).into(), id)?;
+        Swap::<T>::create(RawOrigin::Signed(caller.clone()).into(), id, 1_000_000u32.into(), 7_000_000u32.into())?;
 
         Swap::<T>::add_liquidity(
             RawOrigin::Signed(caller.clone()).into(),
@@ -106,7 +106,7 @@ benchmarks! {
         T::Currency::make_free_balance_be(&caller, pot.saturating_mul(5u32.into()));
         T::Assets::mint_into(id, &caller, pot.saturating_mul(5u32.into()))?;
 
-        Swap::<T>::create(RawOrigin::Signed(caller.clone()).into(), id)?;
+        Swap::<T>::create(RawOrigin::Signed(caller.clone()).into(), id, 1_000_000u32.into(), 7_000_000u32.into())?;
 
         Swap::<T>::add_liquidity(
             RawOrigin::Signed(caller.clone()).into(),
@@ -136,7 +136,7 @@ benchmarks! {
         T::Currency::make_free_balance_be(&caller, pot.saturating_mul(5u32.into()));
         T::Assets::mint_into(id, &caller, pot.saturating_mul(5u32.into()))?;
 
-        Swap::<T>::create(RawOrigin::Signed(caller.clone()).into(), id)?;
+        Swap::<T>::create(RawOrigin::Signed(caller.clone()).into(), id, 1_000_000u32.into(), 7_000_000u32.into())?;
 
         Swap::<T>::add_liquidity(
             RawOrigin::Signed(caller.clone()).into(),
@@ -166,7 +166,7 @@ benchmarks! {
         T::Currency::make_free_balance_be(&caller, pot.saturating_mul(5u32.into()));
         T::Assets::mint_into(id, &caller, pot.saturating_mul(5u32.into()))?;
 
-        Swap::<T>::create(RawOrigin::Signed(caller.clone()).into(), id)?;
+        Swap::<T>::create(RawOrigin::Signed(caller.clone()).into(), id, 1_000_000u32.into(), 7_000_000u32.into())?;
 
         Swap::<T>::add_liquidity(
             RawOrigin::Signed(caller.clone()).into(),
@@ -197,7 +197,7 @@ benchmarks! {
         T::Currency::make_free_balance_be(&caller, pot.saturating_mul(5u32.into()));
         T::Assets::mint_into(id, &caller, pot.saturating_mul(5u32.into()))?;
 
-        Swap::<T>::create(RawOrigin::Signed(caller.clone()).into(), id)?;
+        Swap::<T>::create(RawOrigin::Signed(caller.clone()).into(), id, 1_000_000u32.into(), 7_000_000u32.into())?;
 
         Swap::<T>::add_liquidity(
             RawOrigin::Signed(caller.clone()).into(),

@@ -195,7 +195,6 @@ impl parami_nft::Config for Test {
     type Assets = Assets;
     type InitialMintingDeposit = InitialMintingDeposit;
     type InitialMintingLockupPeriod = InitialMintingLockupPeriod;
-    type InitialMintingValueBase = InitialMintingValueBase;
     type Nft = Uniques;
     type PendingLifetime = PendingLifetime;
     type StringLimit = StringLimit;
@@ -224,7 +223,26 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         deposit: Default::default(),
         deposits: Default::default(),
         next_instance_id: NEXT_INSTANCE_ID,
-        nfts: vec![(0, DID_ALICE, false), (1, DID_ALICE, false)],
+        nfts: vec![
+            (
+                0,
+                DID_ALICE,
+                false,
+                1_000_000,
+                1_000_000,
+                1_000_000,
+                7_000_000,
+            ),
+            (
+                1,
+                DID_ALICE,
+                false,
+                1_000_000,
+                1_000_000,
+                1_000_000,
+                7_000_000,
+            ),
+        ],
         externals: vec![(
             1,
             parami_traits::types::Network::Ethereum,

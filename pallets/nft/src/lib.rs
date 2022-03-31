@@ -61,7 +61,7 @@ type BalanceOf<T> = <<T as parami_did::Config>::Currency as Currency<AccountOf<T
 type DidOf<T> = <T as parami_did::Config>::DecentralizedId;
 type ExternalOf<T> = types::External<DidOf<T>>;
 type HeightOf<T> = <T as frame_system::Config>::BlockNumber;
-type MetaOf<T> = types::Metadata<DidOf<T>, AccountOf<T>, NftOf<T>, AssetOf<T>>;
+type MetaOf<T> = types::Metadata<DidOf<T>, AccountOf<T>, NftOf<T>, AssetOf<T>, BalanceOf<T>>;
 type NftOf<T> = <T as Config>::AssetId;
 type TaskOf<T> = Task<ExternalOf<T>, HeightOf<T>>;
 
@@ -105,12 +105,6 @@ pub mod pallet {
         /// The ICO lockup period for fragments, KOL will not be able to claim before this period
         #[pallet::constant]
         type InitialMintingLockupPeriod: Get<HeightOf<Self>>;
-
-        /// The ICO value base of fragments, system will mint triple of the value
-        /// once for KOL, once to swaps, once to supporters
-        /// The maximum value of fragments is decuple of this value
-        #[pallet::constant]
-        type InitialMintingValueBase: Get<BalanceOf<Self>>;
 
         /// The NFT trait to create, mint non-fungible token
         type Nft: NftCreate<AccountOf<Self>, InstanceId = NftOf<Self>, ClassId = NftOf<Self>>
@@ -313,7 +307,13 @@ pub mod pallet {
         /// Create a new NFT for crowdfunding.
         // #[pallet::weight(<T as Config>::WeightInfo::back())]
         #[pallet::weight(1_000_000)]
-        pub fn kick(origin: OriginFor<T>) -> DispatchResult {
+        pub fn kick(
+            origin: OriginFor<T>,
+            init_circulation: BalanceOf<T>,
+            back_up_reservation: BalanceOf<T>,
+            own_reservation: BalanceOf<T>,
+            farming_reservation: BalanceOf<T>,
+        ) -> DispatchResult {
             let (owner, _) = EnsureDid::<T>::ensure_origin(origin)?;
 
             let id = <NextClassId<T>>::try_mutate(|id| -> Result<NftOf<T>, DispatchError> {
@@ -324,6 +324,7 @@ pub mod pallet {
 
             let pot = T::PalletId::get().into_sub_account(&owner);
 
+            //TODO(ironman_ch): add migration for this change
             <Metadata<T>>::insert(
                 id,
                 types::Metadata {
@@ -332,6 +333,10 @@ pub mod pallet {
                     class_id: id,
                     token_asset_id: id,
                     minted: false,
+                    swap_init_quote_reservation: init_circulation,
+                    back_up_reservation,
+                    own_reservation,
+                    farming_reward_reservation: farming_reservation,
                 },
             );
 
@@ -436,8 +441,13 @@ pub mod pallet {
 
             // 3. initial minting
 
-            let initial = T::InitialMintingValueBase::get();
-            let supply = initial.saturating_mul(3u32.into());
+            let initial = meta.swap_init_quote_reservation;
+            // TODO(ironman_ch): add test for invariant condition: supply = swap_init_quote + back_up_reserve + own_reserve + swap_farming_reward_reserve
+            let supply = meta
+                .swap_init_quote_reservation
+                .saturating_add(meta.back_up_reservation)
+                .saturating_add(meta.own_reservation)
+                .saturating_add(meta.farming_reward_reservation);
 
             T::Assets::create(tid, meta.pot.clone(), true, One::one())?;
             T::Assets::set(tid, &meta.pot, name.clone(), symbol.clone(), 18)?;
@@ -445,7 +455,7 @@ pub mod pallet {
 
             // 4. transfer third of initial minting to swap
 
-            T::Swaps::new(tid)?;
+            T::Swaps::new(tid, meta.swap_init_quote_reservation, meta.farming_reward_reservation)?;
             T::Swaps::mint(meta.pot.clone(), tid, deposit, deposit, initial, false)?;
 
             // 5. update local variable
@@ -484,7 +494,7 @@ pub mod pallet {
 
             let total = <Deposit<T>>::get(nft).ok_or(Error::<T>::NotExists)?;
             let deposit = <Deposits<T>>::get(nft, &did).ok_or(Error::<T>::NotExists)?;
-            let initial = T::InitialMintingValueBase::get();
+            let initial = meta.swap_init_quote_reservation;
 
             let total: U512 = Self::try_into(total)?;
             let deposit: U512 = Self::try_into(deposit)?;
@@ -544,12 +554,20 @@ pub mod pallet {
         pub deposit: Vec<(NftOf<T>, BalanceOf<T>)>,
         pub deposits: Vec<(NftOf<T>, T::DecentralizedId, BalanceOf<T>)>,
         pub next_instance_id: NftOf<T>,
-        pub nfts: Vec<(NftOf<T>, T::DecentralizedId, bool)>,
+        pub nfts: Vec<(
+            NftOf<T>,
+            T::DecentralizedId,
+            bool,
+            BalanceOf<T>,
+            BalanceOf<T>,
+            BalanceOf<T>,
+            BalanceOf<T>,
+        )>,
         pub externals: Vec<(NftOf<T>, Network, Vec<u8>, Vec<u8>, T::DecentralizedId)>,
     }
 
     #[cfg(feature = "std")]
-    impl<T: Config> Default for GenesisConfig<T> {
+    impl<T: Config> Default for GenesisConfig<T>  {
         fn default() -> Self {
             Self {
                 deposit: Default::default(),
@@ -574,9 +592,22 @@ pub mod pallet {
                 <Deposits<T>>::insert(instance_id, did, deposit);
             }
 
-            for (id, owner, minted) in &self.nfts {
+            for (
+                id,
+                owner,
+                minted,
+                init_circulation,
+                back_up_reservation,
+                own_reservation,
+                farming_reservation,
+            ) in &self.nfts
+            {
                 let id = *id;
                 let minted = *minted;
+                let swap_init_quote_reservation = *init_circulation;
+                let back_up_reservation = *back_up_reservation;
+                let own_reservation = *own_reservation;
+                let farming_reward_reservation = *farming_reservation;
 
                 if id >= self.next_instance_id {
                     panic!("NFT ID must be less than next_instance_id");
@@ -584,16 +615,18 @@ pub mod pallet {
 
                 let pot: AccountOf<T> = T::PalletId::get().into_sub_account(owner);
 
-                <Metadata<T>>::insert(
-                    id,
-                    types::Metadata {
-                        owner: owner.clone(),
-                        pot: pot.clone(),
-                        class_id: id,
-                        token_asset_id: id,
-                        minted,
-                    },
-                );
+                let metadata = types::Metadata {
+                    owner: owner.clone(),
+                    pot: pot.clone(),
+                    class_id: id,
+                    token_asset_id: id,
+                    minted,
+                    swap_init_quote_reservation,
+                    back_up_reservation,
+                    own_reservation,
+                    farming_reward_reservation,
+                };
+                <Metadata<T>>::insert(id, metadata,);
 
                 <Account<T>>::insert(owner.clone(), id, true);
 
@@ -626,7 +659,7 @@ pub mod pallet {
                 );
             }
         }
-    }
+	}
 }
 
 impl<T: Config> Pallet<T> {

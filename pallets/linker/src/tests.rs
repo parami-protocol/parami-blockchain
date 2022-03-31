@@ -45,7 +45,7 @@ fn should_link() {
         assert_ne!(maybe_pending, None);
 
         let pending = maybe_pending.unwrap();
-        assert_eq!(pending.profile, profile);
+        assert_eq!(pending.task, profile); //TODO(ironman_ch): whether change from pending.profile -> pending.task is correct
         assert_eq!(pending.deadline, <Test as Config>::PendingLifetime::get());
 
         assert_ok!(Linker::insert_link(

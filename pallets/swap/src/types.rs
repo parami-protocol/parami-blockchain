@@ -9,6 +9,8 @@ use sp_runtime::RuntimeDebug;
 pub struct Swap<N, B> {
     pub created: N,
     pub liquidity: B,
+    pub initial_quote: B,
+    pub farming_reward_quote: B,
 }
 
 #[derive(Clone, Decode, Default, Encode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
