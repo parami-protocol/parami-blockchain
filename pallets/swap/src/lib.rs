@@ -21,6 +21,7 @@ mod farming;
 mod functions;
 mod impl_swaps;
 mod types;
+mod migrations;
 
 use frame_support::{
     dispatch::DispatchResult,
@@ -29,7 +30,7 @@ use frame_support::{
         tokens::fungibles::{
             InspectMetadata as FungMeta, Mutate as FungMutate, Transfer as FungTransfer,
         },
-        Currency, Get,
+        Currency, Get, StorageVersion,
     },
     PalletId,
 };
@@ -46,11 +47,11 @@ type HeightOf<T> = <T as frame_system::Config>::BlockNumber;
 type SwapOf<T> = types::Swap<HeightOf<T>, BalanceOf<T>>;
 type LiquidityOf<T> = types::Liquidity<AccountOf<T>, BalanceOf<T>, HeightOf<T>, AssetOf<T>>;
 
+const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+
 #[frame_support::pallet]
 pub mod pallet {
-    use core::panicking::panic;
     use super::*;
-    use frame_support::metadata::StorageEntryModifier::Default;
     use frame_support::pallet_prelude::*;
     use frame_system::pallet_prelude::*;
 
@@ -160,7 +161,12 @@ pub mod pallet {
     }
 
     #[pallet::hooks]
-    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+
+        fn on_runtime_upgrade() -> Weight {
+            migrations::migrate::<T>()
+        }
+    }
 
     #[pallet::error]
     pub enum Error<T> {
@@ -409,13 +415,13 @@ pub mod pallet {
             for (token_id, created, liquidity, initial_quote, farming_reward_quote) in &self.metas {
                 <Metadata<T>>::mutate(token_id, |maybe| {
                     if let Some(meta) = maybe {
-                        panic!(format!("token already exist with token_id = {:?}", token_id));
+                        panic!("token already exist with token_id = {:?}", token_id);
                     } else {
                         *maybe = Some(types::Swap {
-                            created,
-                            liquidity,
-                            initial_quote,
-                            farming_reward_quote,
+                            created: *created,
+                            liquidity: *liquidity,
+                            initial_quote: *initial_quote,
+                            farming_reward_quote: *farming_reward_quote,
                         });
                     }
                 });

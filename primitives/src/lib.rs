@@ -133,7 +133,5 @@ pub type Moment = u64;
 pub type DecentralizedId = sp_core::H160;
 
 pub const fn deposit(items: u32, bytes: u32) -> Balance {
-    use constants::CENTS;
-
     (items as Balance) * 15 * CENTS + (bytes as Balance) * 6 * CENTS
 }
