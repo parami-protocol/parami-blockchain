@@ -23,8 +23,7 @@ pub trait FarmingCurve<T: Config> {
         created_height: HeightOf<T>,
         staked_height: HeightOf<T>,
         current_height: HeightOf<T>,
-        total_supply: BalanceOf<T>,
-        initial_quote: BalanceOf<T>,
+        farming_reward_quote: BalanceOf<T>,
     ) -> BalanceOf<T>;
 }
 
@@ -33,8 +32,7 @@ impl<T: Config> FarmingCurve<T> for () {
         _created_height: HeightOf<T>,
         _staked_height: HeightOf<T>,
         _current_height: HeightOf<T>,
-        _total_supply: BalanceOf<T>,
-        _initial_mint: BalanceOf<T>,
+        _farming_reward_quote: BalanceOf<T>,
     ) -> BalanceOf<T> {
         Zero::zero()
     }
@@ -54,14 +52,8 @@ where
         created_height: HeightOf<T>,
         staked_height: HeightOf<T>,
         current_height: HeightOf<T>,
-        total_supply: BalanceOf<T>,
-        initial_quote: BalanceOf<T>,
+        farming_reward_quote: BalanceOf<T>
     ) -> BalanceOf<T> {
-        let multiplier = BalanceOf::<T>::from(10u32);
-        //TODO(ironman_ch): if total_supply >= initial_mint* 10, what will happen ?
-        if total_supply >= initial_quote.saturating_mul(multiplier) {
-            return Zero::zero();
-        }
 
         let x_lower = staked_height - created_height;
         let x_upper = current_height - created_height;
@@ -69,33 +61,31 @@ where
         let x_lower: U512 = x_lower.into();
         let x_upper: U512 = x_upper.into();
 
-        // we use a linear curve for farming reward
-        // y = a * x + b
+        // Target: a normalized to 1 math function, to calculate reward
+        // Curve: linear curve, ax + b
+        // Final Math Function: Integral[ax+b, {x, 0, 3Year}] = 7_000_000
+        // Parameter selection or calculation:
+        // 1. b: 100
+        // 2. 3Year: 3 * 365.25 * (60000 / 12000 * 60 * 24) = 7889400;
+        //      `60000 / 12000` means produce 1 block every 12 seconds
+        // Substitute variables and solve this equation:
+        // 1. 0.5 * a * x^2 + b * x = 7_000_000. where x ~ [0, 7889400]
+        // 2. substitute x, we got 0.5 * a * 7889400 * 7889400 + 100 * 7889400 = 7_000_000
+        // 3. solve equation, a = 12_562_772_015_768 in decimal 18 
 
-        // we will issue 100 dollars in the first block
-        let base: U512 = InitialFarmingReward::get().into();
-        // b = 100DOLLARS
+        let base: U512 = 100u64.into();
 
-        // our goal is to issue 7,000,000 dollars in 3 years
-        // DAYS is the block number of a day
-        // const PERIOD: f64 = 3f64 * 365.25f64 * DAYS as f64;
-        // PERIOD = 3 * 365.25 * (60000 / 12000 * 60 * 24) = 7889400
-
-        // to calculate the total supply, we use integral
-        // Y = Integrate[-ax + 100DOLLARS]
-
-        // ∵ Integrate[-ax + 100DOLLARS, {x, 0, PERIOD}] = 7_000_000DOLLARS
-        // ∴ a = 39_097_000_000_000_000_000_000 / 1556065809
-        // ∴ Y = 100DOLLARS x - 19_548_500_000_000_000_000_000 * Power[x,2] / 1_556_065_809
-        // Y ≈ 100DOLLARS x - 12_562_772_015_768 * Power[x,2]
-        let c = U512::from(12_562_772_015_768u128);
+        let a = U512::from(12_562_772_015_768u128);
 
         // reward = Integrate[-ax + b, {x, staked_height, current_height}]
         // cuz Newton-Leibniz formula
         // reward = Y(x_upper) - Y(x_lower)
 
-        let reward = (base * x_upper - c * x_upper.pow(U512::from(2u32)))
-            - (base * x_lower - c * x_lower.pow(U512::from(2u32)));
+        let reward = (base * x_upper - a * x_upper.pow(U512::from(2u32)))
+            - (base * x_lower - a * x_lower.pow(U512::from(2u32)));
+        
+        // convert as the real farming_reward_quote and the recommanded_farming_quote(7_000_000).
+        let reward = (reward * farming_reward_quote.into()) / U512::from(7_000_000u64);
 
         reward.try_into().unwrap_or_default()
     }
@@ -130,8 +120,7 @@ impl<T: Config> Pallet<T> {
             meta.created,
             claimed, // last claimed
             height,
-            supply,
-            meta.initial_quote,
+            meta.farming_reward_quote
         );
 
         let reward: U512 = Self::try_into(reward)?;
