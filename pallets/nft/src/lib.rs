@@ -324,7 +324,6 @@ pub mod pallet {
 
             let pot = T::PalletId::get().into_sub_account(&owner);
 
-            //TODO(ironman_ch): add migration for this change
             <Metadata<T>>::insert(
                 id,
                 types::Metadata {

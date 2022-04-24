@@ -47,7 +47,6 @@ where
     <T::Currency as Currency<T::AccountId>>::Balance: From<u32> + Into<U512> + TryFrom<U512>,
     InitialFarmingReward: Get<BalanceOf<T>>,
 {
-    ///TODO(ironman_ch): change this calculate algorithm into percentage calculation.
     fn calculate_farming_reward(
         created_height: HeightOf<T>,
         staked_height: HeightOf<T>,
