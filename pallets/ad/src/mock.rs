@@ -226,7 +226,6 @@ parameter_types! {
 
 impl parami_ad::Config for Test {
     type Event = Event;
-    type Assets = Assets;
     type MinimumFeeBalance = AdvertiserMinimumFee;
     type PalletId = AdPalletId;
     type PayoutBase = PayoutBase;

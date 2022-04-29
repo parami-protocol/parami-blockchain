@@ -20,9 +20,9 @@ version = '2.2.0'
 parami-did-utils = { path = '../utils' }
 
 parking_lot = '0.11'
-jsonrpc-core = '18.0.0'
-jsonrpc-core-client = '18.0.0'
-jsonrpc-derive = '18.0.0'
+jsonrpc-core = '18.0'
+jsonrpc-core-client = '18.0'
+jsonrpc-derive = '18.0'
 
 sp-core = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13' }
 sp-offchain = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13' }

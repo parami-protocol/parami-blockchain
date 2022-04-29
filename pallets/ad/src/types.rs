@@ -22,14 +22,19 @@ pub struct Metadata<A, B, D, H, N> {
 
 #[derive(Clone, Decode, Default, Encode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-pub struct Slot<B, H, N, T> {
-    pub nft: T,
+pub struct Slot<Balance, Hash, Height, NftId, TokenId> {
+    pub ad_id: Hash,
+    pub nft_id: NftId,
+    pub fungible_id: Option<TokenId>,
     #[codec(compact)]
-    pub budget: B,
+    pub budget: Balance,
     #[codec(compact)]
-    pub remain: B,
+    pub remain: Balance,
     #[codec(compact)]
-    pub tokens: B,
-    pub created: N,
-    pub ad: H,
+    pub fractions_remain: Balance,
+    #[codec(compact)]
+    pub fungibles_budget: Balance,
+    #[codec(compact)]
+    pub fungibles_remain: Balance,
+    pub created: Height,
 }
