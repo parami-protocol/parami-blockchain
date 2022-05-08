@@ -44,7 +44,7 @@ pub mod pallet {
 
 
     #[pallet::config]
-    pub trait Config: frame_system::Config + parami_chainbridge::Config + parami_did::Config + parami_swap::Config{
+    pub trait Config: frame_system::Config + parami_chainbridge::Config  + parami_swap::Config{
         /// The overarching event type
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
