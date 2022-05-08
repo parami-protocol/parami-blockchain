@@ -86,7 +86,7 @@ impl<T: Config> Pallet<T> {
     }
 
     /// Calculate buy price in U512
-    pub(crate) fn calculate_price_buy(
+    pub(self) fn calculate_price_buy(
         output_amount: U512,
         input_reserve: U512,
         output_reserve: U512,
@@ -111,7 +111,7 @@ impl<T: Config> Pallet<T> {
     }
 
     /// Calculate sell price in U512
-    pub(crate) fn calculate_price_sell(
+    pub(self) fn calculate_price_sell(
         input_amount: U512,
         input_reserve: U512,
         output_reserve: U512,

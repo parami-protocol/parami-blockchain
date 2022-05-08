@@ -15,10 +15,9 @@ fn should_register() {
 
         System::set_block_number(1);
 
-        assert_noop!(
-            Did::register(Origin::signed(BOB), None),
-            Error::<Test>::Exists
-        );
+        let r = Did::register(Origin::signed(BOB), None);
+
+        assert_noop!(r, Error::<Test>::Exists);
 
         let maybe_did = <DidOf<Test>>::get(&BOB);
         assert_ne!(maybe_did, None);
@@ -32,10 +31,8 @@ fn should_register() {
 #[test]
 fn should_fail_when_exist() {
     new_test_ext().execute_with(|| {
-        assert_noop!(
-            Did::register(Origin::signed(ALICE), None),
-            Error::<Test>::Exists
-        );
+        let r = Did::register(Origin::signed(ALICE), None);
+        assert_noop!(r, Error::<Test>::Exists);
     });
 }
 
@@ -55,20 +52,8 @@ fn should_register_with_referer() {
 #[test]
 fn should_fail_when_referer_not_exist() {
     new_test_ext().execute_with(|| {
-        assert_noop!(
-            Did::register(Origin::signed(BOB), Some(DID_BOB)),
-            Error::<Test>::ReferrerNotExists
-        );
-    });
-}
-
-#[test]
-fn should_fail_when_insufficient() {
-    new_test_ext().execute_with(|| {
-        assert_noop!(
-            Did::register(Origin::signed(CHARLIE), None),
-            pallet_balances::Error::<Test>::InsufficientBalance
-        );
+        let r = Did::register(Origin::signed(BOB), Some(DID_BOB));
+        assert_noop!(r, Error::<Test>::ReferrerNotExists);
     });
 }
 

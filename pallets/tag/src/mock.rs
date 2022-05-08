@@ -1,5 +1,5 @@
 use crate as parami_tag;
-use frame_support::{parameter_types, traits::GenesisBuild, PalletId};
+use frame_support::{parameter_types, traits::GenesisBuild};
 use frame_system::{self as system, EnsureRoot};
 use sp_core::{sr25519, H256};
 use sp_runtime::{
@@ -25,7 +25,6 @@ frame_support::construct_runtime!(
 );
 
 pub type DID = <Test as parami_did::Config>::DecentralizedId;
-type AssetId = u64;
 type Balance = u128;
 
 parameter_types! {
@@ -77,17 +76,11 @@ impl pallet_balances::Config for Test {
     type ReserveIdentifier = [u8; 8];
 }
 
-parameter_types! {
-    pub const DidPalletId: PalletId = PalletId(*b"prm/did ");
-}
-
 impl parami_did::Config for Test {
     type Event = Event;
-    type AssetId = AssetId;
     type Currency = Balances;
     type DecentralizedId = sp_core::H160;
     type Hashing = Keccak256;
-    type PalletId = DidPalletId;
     type WeightInfo = ();
 }
 
@@ -121,9 +114,18 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 
     parami_did::GenesisConfig::<Test> {
         ids: vec![
-            (alice, DID::from_slice(&[0xff; 20]), None),
-            (bob, DID::from_slice(&[0xee; 20]), None),
+            (alice, DID::from_slice(&[0xff; 20])),
+            (bob, DID::from_slice(&[0xee; 20])),
         ],
+    }
+    .assimilate_storage(&mut t)
+    .unwrap();
+
+    parami_tag::GenesisConfig::<Test> {
+        tag: vec![b"Test".to_vec()],
+        tags: vec![],
+        personas: vec![],
+        influences: vec![],
     }
     .assimilate_storage(&mut t)
     .unwrap();

@@ -6,6 +6,7 @@ use frame_benchmarking::{account, benchmarks, impl_benchmark_test_suite, whiteli
 use frame_support::traits::Get;
 use frame_system::RawOrigin;
 use parami_did::Pallet as Did;
+use parami_traits::types::Network;
 use sp_runtime::traits::{Bounded, Saturating};
 
 benchmarks! {
@@ -27,9 +28,9 @@ benchmarks! {
         let did = Did::<T>::did_of(&caller).unwrap();
 
         let profile = vec![0u8; n as usize];
-    }: _(RawOrigin::Signed(caller), types::AccountType::Mastodon, profile)
+    }: _(RawOrigin::Signed(caller), Network::Mastodon, profile)
     verify {
-        assert_ne!(<PendingOf<T>>::get(&types::AccountType::Mastodon, &did), None);
+        assert_ne!(<PendingOf<T>>::get(&Network::Mastodon, &did), None);
     }
 
     link_crypto {
@@ -44,9 +45,9 @@ benchmarks! {
 
         let address = vec![0u8; 256];
         let signature = [0u8; 65];
-    }: _(RawOrigin::Signed(caller), types::AccountType::Unknown, address.clone(), signature)
+    }: _(RawOrigin::Signed(caller), Network::Unknown, address.clone(), signature)
     verify {
-        assert_eq!(<LinksOf<T>>::get(&did, &types::AccountType::Unknown), Some(address));
+        assert_eq!(<LinksOf<T>>::get(&did, &Network::Unknown), Some(address));
     }
 
     deposit {
@@ -111,10 +112,10 @@ benchmarks! {
         let address = vec![0u8; 20];
         let signature = [0u8; 65];
 
-        Linker::<T>::link_crypto(RawOrigin::Signed(caller.clone()).into(), types::AccountType::Unknown, address.clone(), signature.clone())?;
-    }: _(RawOrigin::Root, did.clone(), types::AccountType::Unknown)
+        Linker::<T>::link_crypto(RawOrigin::Signed(caller.clone()).into(), Network::Unknown, address.clone(), signature.clone())?;
+    }: _(RawOrigin::Root, did.clone(), Network::Unknown)
     verify {
-        assert_eq!(<LinksOf<T>>::get(&did, &types::AccountType::Unknown), None);
+        assert_eq!(<LinksOf<T>>::get(&did, &Network::Unknown), None);
     }
 
     submit_link {
@@ -140,10 +141,10 @@ benchmarks! {
 
         let profile = vec![0u8; n as usize];
 
-        Linker::<T>::link_sociality(RawOrigin::Signed(applicant.clone()).into(), types::AccountType::Mastodon, profile.clone())?;
-    }: _(RawOrigin::Signed(caller), did.clone(), types::AccountType::Mastodon, profile.clone(), true)
+        Linker::<T>::link_sociality(RawOrigin::Signed(applicant.clone()).into(), Network::Mastodon, profile.clone())?;
+    }: _(RawOrigin::Signed(caller), did.clone(), Network::Mastodon, profile.clone(), true)
     verify {
-        assert_eq!(<LinksOf<T>>::get(&did, &types::AccountType::Mastodon), Some(profile));
+        assert_eq!(<LinksOf<T>>::get(&did, &Network::Mastodon), Some(profile));
     }
 
     submit_score {

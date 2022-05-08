@@ -5,61 +5,6 @@ use serde::{Deserialize, Serialize};
 use sp_runtime::RuntimeDebug;
 use sp_std::prelude::*;
 
-#[derive(Clone, Copy, Decode, Encode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-pub enum AccountType {
-    /// Unknown account type
-    Unknown,
-
-    /// Binance Smart Chain (BSC) Address
-    Binance,
-    /// BTC Address
-    Bitcoin,
-    /// EOS Address
-    Eosio,
-    /// ETH Address
-    Ethereum,
-    /// Substrate Address on the Kusama (KSM) Network
-    Kusama,
-    /// Substrate Address on the Polkadot (DOT) Network
-    Polkadot,
-    /// SOL Address
-    Solana,
-    /// TRX Address
-    Tron,
-
-    /// Discord Profile
-    Discord,
-    /// Facebook Profile
-    Facebook,
-    /// Github Profile
-    Github,
-    /// Hacker News Profile
-    HackerNews,
-    /// Mastodon Profile
-    Mastodon,
-    /// Reddit Profile
-    Reddit,
-    /// Telegram Profile
-    Telegram,
-    /// Twitter Profile
-    Twitter,
-}
-
-impl Default for AccountType {
-    fn default() -> Self {
-        AccountType::Unknown
-    }
-}
-
-#[derive(Clone, Decode, Default, Encode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-pub struct Pending<H> {
-    pub profile: Vec<u8>,
-    pub deadline: H,
-    pub created: H,
-}
-
 #[derive(Clone, Decode, Encode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct RawImage {

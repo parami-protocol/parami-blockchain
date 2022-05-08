@@ -35,18 +35,11 @@ use substrate_prometheus_endpoint::Registry;
 pub struct TemplateRuntimeExecutor;
 
 impl sc_executor::NativeExecutionDispatch for TemplateRuntimeExecutor {
-    /// Only enable the benchmarking host functions when we actually want to benchmark.
-    #[cfg(feature = "runtime-benchmarks")]
     type ExtendHostFunctions = (
         frame_benchmarking::benchmarking::HostFunctions,
-        parami_linker::hashing::HostFunctions, //
+        parami_linker::hashing::HostFunctions,
         parami_linker::images::HostFunctions,
-    );
-    /// Otherwise we only use the default Substrate host functions.
-    #[cfg(not(feature = "runtime-benchmarks"))]
-    type ExtendHostFunctions = (
-        parami_linker::hashing::HostFunctions, //
-        parami_linker::images::HostFunctions,
+        parami_nft::eth_abi::HostFunctions,
     );
 
     fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {

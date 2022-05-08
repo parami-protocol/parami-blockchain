@@ -36,6 +36,7 @@ parami-dana-runtime = { path = '../../runtimes/dana' }
 
 parami-did-rpc = { path = '../../pallets/did/rpc' }
 parami-linker = { path = '../../pallets/linker' }
+parami-nft = { path = '../../pallets/nft' }
 parami-swap-rpc = { path = '../../pallets/swap/rpc' }
 
 # Substrate Dependencies
