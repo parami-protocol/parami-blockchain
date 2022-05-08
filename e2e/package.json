@@ -9,8 +9,8 @@
     "author": "Parami Devs <info@parami.io>",
     "license": "MIT",
     "dependencies": {
-        "@polkadot/api": "^7.2.1",
-        "@polkadot/util-crypto": "^8.2.2",
+        "@polkadot/api": "^7.13.1",
+        "@polkadot/util-crypto": "^8.6.1",
         "listr": "^0.14.3",
         "spinnies": "^0.5.1"
     }

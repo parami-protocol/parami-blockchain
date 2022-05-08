@@ -25,10 +25,10 @@ version = '1.0'
 
 [dependencies]
 parami-did = { path = '../did', default-features = false }
+parami-ocw = { path = '../ocw', default-features = false }
 parami-traits = { path = '../traits', default-features = false }
 
 base58 = '0.2'
-hex = { version = '0.4', default-features = false, optional = true }
 image = { version = '0.23', optional = true }
 num-traits = { version = '0.2', default-features = false, features = ['libm'] }
 ripemd160 = { version = '0.9', optional = true }
@@ -55,13 +55,13 @@ pallet-balances = { git = 'https://github.com/paritytech/substrate', branch = 'p
 [features]
 default = ['std']
 
-runtime-benchmarks = ['frame-benchmarking', 'hex/alloc']
+runtime-benchmarks = ['frame-benchmarking']
 
 std = [
     'parami-did/std',
+    'parami-ocw/std',
     'parami-traits/std',
 
-    'hex/std',
     'image',
     'ripemd160',
     'serde',

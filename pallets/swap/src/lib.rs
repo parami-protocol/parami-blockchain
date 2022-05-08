@@ -32,7 +32,7 @@ use frame_support::{
     PalletId,
 };
 use parami_traits::Swaps;
-use sp_runtime::traits::{AtLeast32BitUnsigned, Bounded};
+use sp_runtime::traits::{AtLeast32BitUnsigned, Bounded, Saturating, Zero};
 use sp_std::prelude::*;
 
 use weights::WeightInfo;
@@ -208,28 +208,15 @@ pub mod pallet {
         /// * `deadline` - The block number at which the swap should be invalidated
         #[pallet::weight(T::WeightInfo::add_liquidity())]
         pub fn add_liquidity(
-            origin: OriginFor<T>,
-            #[pallet::compact] token_id: AssetOf<T>,
-            #[pallet::compact] currency: BalanceOf<T>,
-            #[pallet::compact] min_liquidity: BalanceOf<T>,
-            #[pallet::compact] max_tokens: BalanceOf<T>,
-            deadline: HeightOf<T>,
+            _origin: OriginFor<T>,
+            #[pallet::compact] _token_id: AssetOf<T>,
+            #[pallet::compact] _currency: BalanceOf<T>,
+            #[pallet::compact] _min_liquidity: BalanceOf<T>,
+            #[pallet::compact] _max_tokens: BalanceOf<T>,
+            _deadline: HeightOf<T>,
         ) -> DispatchResult {
-            let height = <frame_system::Pallet<T>>::block_number();
-            ensure!(deadline > height, Error::<T>::Deadline);
-
-            let who = ensure_signed(origin)?;
-
-            let _ = Self::mint(
-                who,
-                token_id,
-                currency,
-                min_liquidity,
-                max_tokens,
-                true, // keep alive
-            )?;
-
-            Ok(())
+            // MARK: add_liquidity is disabled on staging network
+            Err(Error::<T>::Deadline)?
         }
 
         /// Remove Liquidity
@@ -377,14 +364,16 @@ pub mod pallet {
 
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
-        pub swaps: Vec<(u32, BalanceOf<T>)>,
+        pub liquidities: Vec<(AssetOf<T>, AssetOf<T>, BalanceOf<T>, AccountOf<T>)>,
+        pub next_token_id: AssetOf<T>,
     }
 
     #[cfg(feature = "std")]
     impl<T: Config> Default for GenesisConfig<T> {
         fn default() -> Self {
             Self {
-                swaps: Default::default(),
+                liquidities: Default::default(),
+                next_token_id: Default::default(),
             }
         }
     }
@@ -392,19 +381,42 @@ pub mod pallet {
     #[pallet::genesis_build]
     impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
         fn build(&self) {
-            let length = self.swaps.len();
+            <NextTokenId<T>>::put(self.next_token_id);
 
-            for i in 0..length {
-                let token_id: AssetOf<T> = self.swaps[i].0.into();
-                let liquidity = self.swaps[i].1.into();
+            for (id, token_id, amount, owner) in &self.liquidities {
+                let id = *id;
+                let token_id = *token_id;
+                let amount = *amount;
 
-                <Metadata<T>>::insert(
-                    token_id,
-                    types::Swap {
-                        liquidity,
-                        ..Default::default()
+                if id >= self.next_token_id {
+                    panic!("Liquidity Token ID must be less than next_token_id");
+                }
+
+                <Liquidity<T>>::insert(
+                    id,
+                    types::Liquidity {
+                        owner: owner.clone(),
+                        token_id,
+                        amount,
+                        minted: Zero::zero(),
                     },
                 );
+                <Account<T>>::insert(owner, id, HeightOf::<T>::zero());
+
+                <Provider<T>>::mutate(token_id, owner, |holding| {
+                    holding.saturating_accrue(amount);
+                });
+
+                <Metadata<T>>::mutate(token_id, |maybe| {
+                    if let Some(meta) = maybe {
+                        meta.liquidity.saturating_accrue(amount);
+                    } else {
+                        *maybe = Some(types::Swap {
+                            liquidity: amount,
+                            ..Default::default()
+                        });
+                    }
+                });
             }
         }
     }

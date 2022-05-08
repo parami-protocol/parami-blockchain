@@ -1,0 +1,56 @@
+[package]
+authors = ['Parami Devs <info@parami.io>']
+description = 'AD3 OCW Common Pallet'
+edition = '2021'
+homepage = 'https://parami.io'
+license = 'GPL-3.0-only WITH Classpath-exception-2.0'
+name = 'parami-ocw'
+publish = false
+repository = 'https://github.com/parami-protocol/parami-blockchain/'
+version = '3.0.0'
+
+[package.metadata.docs.rs]
+targets = ['x86_64-unknown-linux-gnu']
+
+[dependencies.codec]
+default-features = false
+features = ['derive']
+package = 'parity-scale-codec'
+version = '2.2.0'
+
+[dependencies.scale-info]
+default-features = false
+features = ['derive']
+version = '1.0'
+
+[dependencies]
+lite-json = { version = '0.1', default-features = false }
+tracing = { version = '0.1', default-features = false }
+
+sp-io = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }
+sp-runtime = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }
+sp-std = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }
+
+frame-support = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }
+frame-system = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }
+
+[dev-dependencies]
+sp-core = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }
+
+[features]
+default = ['std']
+
+std = [
+    'lite-json/std',
+    'tracing/std',
+
+    'codec/std',
+    'scale-info/std',
+
+    'sp-io/std',
+    'sp-runtime/std',
+    'sp-std/std',
+
+    'frame-support/std',
+    'frame-system/std',
+]

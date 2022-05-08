@@ -1,4 +1,4 @@
-use crate::{mock::*, Error, HashOf, Metadata};
+use crate::{mock::*, AdOf, Error, Metadata};
 use frame_support::{assert_noop, assert_ok, traits::Currency};
 use sp_core::sr25519;
 use sp_runtime::DispatchError;
@@ -80,6 +80,45 @@ fn should_force_create() {
 }
 
 #[test]
+fn scoring_curve_boundary_cases() {
+    use parami_traits::Tags;
+
+    new_test_ext().execute_with(|| {
+        let tag = b"Test".to_vec();
+
+        // test for 0, 1, 100
+
+        let did = DID::from_slice(&[0xff; 20]);
+
+        assert_ok!(Tag::influence(&did, &tag, 0));
+        assert_eq!(Tag::get_score(&did, &tag), 0);
+
+        assert_ok!(Tag::influence(&did, &tag, 1));
+        assert_eq!(Tag::get_score(&did, &tag), 1);
+
+        assert_ok!(Tag::influence(&did, &tag, 6365));
+        assert_eq!(Tag::get_score(&did, &tag), 99);
+
+        assert_ok!(Tag::influence(&did, &tag, 1));
+        assert_eq!(Tag::get_score(&did, &tag), 100);
+
+        assert_ok!(Tag::influence(&did, &tag, 1_000_000));
+        assert_eq!(Tag::get_score(&did, &tag), 100);
+
+        // test loop for 2000
+
+        let did = DID::from_slice(&[0xee; 20]);
+        let mut last = 0;
+        for _ in 0..2000 {
+            assert_ok!(Tag::influence(&did, &tag, 5));
+            let current = Tag::get_score(&did, &tag);
+            assert!(current >= last);
+            last = current;
+        }
+    });
+}
+
+#[test]
 fn tags_trait() {
     use parami_traits::Tags;
 
@@ -90,7 +129,7 @@ fn tags_trait() {
         let hash1 = Tag::key(&tag1);
         let hash2 = Tag::key(&tag2);
 
-        let ad = <HashOf<Test>>::default();
+        let ad = <AdOf<Test>>::default();
 
         assert_ok!(Tag::add_tag(&ad, tag1.clone()));
         assert_eq!(Tag::tags_of(&ad), BTreeMap::from([(hash1.clone(), true)]));
@@ -111,16 +150,16 @@ fn tags_trait() {
         let did = DID::from_slice(&[0xff; 20]);
 
         assert_ok!(Tag::influence(&did, &tag1, 5));
-        assert_eq!(Tag::personas_of(&did), BTreeMap::from([(hash1.clone(), 5)]));
-        assert_eq!(Tag::get_score(&did, &tag1), 5);
+        assert_eq!(Tag::personas_of(&did), BTreeMap::from([(hash1.clone(), 6)]));
+        assert_eq!(Tag::get_score(&did, &tag1), 6);
 
         let did = DID::from_slice(&[0xff; 20]);
 
         assert_ok!(Tag::impact(&did, &tag1, 3));
         assert_eq!(
             Tag::influences_of(&did),
-            BTreeMap::from([(hash1.clone(), 3)])
+            BTreeMap::from([(hash1.clone(), 4)])
         );
-        assert_eq!(Tag::get_influence(&did, &tag1), 3);
+        assert_eq!(Tag::get_influence(&did, &tag1), 4);
     });
 }

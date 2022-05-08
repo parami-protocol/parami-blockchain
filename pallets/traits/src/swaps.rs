@@ -8,9 +8,7 @@ use sp_runtime::{
 };
 use sp_std::boxed::Box;
 
-pub trait Swaps {
-    type AccountId: Parameter + Member + MaybeSerializeDeserialize + Ord + Default + MaxEncodedLen;
-
+pub trait Swaps<AccountId> {
     type AssetId: Parameter
         + Member
         + MaybeSerializeDeserialize
@@ -37,7 +35,7 @@ pub trait Swaps {
     /// # Arguments
     ///
     /// * `token_id` - The Asset ID
-    fn iter_providers(token_id: Self::AssetId) -> Box<dyn Iterator<Item = Self::AccountId>>;
+    fn iter_providers(token_id: Self::AssetId) -> Box<dyn Iterator<Item = AccountId>>;
 
     /// Get total liquidity for a given pair
     ///
@@ -60,7 +58,7 @@ pub trait Swaps {
     /// # Returns
     ///
     /// total liquidity tokens the account holds for the pair
-    fn liquidity(token_id: Self::AssetId, who: &Self::AccountId) -> Self::TokenBalance;
+    fn liquidity(token_id: Self::AssetId, who: &AccountId) -> Self::TokenBalance;
 
     /// Create new swap pair
     ///
@@ -82,7 +80,7 @@ pub trait Swaps {
     /// # Returns
     ///
     /// account ID of the pot account
-    fn get_pool_account(token_id: Self::AssetId) -> Self::AccountId;
+    fn get_pool_account(token_id: Self::AssetId) -> AccountId;
 
     /// Get dry-run result of mint
     ///
@@ -122,7 +120,7 @@ pub trait Swaps {
     /// * `tokens` - The amount of tokens involved
     /// * `liquidity` - The amount of liquidity minted
     fn mint(
-        who: Self::AccountId,
+        who: AccountId,
         token_id: Self::AssetId,
         currency: Self::QuoteBalance,
         min_liquidity: Self::TokenBalance,
@@ -172,7 +170,7 @@ pub trait Swaps {
     /// * `tokens` - The amount of tokens returned
     /// * `currency` - The currency returned
     fn burn(
-        who: Self::AccountId,
+        who: AccountId,
         lp_token_id: Self::AssetId,
         min_currency: Self::QuoteBalance,
         min_tokens: Self::TokenBalance,
@@ -213,7 +211,7 @@ pub trait Swaps {
     ///
     /// The currency spent
     fn token_out(
-        who: Self::AccountId,
+        who: AccountId,
         token_id: Self::AssetId,
         tokens: Self::TokenBalance,
         max_currency: Self::QuoteBalance,
@@ -247,7 +245,7 @@ pub trait Swaps {
     ///
     /// The currency gained
     fn token_in(
-        who: Self::AccountId,
+        who: AccountId,
         token_id: Self::AssetId,
         tokens: Self::TokenBalance,
         min_currency: Self::QuoteBalance,
@@ -281,7 +279,7 @@ pub trait Swaps {
     ///
     /// The amount of tokens gained
     fn quote_in(
-        who: Self::AccountId,
+        who: AccountId,
         token_id: Self::AssetId,
         currency: Self::QuoteBalance,
         min_tokens: Self::TokenBalance,
@@ -315,7 +313,7 @@ pub trait Swaps {
     ///
     /// The amount of tokens spent
     fn quote_out(
-        who: Self::AccountId,
+        who: AccountId,
         token_id: Self::AssetId,
         currency: Self::QuoteBalance,
         max_tokens: Self::TokenBalance,

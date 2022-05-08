@@ -5,7 +5,7 @@ use num_traits::Float;
 use sp_std::prelude::*;
 
 /// Parse downloaded image file
-pub fn parse(data: Vec<u8>) -> Option<Vec<u8>> {
+pub fn parse(data: &[u8]) -> Option<Vec<u8>> {
     let image = match images::decode_jpeg(data) {
         Some(image) => image,
         None => return None,
@@ -53,11 +53,15 @@ mod test {
 
     const JPG: &[u8] = include_bytes!("../artifacts/did.jpg");
     const PNG: &[u8] = include_bytes!("../artifacts/did.png");
-    const DID: &str = "32ac799d35de72a2ae57a46ca975319fbbb125a9";
+    // 32ac799d35de72a2ae57a46ca975319fbbb125a9
+    const DID: [u8; 20] = [
+        0x32, 0xac, 0x79, 0x9d, 0x35, 0xde, 0x72, 0xa2, 0xae, 0x57, 0xa4, 0x6c, 0xa9, 0x75, 0x31,
+        0x9f, 0xbb, 0xb1, 0x25, 0xa9,
+    ];
 
     #[test]
     fn should_decode() {
-        assert_eq!(parse(JPG.to_vec()), hex::decode(DID).ok());
-        assert_eq!(parse(PNG.to_vec()), hex::decode(DID).ok());
+        assert_eq!(parse(JPG), Some(DID.to_vec()));
+        assert_eq!(parse(PNG), Some(DID.to_vec()));
     }
 }

@@ -18,8 +18,7 @@ use sp_std::boxed::Box;
 
 type DispatchResult<T> = Result<T, sp_runtime::DispatchError>;
 
-impl<T: Config> Swaps for Pallet<T> {
-    type AccountId = AccountOf<T>;
+impl<T: Config> Swaps<AccountOf<T>> for Pallet<T> {
     type AssetId = AssetOf<T>;
     type QuoteBalance = BalanceOf<T>;
     type TokenBalance = BalanceOf<T>;
@@ -28,7 +27,7 @@ impl<T: Config> Swaps for Pallet<T> {
         Box::new(<Metadata<T>>::iter_keys())
     }
 
-    fn iter_providers(token_id: Self::AssetId) -> Box<dyn Iterator<Item = Self::AccountId>> {
+    fn iter_providers(token_id: Self::AssetId) -> Box<dyn Iterator<Item = AccountOf<T>>> {
         Box::new(<Provider<T>>::iter_key_prefix(token_id))
     }
 
@@ -38,7 +37,7 @@ impl<T: Config> Swaps for Pallet<T> {
             .unwrap_or_default()
     }
 
-    fn liquidity(token_id: Self::AssetId, who: &Self::AccountId) -> Self::TokenBalance {
+    fn liquidity(token_id: Self::AssetId, who: &AccountOf<T>) -> Self::TokenBalance {
         <Provider<T>>::get(token_id, who)
     }
 
@@ -60,7 +59,7 @@ impl<T: Config> Swaps for Pallet<T> {
         Ok(())
     }
 
-    fn get_pool_account(token_id: Self::AssetId) -> Self::AccountId {
+    fn get_pool_account(token_id: Self::AssetId) -> AccountOf<T> {
         T::PalletId::get().into_sub_account(token_id)
     }
 
@@ -75,7 +74,7 @@ impl<T: Config> Swaps for Pallet<T> {
     }
 
     fn mint(
-        who: Self::AccountId,
+        who: AccountOf<T>,
         token_id: Self::AssetId,
         currency: Self::QuoteBalance,
         min_liquidity: Self::TokenBalance,
@@ -167,7 +166,7 @@ impl<T: Config> Swaps for Pallet<T> {
     }
 
     fn burn(
-        who: Self::AccountId,
+        who: AccountOf<T>,
         lp_token_id: Self::AssetId,
         min_currency: Self::QuoteBalance,
         min_tokens: Self::TokenBalance,
@@ -231,7 +230,7 @@ impl<T: Config> Swaps for Pallet<T> {
     }
 
     fn token_out(
-        who: Self::AccountId,
+        who: AccountOf<T>,
         token_id: Self::AssetId,
         tokens: Self::TokenBalance,
         max_currency: Self::QuoteBalance,
@@ -280,7 +279,7 @@ impl<T: Config> Swaps for Pallet<T> {
     }
 
     fn token_in(
-        who: Self::AccountId,
+        who: AccountOf<T>,
         token_id: Self::AssetId,
         tokens: Self::TokenBalance,
         min_currency: Self::QuoteBalance,
@@ -321,7 +320,7 @@ impl<T: Config> Swaps for Pallet<T> {
     }
 
     fn quote_in(
-        who: Self::AccountId,
+        who: AccountOf<T>,
         token_id: Self::AssetId,
         currency: Self::QuoteBalance,
         min_tokens: Self::TokenBalance,
@@ -367,7 +366,7 @@ impl<T: Config> Swaps for Pallet<T> {
     }
 
     fn quote_out(
-        who: Self::AccountId,
+        who: AccountOf<T>,
         token_id: Self::AssetId,
         currency: Self::QuoteBalance,
         max_tokens: Self::TokenBalance,

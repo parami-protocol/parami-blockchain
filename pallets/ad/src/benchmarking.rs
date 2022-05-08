@@ -8,7 +8,6 @@ use parami_advertiser::Pallet as Advertiser;
 use parami_did::Pallet as Did;
 use parami_nft::Pallet as Nft;
 use parami_tag::Pallet as Tag;
-use rand::{rngs::SmallRng, Rng, SeedableRng};
 use sp_runtime::traits::{Bounded, Saturating};
 
 benchmarks! {
@@ -37,10 +36,9 @@ benchmarks! {
         Advertiser::<T>::deposit(RawOrigin::Signed(caller.clone()).into(), pot)?;
 
         let mut tags = vec![];
-        let mut rng = SmallRng::from_seed(Default::default());
 
         for i in 0..n {
-            let name: Vec<u8> = (0..50).map(|_| rng.gen()).collect();
+            let name: Vec<u8> = i.to_be_bytes().to_vec();
             Tag::<T>::create(RawOrigin::Signed(caller.clone()).into(), name.clone())?;
             tags.push(name);
         }
@@ -96,10 +94,9 @@ benchmarks! {
         Advertiser::<T>::deposit(RawOrigin::Signed(caller.clone()).into(), pot)?;
 
         let mut tags = vec![];
-        let mut rng = SmallRng::from_seed(Default::default());
 
         for i in 0..n {
-            let name: Vec<u8> = (0..50).map(|_| rng.gen()).collect();
+            let name: Vec<u8> = i.to_be_bytes().to_vec();
             Tag::<T>::create(RawOrigin::Signed(caller.clone()).into(), name.clone())?;
             tags.push(name);
         }
@@ -189,7 +186,8 @@ benchmarks! {
         )?;
     }: _(RawOrigin::Signed(caller.clone()), ad, did, pot)
     verify {
-        assert_ne!(<SlotOf<T>>::get(&did), None);
+        let nft = Nft::<T>::preferred_nft_of(&did).unwrap();
+        assert_ne!(<SlotOf<T>>::get(&nft), None);
     }
 
     pay {
@@ -220,10 +218,8 @@ benchmarks! {
         let mut tags = vec![];
         let mut scores = vec![];
         if n > 0 {
-            let mut rng = SmallRng::from_seed(Default::default());
-
             for i in 0..n {
-                let name: Vec<u8> = (0..50).map(|_| rng.gen()).collect();
+                let name: Vec<u8> = i.to_be_bytes().to_vec();
                 Tag::<T>::create(RawOrigin::Signed(caller.clone()).into(), name.clone())?;
                 tags.push(name.clone());
                 scores.push((name, 5))
@@ -257,8 +253,7 @@ benchmarks! {
     verify {
         use frame_support::traits::fungibles::Inspect;
 
-        let slot = Did::<T>::meta(&slot).unwrap();
-        let nft = slot.nft.unwrap();
+        let nft = Nft::<T>::preferred_nft_of(&slot).unwrap();
 
         let visitor: T::AccountId = account("visitor", 2, 2);
 

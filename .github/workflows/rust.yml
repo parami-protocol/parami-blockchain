@@ -19,14 +19,27 @@ jobs:
 
     steps:
 
-    - name: Install nightly toolchain with clippy available
-      uses: actions-rs/toolchain@v1
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
       with:
-        toolchain: nightly
-        override: true
-        components: rustfmt, clippy
-    - name: Add wasm32 target
-      run: rustup target add wasm32-unknown-unknown
+        toolchain: stable
+        default: true
+    - name: Install nightly toolchain
+      run: |
+        rustup update nightly
+        rustup target add wasm32-unknown-unknown --toolchain nightly
+
+    - uses: actions/cache@v2
+      continue-on-error: false
+      with:
+        path: |
+          ~/.cache/sccache
+          ~/.cargo/git
+          ~/.cargo/registry
+        key: cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          cargo-
+
     - name: Install sccache
       env:
         SCCACHE_VERSION: v0.2.15
@@ -37,27 +50,12 @@ jobs:
         mv -f $SCCACHE_FILE/sccache $HOME/.local/bin/sccache
         chmod +x $HOME/.local/bin/sccache
         echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-    - name: Cache
-      uses: actions/cache@v2
-      continue-on-error: false
-      with:
-        path: |
-          ~/.cache/sccache
-          ~/.cargo/git
-          ~/.cargo/registry
-        key: cargo-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: |
-          cargo-
-    - name: Start sccache server
-      run: sccache --start-server
-
-    - uses: actions/checkout@v2
+        sccache --start-server
 
     - name: Build only
       run: cargo build --release
-    - name: Run tests
-      run: cargo test --release --verbose
+    # - name: Run tests
+    #   run: cargo test --release --verbose
 
     - name: Post-build
       run: |
@@ -71,4 +69,6 @@ jobs:
       with:
         path: |
           ./target/release/parami
-          ./target/release/wbuild/parami-runtime/parami_runtime.compact.wasm
+          ./target/release/wbuild/parami-runtime/parami_dana_runtime.compact.compressed.wasm
+          ./target/release/parami-collator
+          ./target/release/wbuild/parami-runtime/parami_para_runtime.compact.compressed.wasm

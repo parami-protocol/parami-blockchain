@@ -1,25 +1,23 @@
-use crate::{self as parami_linker, types::AccountType};
+use crate as parami_linker;
 use frame_support::{parameter_types, traits::GenesisBuild, PalletId};
 use frame_system::{self as system, EnsureRoot};
-use sp_core::{
-    sr25519::{self, Signature},
-    H160, H256,
-};
+use parami_traits::types::Network;
+use sp_core::{sr25519, H160, H256};
 use sp_runtime::{
     testing::{Header, TestXt},
-    traits::{BlakeTwo256, Extrinsic as ExtrinsicT, IdentifyAccount, Keccak256, Verify},
+    traits::{BlakeTwo256, Keccak256},
 };
 
 type UncheckedExtrinsic = system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = system::mocking::MockBlock<Test>;
 
-type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::AccountId;
 pub type Extrinsic = TestXt<Call, ()>;
 
 pub const POLKA: &[u8] = b"5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY";
 
 pub const ALICE: sr25519::Public = sr25519::Public([1; 32]);
 pub const BOB: sr25519::Public = sr25519::Public([2; 32]);
+pub const CHARLIE: sr25519::Public = sr25519::Public([3; 32]);
 
 pub const DID_ALICE: H160 = H160([
     0x32, 0xac, 0x79, 0x9d, //
@@ -41,12 +39,12 @@ frame_support::construct_runtime!(
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 
         Did: parami_did::{Pallet, Call, Storage, Config<T>, Event<T>},
+        Ocw: parami_ocw::{Pallet},
         Tag: parami_tag::{Pallet, Call, Storage, Config<T>, Event<T>},
         Linker: parami_linker::{Pallet, Call, Storage, Config<T>, Event<T>},
     }
 );
 
-type AssetId = u64;
 type Balance = u128;
 
 parameter_types! {
@@ -80,31 +78,12 @@ impl system::Config for Test {
     type OnSetCode = ();
 }
 
-impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Test
-where
-    Call: From<LocalCall>,
-{
-    fn create_transaction<C: frame_system::offchain::AppCrypto<Self::Public, Self::Signature>>(
-        call: Call,
-        _public: <Signature as Verify>::Signer,
-        _account: AccountId,
-        nonce: u64,
-    ) -> Option<(Call, <Extrinsic as ExtrinsicT>::SignaturePayload)> {
-        Some((call, (nonce, ())))
-    }
-}
-
 impl<LocalCall> frame_system::offchain::SendTransactionTypes<LocalCall> for Test
 where
     Call: From<LocalCall>,
 {
     type OverarchingCall = Call;
     type Extrinsic = Extrinsic;
-}
-
-impl frame_system::offchain::SigningTypes for Test {
-    type Public = <Signature as Verify>::Signer;
-    type Signature = Signature;
 }
 
 parameter_types! {
@@ -125,19 +104,15 @@ impl pallet_balances::Config for Test {
     type ReserveIdentifier = [u8; 8];
 }
 
-parameter_types! {
-    pub const DidPalletId: PalletId = PalletId(*b"prm/did ");
-}
-
 impl parami_did::Config for Test {
     type Event = Event;
-    type AssetId = AssetId;
     type Currency = Balances;
     type DecentralizedId = H160;
     type Hashing = Keccak256;
-    type PalletId = DidPalletId;
     type WeightInfo = ();
 }
+
+impl parami_ocw::Config for Test {}
 
 parameter_types! {
     pub const SubmissionFee: Balance = 1;
@@ -184,13 +159,13 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     .unwrap();
 
     parami_did::GenesisConfig::<Test> {
-        ids: vec![(ALICE, DID_ALICE, None), (BOB, DID_BOB, None)],
+        ids: vec![(ALICE, DID_ALICE), (BOB, DID_BOB)],
     }
     .assimilate_storage(&mut t)
     .unwrap();
 
     parami_linker::GenesisConfig::<Test> {
-        links: vec![(DID_ALICE, AccountType::Polkadot, POLKA.to_vec())],
+        links: vec![(DID_ALICE, Network::Polkadot, POLKA.to_vec())],
         registrars: vec![DID_ALICE],
     }
     .assimilate_storage(&mut t)

@@ -26,16 +26,12 @@ version = '1.0'
 [dependencies]
 parami-advertiser = { path = '../advertiser', default-features = false, optional = true }
 parami-did = { path = '../did', default-features = false }
-parami-magic = { path = '../magic', default-features = false }
-parami-nft = { path = '../nft', default-features = false, optional = true }
+parami-nft = { path = '../nft', default-features = false }
 parami-swap = { path = '../swap', default-features = false, optional = true }
 parami-tag = { path = '../tag', default-features = false, optional = true }
 parami-traits = { path = '../traits', default-features = false }
 
 serde = { version = '1.0', optional = true }
-rand = { default-features = false, features = [
-    'small_rng',
-], version = '0.7.3', optional = true }
 
 sp-core = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }
 sp-runtime = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }
@@ -46,6 +42,8 @@ frame-support = { git = 'https://github.com/paritytech/substrate', branch = 'pol
 frame-system = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }
 
 [dev-dependencies]
+parami-ocw = { path = '../ocw' }
+
 sp-io = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13' }
 
 pallet-assets = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13' }
@@ -58,16 +56,14 @@ default = ['std']
 runtime-benchmarks = [
     'frame-benchmarking',
     'parami-advertiser',
-    'parami-nft',
     'parami-swap',
     'parami-tag',
-    'rand',
 ]
 
 std = [
     'parami-advertiser/std',
-    'parami-nft/std',
     'parami-did/std',
+    'parami-nft/std',
     'parami-swap/std',
     'parami-tag/std',
     'parami-traits/std',

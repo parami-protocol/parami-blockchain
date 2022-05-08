@@ -42,6 +42,7 @@ parami-did = { path = '../../pallets/did', default-features = false }
 parami-linker = { path = '../../pallets/linker', default-features = false }
 parami-magic = { path = '../../pallets/magic', default-features = false }
 parami-nft = { path = '../../pallets/nft', default-features = false }
+parami-ocw = { path = '../../pallets/ocw', default-features = false }
 parami-swap = { path = '../../pallets/swap', default-features = false }
 parami-swap-rpc-runtime-api = { path = '../../pallets/swap/rpc/runtime-api', default-features = false }
 parami-tag = { path = '../../pallets/tag', default-features = false }
@@ -92,7 +93,6 @@ pallet-membership = { git = 'https://github.com/paritytech/substrate', branch = 
 pallet-mmr = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }
 pallet-multisig = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }
 pallet-offences = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }
-pallet-offences-benchmarking = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false, optional = true }
 pallet-randomness-collective-flip = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }
 pallet-recovery = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }
 pallet-scheduler = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }
@@ -149,6 +149,7 @@ std = [
     'parami-linker/std',
     'parami-magic/std',
     'parami-nft/std',
+    'parami-ocw/std',
     'parami-swap/std',
     'parami-swap-rpc-runtime-api/std',
     'parami-tag/std',
@@ -236,7 +237,6 @@ runtime-benchmarks = [
     'parami-xassets/runtime-benchmarks',
     'parami-did/runtime-benchmarks',
     'parami-linker/runtime-benchmarks',
-    'parami-magic/runtime-benchmarks',
     'parami-nft/runtime-benchmarks',
     'parami-swap/runtime-benchmarks',
     'parami-tag/runtime-benchmarks',
@@ -262,7 +262,6 @@ runtime-benchmarks = [
     'pallet-membership/runtime-benchmarks',
     'pallet-mmr/runtime-benchmarks',
     'pallet-multisig/runtime-benchmarks',
-    'pallet-offences-benchmarking',
     'pallet-offences/runtime-benchmarks',
     'pallet-scheduler/runtime-benchmarks',
     'pallet-session-benchmarking',

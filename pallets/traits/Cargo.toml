@@ -24,6 +24,8 @@ features = ['derive']
 version = '1.0'
 
 [dependencies]
+parami-primitives = { path = '../../primitives', default-features = false }
+
 sp-runtime = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }
 sp-std = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }
 
@@ -33,6 +35,8 @@ frame-support = { git = 'https://github.com/paritytech/substrate', branch = 'pol
 default = ['std']
 
 std = [
+    'parami-primitives/std',
+
     'codec/std',
     'scale-info/std',
 

@@ -1,16 +1,9 @@
-use codec::MaxEncodedLen;
-use frame_support::Parameter;
-use sp_runtime::{
-    traits::{MaybeSerializeDeserialize, Member},
-    DispatchResult,
-};
+use sp_runtime::DispatchResult;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
-pub trait Tags {
-    type DecentralizedId: Parameter + Member + MaybeSerializeDeserialize + MaxEncodedLen;
+type Tag = Vec<u8>;
 
-    type Hash: Parameter + Member + MaybeSerializeDeserialize + MaxEncodedLen;
-
+pub trait Tags<Hash, AdvertisementId, DecentralizedId> {
     /// Get hashed value of a tag
     ///
     /// # Arguments
@@ -20,7 +13,7 @@ pub trait Tags {
     /// # Returns
     ///
     /// Hashed value of the tag
-    fn key<K: AsRef<Vec<u8>>>(tag: K) -> Vec<u8>;
+    fn key<K: AsRef<Tag>>(tag: K) -> Hash;
 
     /// Determine if a tag is valid
     ///
@@ -31,7 +24,7 @@ pub trait Tags {
     /// # Returns
     ///
     /// `true` if the tag is valid, `false` otherwise
-    fn exists<K: AsRef<Vec<u8>>>(tag: K) -> bool;
+    fn exists<K: AsRef<Tag>>(tag: K) -> bool;
 
     /// Get all tags of an advertisement
     ///
@@ -42,7 +35,7 @@ pub trait Tags {
     /// # Returns
     ///
     /// List of tags of the advertisement
-    fn tags_of(id: &Self::Hash) -> BTreeMap<Vec<u8>, bool>;
+    fn tags_of(id: &AdvertisementId) -> BTreeMap<Hash, bool>;
 
     /// Add a tag to an advertisement
     ///
@@ -54,7 +47,7 @@ pub trait Tags {
     /// # Returns
     ///
     /// `Ok` if the score is updated, `Err` otherwise
-    fn add_tag(id: &Self::Hash, tag: Vec<u8>) -> DispatchResult;
+    fn add_tag(id: &AdvertisementId, tag: Tag) -> DispatchResult;
 
     /// Remove a tag from an advertisement
     ///
@@ -66,7 +59,7 @@ pub trait Tags {
     /// # Returns
     ///
     /// `Ok` if the score is updated, `Err` otherwise
-    fn del_tag<K: AsRef<Vec<u8>>>(id: &Self::Hash, tag: K) -> DispatchResult;
+    fn del_tag<K: AsRef<Tag>>(id: &AdvertisementId, tag: K) -> DispatchResult;
 
     /// Clear tags of an advertisement
     ///
@@ -77,7 +70,7 @@ pub trait Tags {
     /// # Returns
     ///
     /// `Ok` if the score is updated, `Err` otherwise
-    fn clr_tag(id: &Self::Hash) -> DispatchResult;
+    fn clr_tag(id: &AdvertisementId) -> DispatchResult;
 
     /// Determine if an advertisement has a tag
     ///
@@ -89,7 +82,7 @@ pub trait Tags {
     /// # Returns
     ///
     /// `true` if the advertisement has the tag, `false` otherwise
-    fn has_tag<K: AsRef<Vec<u8>>>(id: &Self::Hash, tag: K) -> bool;
+    fn has_tag<K: AsRef<Tag>>(id: &AdvertisementId, tag: K) -> bool;
 
     /// Get all tags and scores of a DID
     ///
@@ -103,7 +96,7 @@ pub trait Tags {
     ///
     /// * `hashed` - hashed tags
     /// * `score` - score of the DID
-    fn personas_of(did: &Self::DecentralizedId) -> BTreeMap<Vec<u8>, i32>;
+    fn personas_of(did: &DecentralizedId) -> BTreeMap<Hash, i32>;
 
     /// Get a persona's score
     ///
@@ -115,7 +108,7 @@ pub trait Tags {
     /// # Returns
     ///
     /// score of the persona
-    fn get_score<K: AsRef<Vec<u8>>>(did: &Self::DecentralizedId, tag: K) -> i32;
+    fn get_score<K: AsRef<Tag>>(did: &DecentralizedId, tag: K) -> i32;
 
     /// Update score of a persona
     ///
@@ -128,11 +121,7 @@ pub trait Tags {
     /// # Returns
     ///
     /// `Ok` if the score is updated, `Err` otherwise
-    fn influence<K: AsRef<Vec<u8>>>(
-        did: &Self::DecentralizedId,
-        tag: K,
-        delta: i32,
-    ) -> DispatchResult;
+    fn influence<K: AsRef<Tag>>(did: &DecentralizedId, tag: K, delta: i32) -> DispatchResult;
 
     /// Get all tags and scores of a KOL
     ///
@@ -146,7 +135,7 @@ pub trait Tags {
     ///
     /// * `hashed` - hashed tags
     /// * `score` - score of the KOL
-    fn influences_of(kol: &Self::DecentralizedId) -> BTreeMap<Vec<u8>, i32>;
+    fn influences_of(kol: &DecentralizedId) -> BTreeMap<Hash, i32>;
 
     /// Get a KOL's score
     ///
@@ -158,7 +147,7 @@ pub trait Tags {
     /// # Returns
     ///
     /// score of the KOL
-    fn get_influence<K: AsRef<Vec<u8>>>(kol: &Self::DecentralizedId, tag: K) -> i32;
+    fn get_influence<K: AsRef<Tag>>(kol: &DecentralizedId, tag: K) -> i32;
 
     /// Update score of a KOL
     ///
@@ -171,8 +160,8 @@ pub trait Tags {
     /// # Returns
     ///
     /// `Ok` if the score is updated, `Err` otherwise
-    fn impact<K: AsRef<Vec<u8>>>(
-        kol: &Self::DecentralizedId,
+    fn impact<K: AsRef<Tag>>(
+        kol: &DecentralizedId,
         tag: K, //
         delta: i32,
     ) -> DispatchResult;

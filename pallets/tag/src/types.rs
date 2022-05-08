@@ -10,3 +10,10 @@ pub struct Metadata<D, N> {
     pub creator: D,
     pub created: N,
 }
+
+#[derive(Clone, Decode, Default, Encode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+pub struct Score {
+    pub current_score: i32,
+    pub last_input: i32,
+}

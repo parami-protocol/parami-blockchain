@@ -314,7 +314,6 @@ fn testnet_genesis(
         advertiser: Default::default(),
         did: Default::default(),
         linker: Default::default(),
-        magic: Default::default(),
         nft: Default::default(),
         swap: Default::default(),
         tag: Default::default(),
