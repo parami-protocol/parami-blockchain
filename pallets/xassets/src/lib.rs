@@ -49,7 +49,11 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
 
     #[pallet::config]
+<<<<<<< HEAD
     pub trait Config: frame_system::Config + parami_chainbridge::Config {
+=======
+    pub trait Config: frame_system::Config + parami_chainbridge::Config {
+>>>>>>> a2e6a5b (remove unuse code)
         /// The overarching event type
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
