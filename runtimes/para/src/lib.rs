@@ -1359,6 +1359,7 @@ impl parami_xassets::Config for Runtime {
     type HashId = HashId;
     type NativeTokenId = NativeTokenId;
     type WeightInfo = parami_xassets::weights::SubstrateWeight<Runtime>;
+    type Assets = Assets;
 }
 
 impl parami_did::Config for Runtime {

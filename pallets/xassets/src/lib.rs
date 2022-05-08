@@ -26,18 +26,25 @@ use sp_runtime::traits::SaturatedConversion;
 use sp_std::prelude::*;
 
 use weights::WeightInfo;
+use parami_did::Pallet as Did;
 
 type BalanceOf<T> =
     <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+
+type AccountOf<T> = <T as frame_system::Config>::AccountId;
+type AssetOf<T> = <T as parami_swap::Config>::AssetId;
+type AmountOf<T> = <<T as parami_swap::Config>::Currency as Currency<AccountOf<T>>>::Balance;
 
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
     use frame_support::pallet_prelude::*;
     use frame_system::pallet_prelude::*;
+    use frame_support::traits::fungibles::Transfer;
+
 
     #[pallet::config]
-    pub trait Config: frame_system::Config + parami_chainbridge::Config {
+    pub trait Config: frame_system::Config + parami_chainbridge::Config + parami_did::Config + parami_swap::Config{
         /// The overarching event type
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
@@ -49,6 +56,7 @@ pub mod pallet {
 
         /// The currency mechanism.
         type Currency: Currency<<Self as frame_system::Config>::AccountId>;
+        type Assets: Transfer<AccountOf<Self>, AssetId = AssetOf<Self>, Balance = BalanceOf<Self>>;
 
         /// Ids can be defined by the runtime and passed in, perhaps from blake2b_128 hashes.
         type HashId: Get<ResourceId>;
@@ -106,7 +114,7 @@ pub mod pallet {
                 Error::<T>::InvalidTransfer
             );
             let bridge_id = <parami_chainbridge::Pallet<T>>::account_id();
-            T::Currency::transfer(&source, &bridge_id, amount.into(), AllowDeath)?;
+            <T as pallet::Config>::Currency::transfer(&source, &bridge_id, amount.into(), AllowDeath)?;
 
             let resource_id = T::NativeTokenId::get();
             <parami_chainbridge::Pallet<T>>::transfer_fungible(
@@ -116,6 +124,31 @@ pub mod pallet {
                 U256::from(amount.saturated_into::<u128>()),
             )?;
 
+            Ok(().into())
+        }
+
+        #[pallet::weight(<T as Config>::WeightInfo::transfer_token())]
+        pub fn transfer_token(
+            origin: OriginFor<T>,
+            amount: AmountOf<T>,
+            recipient: Vec<u8>,
+            dest_id: ChainId,
+            asset: AssetOf<T>,
+        ) -> DispatchResultWithPostInfo {
+            let source = ensure_signed(origin)?;
+            ensure!(
+                <parami_chainbridge::Pallet<T>>::chain_whitelisted(dest_id),
+                Error::<T>::InvalidTransfer
+            );
+            let bridge_id = <parami_chainbridge::Pallet<T>>::account_id();
+            <T as parami_swap::Config>::Assets::transfer(asset, &source, &bridge_id, amount, false)?;
+            let resource_id = T::NativeTokenId::get();
+            <parami_chainbridge::Pallet<T>>::transfer_fungible(
+                dest_id,
+                resource_id,
+                recipient,
+                U256::from(amount.saturated_into::<u128>()),
+            )?;
             Ok(().into())
         }
 
