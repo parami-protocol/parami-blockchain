@@ -1355,10 +1355,11 @@ parameter_types! {
 impl parami_xassets::Config for Runtime {
     type Event = Event;
     type BridgeOrigin = parami_chainbridge::EnsureBridge<Runtime>;
-    type Currency = Balances;
+    type XCurrency = Balances;
     type HashId = HashId;
     type NativeTokenId = NativeTokenId;
     type WeightInfo = parami_xassets::weights::SubstrateWeight<Runtime>;
+    type Assets = Assets;
 }
 
 impl parami_did::Config for Runtime {

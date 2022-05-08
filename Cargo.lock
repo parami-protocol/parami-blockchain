@@ -6118,6 +6118,7 @@ dependencies = [
  "frame-system",
  "pallet-balances",
  "parami-chainbridge",
+ "parami-did",
  "parity-scale-codec",
  "rand 0.7.3",
  "scale-info",

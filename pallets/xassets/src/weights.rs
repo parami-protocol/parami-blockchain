@@ -5,6 +5,8 @@ pub trait WeightInfo {
 
     fn transfer_native() -> Weight;
 
+    fn transfer_token() -> Weight;
+
     fn transfer() -> Weight;
 
     fn remark() -> Weight;
@@ -19,6 +21,8 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
     fn transfer_native() -> Weight {
         195_000_000 as Weight
     }
+
+    fn transfer_token() -> Weight { 195_000_000 as Weight }
 
     fn transfer() -> Weight {
         195_000_000 as Weight
