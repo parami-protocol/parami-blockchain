@@ -208,15 +208,28 @@ pub mod pallet {
         /// * `deadline` - The block number at which the swap should be invalidated
         #[pallet::weight(T::WeightInfo::add_liquidity())]
         pub fn add_liquidity(
-            _origin: OriginFor<T>,
-            #[pallet::compact] _token_id: AssetOf<T>,
-            #[pallet::compact] _currency: BalanceOf<T>,
-            #[pallet::compact] _min_liquidity: BalanceOf<T>,
-            #[pallet::compact] _max_tokens: BalanceOf<T>,
-            _deadline: HeightOf<T>,
+            origin: OriginFor<T>,
+            #[pallet::compact] token_id: AssetOf<T>,
+            #[pallet::compact] currency: BalanceOf<T>,
+            #[pallet::compact] min_liquidity: BalanceOf<T>,
+            #[pallet::compact] max_tokens: BalanceOf<T>,
+            deadline: HeightOf<T>,
         ) -> DispatchResult {
-            // MARK: add_liquidity is disabled on staging network
-            Err(Error::<T>::Deadline)?
+            let height = <frame_system::Pallet<T>>::block_number();
+            ensure!(deadline > height, Error::<T>::Deadline);
+
+            let who = ensure_signed(origin)?;
+
+            let _ = Self::mint(
+                who,
+                token_id,
+                currency,
+                min_liquidity,
+                max_tokens,
+                true, // keep alive
+            )?;
+
+            Ok(())
         }
 
         /// Remove Liquidity
