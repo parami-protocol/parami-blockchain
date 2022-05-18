@@ -10,6 +10,8 @@ pub trait WeightInfo {
     fn transfer() -> Weight;
 
     fn remark() -> Weight;
+
+    fn set_storage_map() -> Weight;
 }
 
 pub struct SubstrateWeight<T>(PhantomData<T>);
@@ -29,6 +31,10 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
     fn transfer_token() -> Weight { 195_000_000 as Weight }
 
     fn remark() -> Weight {
+        195_000_000 as Weight
+    }
+
+    fn set_storage_map() -> Weight {
         195_000_000 as Weight
     }
 }
