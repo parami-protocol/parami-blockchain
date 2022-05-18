@@ -11,9 +11,9 @@ pub trait WeightInfo {
 
     fn remark() -> Weight;
 
-    fn force_set_resource() -> Weight;
-
     fn approve_transfer_native() -> Weight;
+
+    fn set_storage_map() -> Weight;
 }
 
 pub struct SubstrateWeight<T>(PhantomData<T>);
@@ -38,11 +38,11 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
         195_000_000 as Weight
     }
 
-    fn force_set_resource() -> Weight {
+    fn approve_transfer_native() -> Weight {
         195_000_000 as Weight
     }
 
-    fn approve_transfer_native() -> Weight {
+    fn set_storage_map() -> Weight {
         195_000_000 as Weight
     }
 }

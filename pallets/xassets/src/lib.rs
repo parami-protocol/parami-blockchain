@@ -42,6 +42,8 @@ type AssetOf<T> = <T as Config>::AssetId;
 const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 const MAX_TRANSFER_ASSET: u128 = 1000;
 
+type AmountOf<T> = <<T as Config>::Currency as Currency<AccountOf<T>>>::Balance;
+
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
@@ -49,11 +51,7 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
 
     #[pallet::config]
-<<<<<<< HEAD
     pub trait Config: frame_system::Config + parami_chainbridge::Config {
-=======
-    pub trait Config: frame_system::Config + parami_chainbridge::Config {
->>>>>>> a2e6a5b (remove unuse code)
         /// The overarching event type
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
@@ -116,6 +114,11 @@ pub mod pallet {
     #[pallet::storage]
     pub(super) type MapLen<T: Config> = StorageValue<_, u32, ValueQuery>;
 
+    /// Metadata of an advertisement
+    #[pallet::storage]
+    #[pallet::getter(fn meta)]
+    pub(super) type Metadata<T: Config> = StorageMap<_, Identity, AssetOf<T>, ResourceId>;
+
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
 
@@ -148,11 +151,13 @@ pub mod pallet {
             recipient: Vec<u8>,
             dest_id: ChainId,
         ) -> DispatchResultWithPostInfo {
-            let source = ensure_signed(origin.clone())?;
-            // ensure!(
-            //     <parami_chainbridge::Pallet<T>>::chain_whitelisted(dest_id),
-            //     Error::<T>::InvalidTransfer
-            // );
+            let source = ensure_signed(origin)?;
+            ensure!(
+                <parami_chainbridge::Pallet<T>>::chain_whitelisted(dest_id),
+                Error::<T>::InvalidTransfer
+            );
+            let bridge_id = <parami_chainbridge::Pallet<T>>::account_id();
+            T::Currency::transfer(&source, &bridge_id, amount.into(), AllowDeath)?;
             let resource_id = T::NativeTokenId::get();
 
             let bridge_id = <parami_chainbridge::Pallet<T>>::account_id();
@@ -216,7 +221,7 @@ pub mod pallet {
                 Error::<T>::InvalidTransfer
             );
             let bridge_id = <parami_chainbridge::Pallet<T>>::account_id();
-            let resource_id = <ResourceMap<T>>::get(asset).ok_or(Error::<T>::NotExists)?;
+            let resource_id = <Metadata<T>>::get(asset).ok_or(Error::<T>::NotExists)?;
 
             T::Assets::transfer(asset, &source, &bridge_id, amount, false)?;
             <parami_chainbridge::Pallet<T>>::transfer_fungible(
@@ -228,14 +233,14 @@ pub mod pallet {
             Ok(().into())
         }
 
-        #[pallet::weight(<T as Config>::WeightInfo::force_set_resource())]
-        pub fn force_set_resource(
+        #[pallet::weight(<T as Config>::WeightInfo::set_storage_map())]
+        pub fn set_storage_map(
             origin: OriginFor<T>,
             resource_id: ResourceId,
             asset_id: AssetOf<T>,
         ) -> DispatchResult {
             T::ForceOrigin::ensure_origin(origin)?;
-            <ResourceMap<T>>::insert(asset_id, resource_id);
+            <Metadata<T>>::insert(asset_id, resource_id);
             Ok(())
         }
 
