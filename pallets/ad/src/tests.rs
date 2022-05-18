@@ -433,7 +433,7 @@ fn should_pay() {
 
         assert_eq!(
             Tag::get_score(&DID_CHARLIE, vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8]),
-            5 + 4
+            6
         );
 
         assert_noop!(

@@ -15,7 +15,7 @@ mod tests;
 mod benchmarking;
 
 mod migrations;
-mod types;
+pub mod types;
 
 use frame_support::{
     dispatch::DispatchResult,

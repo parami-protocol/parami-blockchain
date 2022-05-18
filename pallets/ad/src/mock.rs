@@ -213,7 +213,7 @@ impl parami_tag::Config for Test {
 parameter_types! {
     pub const AdPalletId: PalletId = PalletId(*b"prm/ad  ");
     pub const AdvertiserMinimumFee: Balance = 1;
-    pub const PayoutBase: Balance = 1 * DOLLARS;
+    pub const PayoutBase: Balance = 1;
     pub const SlotLifetime: BlockNumber = 43200;
 }
 
@@ -252,7 +252,10 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8],
             vec![5u8, 4u8, 3u8, 2u8, 1u8, 0u8],
         ],
-        personas: vec![(DID_CHARLIE, vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8], 5)],
+        personas: vec![(DID_CHARLIE, vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8], parami_tag::types::Score{
+            current_score: 5,
+            last_input: 0
+        })],
         ..Default::default()
     }
     .assimilate_storage(&mut t)
