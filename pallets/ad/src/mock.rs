@@ -252,10 +252,14 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8],
             vec![5u8, 4u8, 3u8, 2u8, 1u8, 0u8],
         ],
-        personas: vec![(DID_CHARLIE, vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8], parami_tag::types::Score{
-            current_score: 5,
-            last_input: 0
-        })],
+        personas: vec![(
+            DID_CHARLIE,
+            vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8],
+            parami_tag::Score {
+                current_score: 5,
+                last_input: 4,
+            },
+        )],
         ..Default::default()
     }
     .assimilate_storage(&mut t)

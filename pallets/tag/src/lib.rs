@@ -1,6 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub use pallet::*;
+pub use types::Score;
 
 #[rustfmt::skip]
 pub mod weights;
