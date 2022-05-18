@@ -17,7 +17,10 @@ pub mod weights;
 use frame_support::{
     dispatch::DispatchResultWithPostInfo,
     ensure,
-    traits::{Currency, EnsureOrigin, ExistenceRequirement::AllowDeath, Get, tokens::fungibles:: Transfer as FungTransfer},
+    traits::{
+        tokens::fungibles::Transfer as FungTransfer, Currency, EnsureOrigin,
+        ExistenceRequirement::AllowDeath, Get,
+    },
 };
 use frame_system::ensure_signed;
 use parami_chainbridge::{ChainId, ResourceId};
@@ -32,7 +35,6 @@ type BalanceOf<T> =
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type AssetOf<T> = <T as Config>::AssetId;
-type AmountOf<T> = <<T as Config>::Currency as Currency<AccountOf<T>>>::Balance;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -41,7 +43,7 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
 
     #[pallet::config]
-    pub trait Config: frame_system::Config + parami_chainbridge::Config{
+    pub trait Config: frame_system::Config + parami_chainbridge::Config {
         /// The overarching event type
         type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
@@ -53,12 +55,14 @@ pub mod pallet {
 
         /// The currency mechanism.
         type Currency: Currency<<Self as frame_system::Config>::AccountId>;
-        type Assets: FungTransfer<AccountOf<Self>, AssetId = AssetOf<Self>, Balance = BalanceOf<Self>>;
 
-        type AssetId: Parameter
-        + Member
-        + Default
-        + Copy;
+        type Assets: FungTransfer<
+            AccountOf<Self>,
+            AssetId = AssetOf<Self>,
+            Balance = BalanceOf<Self>,
+        >;
+
+        type AssetId: Parameter + Member + Default + Copy;
 
         /// Ids can be defined by the runtime and passed in, perhaps from blake2b_128 hashes.
         type HashId: Get<ResourceId>;
@@ -81,10 +85,9 @@ pub mod pallet {
         Remark(<T as frame_system::Config>::Hash),
     }
 
-    /// Metadata of an advertisement
     #[pallet::storage]
     #[pallet::getter(fn meta)]
-    pub(super) type Metadata<T: Config> = StorageMap<_, Identity, AssetOf<T>, ResourceId>;
+    pub(super) type ResourceMap<T: Config> = StorageMap<_, Identity, AssetOf<T>, ResourceId>;
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
@@ -140,7 +143,7 @@ pub mod pallet {
         #[pallet::weight(<T as Config>::WeightInfo::transfer_token())]
         pub fn transfer_token(
             origin: OriginFor<T>,
-            amount: AmountOf<T>,
+            amount: BalanceOf<T>,
             recipient: Vec<u8>,
             dest_id: ChainId,
             asset: AssetOf<T>,
@@ -151,7 +154,7 @@ pub mod pallet {
                 Error::<T>::InvalidTransfer
             );
             let bridge_id = <parami_chainbridge::Pallet<T>>::account_id();
-            let resource_id = <Metadata<T>>::get(asset).ok_or(Error::<T>::NotExists)?;
+            let resource_id = <ResourceMap<T>>::get(asset).ok_or(Error::<T>::NotExists)?;
 
             T::Assets::transfer(asset, &source, &bridge_id, amount, false)?;
             <parami_chainbridge::Pallet<T>>::transfer_fungible(
@@ -163,10 +166,14 @@ pub mod pallet {
             Ok(().into())
         }
 
-        #[pallet::weight(<T as Config>::WeightInfo::set_storage_map())]
-        pub fn set_storage_map(origin: OriginFor<T>, resource_id: ResourceId, asset_id: AssetOf<T>) -> DispatchResult {
+        #[pallet::weight(<T as Config>::WeightInfo::force_set_storage_map())]
+        pub fn force_set_storage_map(
+            origin: OriginFor<T>,
+            resource_id: ResourceId,
+            asset_id: AssetOf<T>,
+        ) -> DispatchResult {
             T::ForceOrigin::ensure_origin(origin)?;
-            <Metadata<T>>::insert(asset_id, resource_id);
+            <ResourceMap<T>>::insert(asset_id, resource_id);
             Ok(())
         }
 
