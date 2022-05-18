@@ -86,7 +86,7 @@ pub mod pallet {
     }
 
     #[pallet::storage]
-    #[pallet::getter(fn meta)]
+    #[pallet::getter(fn resource)]
     pub(super) type ResourceMap<T: Config> = StorageMap<_, Identity, AssetOf<T>, ResourceId>;
 
     #[pallet::hooks]
@@ -166,8 +166,8 @@ pub mod pallet {
             Ok(().into())
         }
 
-        #[pallet::weight(<T as Config>::WeightInfo::force_set_storage_map())]
-        pub fn force_set_storage_map(
+        #[pallet::weight(<T as Config>::WeightInfo::force_set_resource())]
+        pub fn force_set_resource(
             origin: OriginFor<T>,
             resource_id: ResourceId,
             asset_id: AssetOf<T>,
