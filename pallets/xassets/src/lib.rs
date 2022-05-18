@@ -114,11 +114,6 @@ pub mod pallet {
     #[pallet::storage]
     pub(super) type MapLen<T: Config> = StorageValue<_, u32, ValueQuery>;
 
-    /// Metadata of an advertisement
-    #[pallet::storage]
-    #[pallet::getter(fn meta)]
-    pub(super) type Metadata<T: Config> = StorageMap<_, Identity, AssetOf<T>, ResourceId>;
-
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
 
@@ -221,7 +216,7 @@ pub mod pallet {
                 Error::<T>::InvalidTransfer
             );
             let bridge_id = <parami_chainbridge::Pallet<T>>::account_id();
-            let resource_id = <Metadata<T>>::get(asset).ok_or(Error::<T>::NotExists)?;
+            let resource_id = <ResourceMap<T>>::get(asset).ok_or(Error::<T>::NotExists)?;
 
             T::Assets::transfer(asset, &source, &bridge_id, amount, false)?;
             <parami_chainbridge::Pallet<T>>::transfer_fungible(
@@ -240,7 +235,7 @@ pub mod pallet {
             asset_id: AssetOf<T>,
         ) -> DispatchResult {
             T::ForceOrigin::ensure_origin(origin)?;
-            <Metadata<T>>::insert(asset_id, resource_id);
+            <ResourceMap<T>>::insert(asset_id, resource_id);
             Ok(())
         }
 
