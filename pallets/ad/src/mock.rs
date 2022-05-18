@@ -213,7 +213,7 @@ impl parami_tag::Config for Test {
 parameter_types! {
     pub const AdPalletId: PalletId = PalletId(*b"prm/ad  ");
     pub const AdvertiserMinimumFee: Balance = 1;
-    pub const PayoutBase: Balance = 1;
+    pub const PayoutBase: Balance = 1 * DOLLARS;
     pub const SlotLifetime: BlockNumber = 43200;
 }
 

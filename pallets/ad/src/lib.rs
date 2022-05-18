@@ -475,7 +475,7 @@ pub mod pallet {
 
             // 2. scoring visitor
 
-            let mut socring = 5i32;
+            let mut scoring = 5i32;
 
             let tags = T::Tags::tags_of(&ad);
             let personas = T::Tags::personas_of(&visitor);
@@ -486,18 +486,22 @@ pub mod pallet {
                 } else {
                     score
                 };
-                socring.saturating_accrue(delta);
+                scoring.saturating_accrue(delta);
             }
 
-            socring /= length.saturating_mul(10).saturating_add(1) as i32;
+            scoring /= length.saturating_mul(10).saturating_add(1) as i32;
 
-            if socring < 0 {
-                socring = 0;
+            if scoring < 0 {
+                scoring = 0;
             }
 
-            let socring = socring as u32;
+            if scoring > 10 {
+                scoring = 10;
+            }
 
-            let amount = T::PayoutBase::get().saturating_mul(socring.into());
+            let scoring = scoring as u32;
+
+            let amount = T::PayoutBase::get().saturating_mul(scoring.into());
 
             if slot.tokens < amount {
                 // if tokens is not enough, swap tokens

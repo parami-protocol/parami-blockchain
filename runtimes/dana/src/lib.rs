@@ -1087,7 +1087,7 @@ impl pallet_vesting::Config for Runtime {
 parameter_types! {
     pub const AdPalletId: PalletId = PalletId(*names::AD);
     pub const AdvertiserMinimumFee: Balance = 50 * MILLICENTS;
-    pub const PayoutBase: Balance = 1 * CENTS;
+    pub const PayoutBase: Balance = 1 * DOLLARS;
     pub const SlotLifetime: BlockNumber = 3 * DAYS;
 }
 
