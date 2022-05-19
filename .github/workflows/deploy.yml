@@ -1,0 +1,40 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        type: choice
+        description: Which chain to upgrade
+        options:
+          - main
+          - staging
+        required: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
+
+      - uses: dawidd6/action-download-artifact@v2
+        with:
+          workflow: build
+          workflow_conclusion: success
+          branch: main
+
+      - run: npm run upgrade
+        env:
+          DEPLOY_TARGET_RPC: ${{ secrets.MAIN_TARGET_RPC }}
+          DEPLOY_MNEMONIC: ${{ secrets.MAIN_MNEMONIC }}
+        if: ${{ inputs.target == 'main' }}
+
+      - run: npm run upgrade
+        env:
+          DEPLOY_TARGET_RPC: ${{ secrets.STAGE_TARGET_RPC }}
+          DEPLOY_MNEMONIC: ${{ secrets.STAGE_MNEMONIC }}
+        if: ${{ inputs.target == 'staging' }}
