@@ -1,0 +1,85 @@
+name: Build & Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: full
+  RUSTC_WRAPPER: sccache
+  SCCACHE_CACHE_SIZE: 2G
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          default: true
+      - name: Install nightly toolchain
+        run: |
+          rustup update nightly
+          rustup target add wasm32-unknown-unknown --toolchain nightly
+
+      - uses: Swatinem/rust-cache@v1
+      - uses: actions/cache@v3
+        continue-on-error: false
+        with:
+          path: |
+            ~/.cache/sccache
+          key: sccache-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            sccache-
+      - name: Install sccache
+        env:
+          SCCACHE_VERSION: v0.3.0
+        run: |
+          SCCACHE_FILE=sccache-$SCCACHE_VERSION-x86_64-unknown-linux-musl
+          mkdir -p $HOME/.local/bin
+          curl -L "https://github.com/mozilla/sccache/releases/download/$SCCACHE_VERSION/$SCCACHE_FILE.tar.gz" | tar xz
+          mv -f $SCCACHE_FILE/sccache $HOME/.local/bin/sccache
+          chmod +x $HOME/.local/bin/sccache
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          sccache --start-server
+
+      - name: Build Tests
+        run: cargo test --no-run --locked
+      - name: Run Tests
+        run: cargo test -- --nocapture --quiet
+      - name: Build Release
+        run: cargo build --release --locked
+
+      - name: Post-build
+        run: |
+          sccache --show-stats
+          sccache --stop-server || true
+
+          strip ./target/release/parami
+          strip ./target/release/parami-collator
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: parami-amd64
+          path: ./target/release/parami
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: parami-dana-runtime
+          path: ./target/release/wbuild/parami-dana-runtime/parami_dana_runtime.compact.compressed.wasm
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: parami-collator-amd64
+          path: ./target/release/parami-collator
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: parami-para-runtime
+          path: ./target/release/wbuild/parami-para-runtime/parami_para_runtime.compact.compressed.wasm
