@@ -1,4 +1,4 @@
-name: Build
+name: Coverage
 
 on:
   push:
@@ -14,7 +14,7 @@ env:
   SCCACHE_CACHE_SIZE: 2G
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
 
     steps:
@@ -51,35 +51,17 @@ jobs:
           echo "$HOME/.local/bin" >> $GITHUB_PATH
           sccache --start-server
 
-      - name: Build Tests
-        run: cargo test --no-run --locked
-      - name: Build Release
-        run: cargo build --release --locked
+      - name: Install Tarpaulin
+        run: cargo install cargo-tarpaulin
+
+      - name: Generate coverage
+        run: cargo tarpaulin -v --no-fail-fast --locked --workspace -t 120 -o Xml --exclude-files **/mock.rs **/weights.rs **/weights/*
 
       - name: Post-build
         run: |
           sccache --show-stats
           sccache --stop-server || true
 
-          strip ./target/release/parami
-          strip ./target/release/parami-collator
-
-      - uses: actions/upload-artifact@v3
+      - uses: codecov/codecov-action@v3
         with:
-          name: parami-amd64
-          path: ./target/release/parami
-
-      - uses: actions/upload-artifact@v3
-        with:
-          name: parami-dana-runtime
-          path: ./target/release/wbuild/parami-dana-runtime/parami_dana_runtime.compact.compressed.wasm
-
-      - uses: actions/upload-artifact@v3
-        with:
-          name: parami-collator-amd64
-          path: ./target/release/parami-collator
-
-      - uses: actions/upload-artifact@v3
-        with:
-          name: parami-para-runtime
-          path: ./target/release/wbuild/parami-para-runtime/parami_para_runtime.compact.compressed.wasm
+          fail_ci_if_error: true
