@@ -2,9 +2,17 @@ name: Coverage
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - rel/*
+    paths-ignore:
+      - "**/*.md"
   pull_request:
-    branches: [main]
+    branches:
+      - main
+      - rel/*
+    paths-ignore:
+      - "**/*.md"
 
 env:
   CARGO_INCREMENTAL: 0
@@ -15,7 +23,7 @@ env:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ["self-hosted", "linux", "x86_64"]
 
     steps:
       - uses: actions/checkout@v3
@@ -28,17 +36,18 @@ jobs:
           rustup update nightly
           rustup target add wasm32-unknown-unknown --toolchain nightly
 
-      - uses: Swatinem/rust-cache@v1
-        with:
-          sharedKey: rscache
-      - uses: actions/cache@v3
-        continue-on-error: false
+      - uses: kinosang/action-local-cache@v1
         with:
           path: |
             ~/.cache/sccache
-          key: sccache-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            sccache-
+            ~/.cargo/bin
+            ~/.cargo/git
+            ~/.cargo/registry/cache
+            ~/.cargo/registry/index
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
+            ./target
+
       - name: Install sccache
         env:
           SCCACHE_VERSION: v0.3.0
@@ -51,8 +60,12 @@ jobs:
           echo "$HOME/.local/bin" >> $GITHUB_PATH
           sccache --start-server
 
-      - name: Install Tarpaulin
-        run: cargo install cargo-tarpaulin
+      - name: Pre-build
+        run: |
+          cargo install cargo-sweep
+          cargo install cargo-tarpaulin
+
+          cargo sweep --time 30
 
       - name: Generate coverage
         run: cargo tarpaulin -v --no-fail-fast --locked --workspace -t 120 -o Xml --exclude-files **/mock.rs **/weights.rs **/weights/*

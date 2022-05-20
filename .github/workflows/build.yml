@@ -2,9 +2,17 @@ name: Build
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - rel/*
+    paths-ignore:
+      - "**/*.md"
   pull_request:
-    branches: [main]
+    branches:
+      - main
+      - rel/*
+    paths-ignore:
+      - "**/*.md"
 
 env:
   CARGO_INCREMENTAL: 0
@@ -15,7 +23,12 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [linux]
+        arch: [x86_64, aarch64]
+
+    runs-on: ["self-hosted", "${{ matrix.os }}", "${{ matrix.arch }}"]
 
     steps:
       - uses: actions/checkout@v3
@@ -28,28 +41,35 @@ jobs:
           rustup update nightly
           rustup target add wasm32-unknown-unknown --toolchain nightly
 
-      - uses: Swatinem/rust-cache@v1
-        with:
-          sharedKey: rscache
-      - uses: actions/cache@v3
-        continue-on-error: false
+      - uses: kinosang/action-local-cache@v1
         with:
           path: |
             ~/.cache/sccache
-          key: sccache-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            sccache-
+            ~/.cargo/bin
+            ~/.cargo/git
+            ~/.cargo/registry/cache
+            ~/.cargo/registry/index
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
+            ./target
+
       - name: Install sccache
         env:
           SCCACHE_VERSION: v0.3.0
         run: |
-          SCCACHE_FILE=sccache-$SCCACHE_VERSION-x86_64-unknown-linux-musl
+          SCCACHE_FILE=sccache-$SCCACHE_VERSION-${{ matrix.arch }}-unknown-linux-musl
           mkdir -p $HOME/.local/bin
           curl -L "https://github.com/mozilla/sccache/releases/download/$SCCACHE_VERSION/$SCCACHE_FILE.tar.gz" | tar xz
           mv -f $SCCACHE_FILE/sccache $HOME/.local/bin/sccache
           chmod +x $HOME/.local/bin/sccache
           echo "$HOME/.local/bin" >> $GITHUB_PATH
           sccache --start-server
+
+      - name: Pre-build
+        run: |
+          cargo install cargo-sweep
+
+          cargo sweep --time 30
 
       - name: Build Tests
         run: cargo test --no-run --locked
@@ -61,25 +81,37 @@ jobs:
           sccache --show-stats
           sccache --stop-server || true
 
-          strip ./target/release/parami
-          strip ./target/release/parami-collator
+          mkdir -p ./out/
+          cp ./target/release/parami ./out/parami-${{ matrix.os }}-${{ matrix.arch }}
+          cp ./target/release/wbuild/parami-dana-runtime/parami_dana_runtime.compact.compressed.wasm ./out/
+          cp ./target/release/parami-collator ./out/parami-collator-${{ matrix.os }}-${{ matrix.arch }}
+          cp ./target/release/wbuild/parami-para-runtime/parami_para_runtime.compact.compressed.wasm ./out/
+
+          strip ./out/parami-${{ matrix.os }}-${{ matrix.arch }}
+          strip ./out/parami-collator-${{ matrix.os }}-${{ matrix.arch }}
 
       - uses: actions/upload-artifact@v3
         with:
-          name: parami-amd64
-          path: ./target/release/parami
+          name: parami-${{ matrix.os }}-${{ matrix.arch }}
+          path: ./out/parami-${{ matrix.os }}-${{ matrix.arch }}
+          if-no-files-found: error
 
       - uses: actions/upload-artifact@v3
         with:
           name: parami-dana-runtime
-          path: ./target/release/wbuild/parami-dana-runtime/parami_dana_runtime.compact.compressed.wasm
+          path: ./out/parami_dana_runtime.compact.compressed.wasm
+          if-no-files-found: error
+        if: ${{ matrix.arch == 'x86_64' && matrix.os == 'linux' }}
 
       - uses: actions/upload-artifact@v3
         with:
-          name: parami-collator-amd64
-          path: ./target/release/parami-collator
+          name: parami-collator-${{ matrix.os }}-${{ matrix.arch }}
+          path: ./out/parami-collator-${{ matrix.os }}-${{ matrix.arch }}
+          if-no-files-found: error
 
       - uses: actions/upload-artifact@v3
         with:
           name: parami-para-runtime
-          path: ./target/release/wbuild/parami-para-runtime/parami_para_runtime.compact.compressed.wasm
+          path: ./out/parami_para_runtime.compact.compressed.wasm
+          if-no-files-found: error
+        if: ${{ matrix.arch == 'x86_64' && matrix.os == 'linux' }}
