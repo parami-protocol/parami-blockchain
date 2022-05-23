@@ -1,4 +1,9 @@
-use frame_support::{parameter_types, traits::SortedMembers, weights::Weight, PalletId};
+use frame_support::{
+    parameter_types,
+    traits::{Everything, SortedMembers},
+    weights::Weight,
+    PalletId,
+};
 
 use frame_system::EnsureRoot;
 use sp_core::{hashing::blake2_128, H256};
@@ -10,6 +15,7 @@ use sp_runtime::{
     Perbill,
 };
 
+use pallet_assets;
 use parami_chainbridge::{ChainId, ResourceId};
 
 use crate::{self as parami_xassets, weights::WeightInfo};
@@ -35,6 +41,14 @@ impl WeightInfo for MockWeightInfo {
     fn remark() -> Weight {
         0 as Weight
     }
+
+    fn transfer_token() -> Weight {
+        0 as Weight
+    }
+
+    fn force_set_resource() -> Weight {
+        0 as Weight
+    }
 }
 
 pub(crate) const RELAYER_A: u64 = 0x2;
@@ -53,12 +67,14 @@ frame_support::construct_runtime!(
         System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
         Balances: pallet_balances::{Pallet, Call, Config<T>, Storage, Event<T>},
         ChainBridge: parami_chainbridge::{Pallet, Call, Storage, Config, Event<T>},
+        Assets: pallet_assets::{Pallet, Call, Storage, Event<T>},
         XAssets: parami_xassets::{Pallet, Call, Event<T>}
     }
 );
 
 parameter_types! {
     pub const TestUserId: u64 = 1;
+    pub NativeTokenId: parami_chainbridge::ResourceId = parami_chainbridge::derive_resource_id(0, &blake2_128(b"AD3"));
 }
 
 impl SortedMembers<u64> for TestUserId {
@@ -76,7 +92,7 @@ parameter_types! {
 }
 
 impl frame_system::Config for MockRuntime {
-    type BaseCallFilter = ();
+    type BaseCallFilter = Everything;
     type Origin = Origin;
     type Call = Call;
     type Index = u64;
@@ -113,12 +129,31 @@ impl pallet_balances::Config for MockRuntime {
     type AccountStore = System;
     type WeightInfo = ();
     type MaxLocks = ();
+    type MaxReserves = ();
+    type ReserveIdentifier = ();
+}
+
+impl pallet_assets::Config for MockRuntime {
+    type Event = Event;
+    type Balance = Balance;
+    type AssetId = u32;
+    type Currency = Balances;
+    type ForceOrigin = EnsureRoot<Self::AccountId>;
+    type AssetDeposit = ();
+    type MetadataDepositBase = ();
+    type MetadataDepositPerByte = ();
+    type ApprovalDeposit = ();
+    type StringLimit = ();
+    type Freezer = ();
+    type Extra = ();
+    type WeightInfo = pallet_assets::weights::SubstrateWeight<MockRuntime>;
 }
 
 parameter_types! {
     pub const MockChainId: ChainId = 5;
     pub const ChainBridgePalletId: PalletId = PalletId(*b"chnbrdge");
     pub const ProposalLifetime: u64 = 10;
+    pub HashId: parami_chainbridge::ResourceId = parami_chainbridge::derive_resource_id(233, &blake2_128(b"hash"));
 }
 
 impl parami_chainbridge::Config for MockRuntime {
@@ -128,7 +163,7 @@ impl parami_chainbridge::Config for MockRuntime {
     type PalletId = ChainBridgePalletId;
     type AdminOrigin = EnsureRoot<Self::AccountId>;
     type ProposalLifetime = ProposalLifetime;
-    type WeightInfo = ();
+    type WeightInfo = parami_chainbridge::weights::SubstrateWeight<MockRuntime>;
 }
 
 impl parami_xassets::Config for MockRuntime {
@@ -138,6 +173,9 @@ impl parami_xassets::Config for MockRuntime {
     type HashId = HashId;
     type NativeTokenId = NativeTokenId;
     type WeightInfo = MockWeightInfo;
+    type Assets = Assets;
+    type AssetId = u32;
+    type ForceOrigin = EnsureRoot<Self::AccountId>;
 }
 
 pub struct TestExternalitiesBuilder {}

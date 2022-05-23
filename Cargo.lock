@@ -6129,6 +6129,7 @@ dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
+ "pallet-assets",
  "pallet-balances",
  "parami-chainbridge",
  "parity-scale-codec",

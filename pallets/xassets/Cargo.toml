@@ -41,6 +41,7 @@ frame-system = { git = 'https://github.com/paritytech/substrate', branch = 'polk
 
 [dev-dependencies]
 pallet-balances = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13' }
+pallet-assets= { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13' }
 
 [features]
 default = ['std']
