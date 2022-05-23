@@ -1,0 +1,80 @@
+name: Coverage
+
+on:
+  push:
+    branches:
+      - main
+      - rel/*
+    paths-ignore:
+      - "**/*.md"
+  pull_request:
+    branches:
+      - main
+      - rel/*
+    paths-ignore:
+      - "**/*.md"
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: full
+  RUSTC_WRAPPER: sccache
+  SCCACHE_CACHE_SIZE: 2G
+
+jobs:
+  test:
+    runs-on: ["self-hosted", "linux", "x86_64"]
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          default: true
+      - name: Install nightly toolchain
+        run: |
+          rustup update nightly
+          rustup target add wasm32-unknown-unknown --toolchain nightly
+
+      - uses: kinosang/action-local-cache@v1
+        with:
+          path: |
+            ~/.cache/sccache
+            ~/.cargo/bin
+            ~/.cargo/git
+            ~/.cargo/registry/cache
+            ~/.cargo/registry/index
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
+            ./target
+
+      - name: Install sccache
+        env:
+          SCCACHE_VERSION: v0.3.0
+        run: |
+          SCCACHE_FILE=sccache-$SCCACHE_VERSION-x86_64-unknown-linux-musl
+          mkdir -p $HOME/.local/bin
+          curl -L "https://github.com/mozilla/sccache/releases/download/$SCCACHE_VERSION/$SCCACHE_FILE.tar.gz" | tar xz
+          mv -f $SCCACHE_FILE/sccache $HOME/.local/bin/sccache
+          chmod +x $HOME/.local/bin/sccache
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          sccache --start-server
+
+      - name: Pre-build
+        run: |
+          cargo install cargo-sweep
+          cargo install cargo-tarpaulin
+
+          cargo sweep --time 30
+
+      - name: Generate coverage
+        run: cargo tarpaulin -v --no-fail-fast --locked --workspace -t 120 -o Xml --exclude-files **/mock.rs **/weights.rs **/weights/*
+
+      - name: Post-build
+        run: |
+          sccache --show-stats
+          sccache --stop-server || true
+
+      - uses: codecov/codecov-action@v3
+        with:
+          fail_ci_if_error: true

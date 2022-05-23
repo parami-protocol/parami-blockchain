@@ -9,3 +9,7 @@ charset=utf-8
 trim_trailing_whitespace=true
 max_line_length=100
 insert_final_newline=true
+
+[*.{json,yml,yaml}]
+indent_size = 2
+tab_width = 2

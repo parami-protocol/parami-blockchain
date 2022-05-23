@@ -2,7 +2,7 @@ import { ApiPromise, Keyring, WsProvider } from '@polkadot/api';
 import { mnemonicGenerate } from '@polkadot/util-crypto';
 import Spinnies from 'spinnies';
 
-import { submit } from './utils.js';
+import { submit } from './utils';
 
 (async () => {
   const spinnies = new Spinnies();
@@ -65,7 +65,7 @@ import { submit } from './utils.js';
     c
   );
   const stableOf = await chain.query.magic.metadata(c.address);
-  const s = stableOf.toHuman().stashAccount;
+  const s = (stableOf.toHuman() as any).stashAccount;
   spinnies.succeed('cash', { text: ` Cash Account: ${s}` });
 
   spinnies.add('preparing', {
@@ -100,7 +100,7 @@ import { submit } from './utils.js';
   );
 
   const ks = await chain.query.magic.metadata(kc.address);
-  const kolOf = await chain.query.did.didOf(ks.toHuman().stashAccount);
+  const kolOf = await chain.query.did.didOf((ks.toHuman() as any).stashAccount);
   const kol = kolOf.toString();
   spinnies.update('kol', { text: `          KOL: ${kol}` });
 
@@ -146,7 +146,9 @@ import { submit } from './utils.js';
   );
 
   const as = await chain.query.magic.metadata(ac.address);
-  const aderOf = await chain.query.did.didOf(as.toHuman().stashAccount);
+  const aderOf = await chain.query.did.didOf(
+    (as.toHuman() as any).stashAccount
+  );
   const ader = aderOf.toString();
   spinnies.update('advertiser', { text: `   Advertiser: ${ader}` });
 
@@ -187,7 +189,7 @@ import { submit } from './utils.js';
     ac
   );
   const adsOf = await chain.query.ad.adsOf.entries();
-  const ad = adsOf[0][1].toHuman()[0];
+  const ad = (adsOf[0][1].toHuman() as any)[0];
   spinnies.update('ad', { text: `Advertisement: ${ad}` });
 
   spinnies.update('preparing', {
@@ -206,14 +208,14 @@ import { submit } from './utils.js';
 
   spinnies.add('pay', { text: 'Paying...' });
   const before = await chain.query.assets.account(0, s);
-  const beforeBalance = before.balance.toHuman().replaceAll(',', '');
+  const beforeBalance = (before as any).balance.toHuman().replaceAll(',', '');
   await submit(
     chain,
     chain.tx.magic.codo(chain.tx.ad.pay(ad, kol, did, [[tag, 5]], null)),
     ac
   );
   const after = await chain.query.assets.account(0, s);
-  const afterBalance = after.balance.toHuman().replaceAll(',', '');
+  const afterBalance = (after as any).balance.toHuman().replaceAll(',', '');
   spinnies.succeed('pay', { text: `Paid ${afterBalance - beforeBalance}` });
 
   await chain.disconnect();
