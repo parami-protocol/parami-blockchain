@@ -397,7 +397,10 @@ fn should_pay() {
         assert_ok!(Ad::create(
             Origin::signed(BOB),
             500,
-            vec![vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8],vec![5u8, 4u8, 3u8, 2u8, 1u8, 0u8]],
+            vec![
+                vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8],
+                vec![5u8, 4u8, 3u8, 2u8, 1u8, 0u8]
+            ],
             [0u8; 64].into(),
             1,
             1
@@ -508,7 +511,6 @@ fn should_pay() {
         );
 
         assert_eq!(Assets::balance(nft_meta.token_asset_id, &T120E0), 10);
-
 
         assert_noop!(
             Ad::pay(
