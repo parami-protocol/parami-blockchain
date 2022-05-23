@@ -397,7 +397,7 @@ fn should_pay() {
         assert_ok!(Ad::create(
             Origin::signed(BOB),
             500,
-            vec![vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8]],
+            vec![vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8],vec![5u8, 4u8, 3u8, 2u8, 1u8, 0u8]],
             [0u8; 64].into(),
             1,
             1
@@ -412,6 +412,7 @@ fn should_pay() {
 
         // 2. pay
 
+        // 2.1 pay1
         assert_ok!(Ad::pay(
             Origin::signed(BOB),
             ad,
@@ -435,6 +436,87 @@ fn should_pay() {
             Tag::get_score(&DID_CHARLIE, vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8]),
             11
         );
+
+        // 2.2 pay2
+        assert_ok!(Ad::pay(
+            Origin::signed(BOB),
+            ad,
+            nft,
+            DID_T5E2,
+            vec![(vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8], 5)],
+            None
+        ));
+
+        let slot = <SlotOf<Test>>::get(nft).unwrap();
+        assert_eq!(
+            Assets::balance(nft_meta.token_asset_id, &meta.pot),
+            slot.tokens
+        );
+        assert_eq!(slot.remain, 400 - 40);
+        assert_eq!(slot.tokens, 19 - 5);
+
+        assert_eq!(Assets::balance(nft_meta.token_asset_id, &T5E2), 5);
+
+        // 2.3 pay3
+        assert_ok!(Ad::pay(
+            Origin::signed(BOB),
+            ad,
+            nft,
+            DID_T0E0,
+            vec![(vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8], 5)],
+            None
+        ));
+
+        let slot = <SlotOf<Test>>::get(nft).unwrap();
+        assert_eq!(
+            Assets::balance(nft_meta.token_asset_id, &meta.pot),
+            slot.tokens
+        );
+        assert_eq!(slot.remain, 400 - 40);
+        assert_eq!(slot.tokens, 19 - 5);
+
+        assert_eq!(Assets::balance(nft_meta.token_asset_id, &T0E0), 5);
+
+        // 2.4 pay4
+        assert_ok!(Ad::pay(
+            Origin::signed(BOB),
+            ad,
+            nft,
+            DID_T100E100,
+            vec![(vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8], 5)],
+            None
+        ));
+
+        let slot = <SlotOf<Test>>::get(nft).unwrap();
+        assert_eq!(
+            Assets::balance(nft_meta.token_asset_id, &meta.pot),
+            slot.tokens
+        );
+        assert_eq!(slot.remain, 400 - 40);
+        assert_eq!(slot.tokens, 19 - 5);
+
+        assert_eq!(Assets::balance(nft_meta.token_asset_id, &T100E100), 5);
+
+        // 2.5 pay5
+        assert_ok!(Ad::pay(
+            Origin::signed(BOB),
+            ad,
+            nft,
+            DID_T120E0,
+            vec![(vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8], 5)],
+            None
+        ));
+
+        let slot = <SlotOf<Test>>::get(nft).unwrap();
+        assert_eq!(
+            Assets::balance(nft_meta.token_asset_id, &meta.pot),
+            slot.tokens
+        );
+        assert_eq!(slot.remain, 400 - 40);
+        assert_eq!(slot.tokens, 19 - 5);
+
+        assert_eq!(Assets::balance(nft_meta.token_asset_id, &T120E0), 5);
+
 
         assert_noop!(
             Ad::pay(
