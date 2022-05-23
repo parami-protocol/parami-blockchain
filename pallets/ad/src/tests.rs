@@ -428,9 +428,9 @@ fn should_pay() {
             slot.tokens
         );
         assert_eq!(slot.remain, 400 - 40);
-        assert_eq!(slot.tokens, 19 - 5);
+        assert_eq!(slot.tokens, 19 - 2);
 
-        assert_eq!(Assets::balance(nft_meta.token_asset_id, &CHARLIE), 5);
+        assert_eq!(Assets::balance(nft_meta.token_asset_id, &CHARLIE), 2);
 
         assert_eq!(
             Tag::get_score(&DID_CHARLIE, vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8]),
@@ -452,10 +452,8 @@ fn should_pay() {
             Assets::balance(nft_meta.token_asset_id, &meta.pot),
             slot.tokens
         );
-        assert_eq!(slot.remain, 400 - 40);
-        assert_eq!(slot.tokens, 19 - 5);
 
-        assert_eq!(Assets::balance(nft_meta.token_asset_id, &T5E2), 5);
+        assert_eq!(Assets::balance(nft_meta.token_asset_id, &T5E2), 3);
 
         // 2.3 pay3
         assert_ok!(Ad::pay(
@@ -472,10 +470,8 @@ fn should_pay() {
             Assets::balance(nft_meta.token_asset_id, &meta.pot),
             slot.tokens
         );
-        assert_eq!(slot.remain, 400 - 40);
-        assert_eq!(slot.tokens, 19 - 5);
 
-        assert_eq!(Assets::balance(nft_meta.token_asset_id, &T0E0), 5);
+        assert_eq!(Assets::balance(nft_meta.token_asset_id, &T0E0), 0);
 
         // 2.4 pay4
         assert_ok!(Ad::pay(
@@ -492,10 +488,8 @@ fn should_pay() {
             Assets::balance(nft_meta.token_asset_id, &meta.pot),
             slot.tokens
         );
-        assert_eq!(slot.remain, 400 - 40);
-        assert_eq!(slot.tokens, 19 - 5);
 
-        assert_eq!(Assets::balance(nft_meta.token_asset_id, &T100E100), 5);
+        assert_eq!(Assets::balance(nft_meta.token_asset_id, &T100E100), 10);
 
         // 2.5 pay5
         assert_ok!(Ad::pay(
@@ -512,10 +506,8 @@ fn should_pay() {
             Assets::balance(nft_meta.token_asset_id, &meta.pot),
             slot.tokens
         );
-        assert_eq!(slot.remain, 400 - 40);
-        assert_eq!(slot.tokens, 19 - 5);
 
-        assert_eq!(Assets::balance(nft_meta.token_asset_id, &T120E0), 5);
+        assert_eq!(Assets::balance(nft_meta.token_asset_id, &T120E0), 10);
 
 
         assert_noop!(
