@@ -15,18 +15,18 @@ pub type Extrinsic = TestXt<Call, ()>;
 pub const ALICE: sr25519::Public = sr25519::Public([1; 32]);
 pub const BOB: sr25519::Public = sr25519::Public([2; 32]);
 pub const CHARLIE: sr25519::Public = sr25519::Public([3; 32]);
-pub const T5E2: sr25519::Public = sr25519::Public([4; 32]);
-pub const T0E0: sr25519::Public = sr25519::Public([5; 32]);
-pub const T100E100: sr25519::Public = sr25519::Public([8; 32]);
-pub const T120E0: sr25519::Public = sr25519::Public([9; 32]);
+pub const TAGA5_TAGB2: sr25519::Public = sr25519::Public([4; 32]);
+pub const TAGA0_TAGB0: sr25519::Public = sr25519::Public([5; 32]);
+pub const TAGA100_TAGB100: sr25519::Public = sr25519::Public([8; 32]);
+pub const TAGA120_TAGB0: sr25519::Public = sr25519::Public([9; 32]);
 
 pub const DID_ALICE: H160 = H160([0xff; 20]);
 pub const DID_BOB: H160 = H160([0xee; 20]);
 pub const DID_CHARLIE: H160 = H160([0xdd; 20]);
-pub const DID_T5E2: H160 = H160([0x1; 20]);
-pub const DID_T0E0: H160 = H160([0x2; 20]);
-pub const DID_T100E100: H160 = H160([0x3; 20]);
-pub const DID_T120E0: H160 = H160([0x4; 20]);
+pub const DID_TAGA5_TAGB2: H160 = H160([0x1; 20]);
+pub const DID_TAGA0_TAGB0: H160 = H160([0x2; 20]);
+pub const DID_TAGA100_TAGB100: H160 = H160([0x3; 20]);
+pub const DID_TAGA120_TAGB0: H160 = H160([0x4; 20]);
 frame_support::construct_runtime!(
     pub enum Test where
         Block = Block,
@@ -253,10 +253,10 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             (ALICE, DID_ALICE),
             (BOB, DID_BOB),
             (CHARLIE, DID_CHARLIE),
-            (T5E2, DID_T5E2),
-            (T0E0, DID_T0E0),
-            (T100E100, DID_T100E100),
-            (T120E0, DID_T120E0),
+            (TAGA5_TAGB2, DID_TAGA5_TAGB2),
+            (TAGA0_TAGB0, DID_TAGA0_TAGB0),
+            (TAGA100_TAGB100, DID_TAGA100_TAGB100),
+            (TAGA120_TAGB0, DID_TAGA120_TAGB0),
         ],
     }
     .assimilate_storage(&mut t)
@@ -277,7 +277,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
                 },
             ),
             (
-                DID_T5E2,
+                DID_TAGA5_TAGB2,
                 vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8],
                 parami_tag::Score {
                     current_score: 5,
@@ -285,7 +285,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
                 },
             ),
             (
-                DID_T5E2,
+                DID_TAGA5_TAGB2,
                 vec![5u8, 4u8, 3u8, 2u8, 1u8, 0u8],
                 parami_tag::Score {
                     current_score: 2,
@@ -293,7 +293,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
                 },
             ),
             (
-                DID_T100E100,
+                DID_TAGA100_TAGB100,
                 vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8],
                 parami_tag::Score {
                     current_score: 100,
@@ -301,7 +301,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
                 },
             ),
             (
-                DID_T100E100,
+                DID_TAGA100_TAGB100,
                 vec![5u8, 4u8, 3u8, 2u8, 1u8, 0u8],
                 parami_tag::Score {
                     current_score: 100,
@@ -309,7 +309,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
                 },
             ),
             (
-                DID_T120E0,
+                DID_TAGA120_TAGB0,
                 vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8],
                 parami_tag::Score {
                     current_score: 120,

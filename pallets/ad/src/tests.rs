@@ -445,7 +445,7 @@ fn should_pay() {
             Origin::signed(BOB),
             ad,
             nft,
-            DID_T5E2,
+            DID_TAGA5_TAGB2,
             vec![(vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8], 5)],
             None
         ));
@@ -456,14 +456,14 @@ fn should_pay() {
             slot.tokens
         );
 
-        assert_eq!(Assets::balance(nft_meta.token_asset_id, &T5E2), 3);
+        assert_eq!(Assets::balance(nft_meta.token_asset_id, &TAGA5_TAGB2), 3);
 
         // 2.3 pay3
         assert_ok!(Ad::pay(
             Origin::signed(BOB),
             ad,
             nft,
-            DID_T0E0,
+            DID_TAGA0_TAGB0,
             vec![(vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8], 5)],
             None
         ));
@@ -474,14 +474,14 @@ fn should_pay() {
             slot.tokens
         );
 
-        assert_eq!(Assets::balance(nft_meta.token_asset_id, &T0E0), 0);
+        assert_eq!(Assets::balance(nft_meta.token_asset_id, &TAGA0_TAGB0), 0);
 
         // 2.4 pay4
         assert_ok!(Ad::pay(
             Origin::signed(BOB),
             ad,
             nft,
-            DID_T100E100,
+            DID_TAGA100_TAGB100,
             vec![(vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8], 5)],
             None
         ));
@@ -492,14 +492,14 @@ fn should_pay() {
             slot.tokens
         );
 
-        assert_eq!(Assets::balance(nft_meta.token_asset_id, &T100E100), 10);
+        assert_eq!(Assets::balance(nft_meta.token_asset_id, &TAGA100_TAGB100), 10);
 
         // 2.5 pay5
         assert_ok!(Ad::pay(
             Origin::signed(BOB),
             ad,
             nft,
-            DID_T120E0,
+            DID_TAGA120_TAGB0,
             vec![(vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8], 5)],
             None
         ));
@@ -510,7 +510,7 @@ fn should_pay() {
             slot.tokens
         );
 
-        assert_eq!(Assets::balance(nft_meta.token_asset_id, &T120E0), 10);
+        assert_eq!(Assets::balance(nft_meta.token_asset_id, &TAGA120_TAGB0), 10);
 
         assert_noop!(
             Ad::pay(
