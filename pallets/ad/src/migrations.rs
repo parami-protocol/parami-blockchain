@@ -18,9 +18,9 @@ pub fn migrate<T: Config>() -> Weight {
 
 mod v1 {
     use super::*;
-    use crate::{types, BalanceOf, Config, HashOf, HeightOf, NftOf, SlotOf as UpgradedSlotOf};
+    use crate::{types, BalanceOf, Config, HashOf, HeightOf, NftOf, SlotOf};
     use codec::{Decode, Encode};
-    use frame_support::{generate_storage_alias, RuntimeDebug, Twox64Concat};
+    use frame_support::RuntimeDebug;
     use scale_info::TypeInfo;
     #[cfg(feature = "std")]
     use serde::{Deserialize, Serialize};
@@ -40,22 +40,14 @@ mod v1 {
         pub ad: H,
     }
 
-    generate_storage_alias!(
-        Ad, SlotOf<T: Config> => Map<
-            (Twox64Concat, NftOf<T>),
-            Slot<BalanceOf<T>, HashOf<T>, HeightOf<T>, NftOf<T>>
-        >
-    );
-
     pub fn migrate<T: Config>() -> Weight {
         let mut weight: Weight = 0;
 
-        for (nft, slot) in <SlotOf<T>>::iter() {
-            <SlotOf<T>>::remove(nft);
+        <SlotOf<T>>::translate_values(
+            |slot: Slot<BalanceOf<T>, HashOf<T>, HeightOf<T>, NftOf<T>>| {
+                weight.saturating_accrue(T::DbWeight::get().reads_writes(1, 1));
 
-            <UpgradedSlotOf<T>>::insert(
-                nft,
-                types::Slot {
+                Some(types::Slot {
                     ad_id: slot.ad,
                     nft_id: slot.nft,
                     fungible_id: None,
@@ -65,11 +57,9 @@ mod v1 {
                     fungibles_budget: Zero::zero(),
                     fungibles_remain: Zero::zero(),
                     created: slot.created,
-                },
-            );
-
-            weight.saturating_accrue(T::DbWeight::get().reads_writes(1, 2));
-        }
+                })
+            },
+        );
 
         weight
     }
