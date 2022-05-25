@@ -1417,6 +1417,7 @@ impl parami_nft::Config for Runtime {
     type StringLimit = StringLimit;
     type Swaps = Swap;
     type WeightInfo = parami_nft::weights::SubstrateWeight<Runtime>;
+    type UnsignedPriority = UnsignedPriority;
 }
 
 impl parami_ocw::Config for Runtime {}

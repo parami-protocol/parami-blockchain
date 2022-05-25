@@ -113,6 +113,10 @@ pub mod pallet {
         #[pallet::constant]
         type InitialMintingValueBase: Get<BalanceOf<Self>>;
 
+        /// Unsigned Call Priority
+        #[pallet::constant]
+        type UnsignedPriority: Get<TransactionPriority>;
+
         /// The links trait
         type Links: Links<DidOf<Self>>;
 
@@ -597,6 +601,32 @@ pub mod pallet {
                         owner,
                     },
                 );
+            }
+        }
+    }
+
+    #[pallet::validate_unsigned]
+    impl<T: Config> ValidateUnsigned for Pallet<T> {
+        type Call = Call<T>;
+
+        fn validate_unsigned(source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+            match source {
+                TransactionSource::Local | TransactionSource::InBlock => { /* allowed */ }
+                _ => return InvalidTransaction::Call.into(),
+            };
+
+            let valid_tx = |provide| {
+                ValidTransaction::with_tag_prefix("nft")
+                    .priority(T::UnsignedPriority::get())
+                    .and_provides([&provide])
+                    .longevity(3)
+                    .propagate(false)
+                    .build()
+            };
+
+            match call {
+                Call::submit_porting { .. } => valid_tx(b"submit_porting".to_vec()),
+                _ => InvalidTransaction::Call.into(),
             }
         }
     }

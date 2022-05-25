@@ -185,6 +185,7 @@ impl parami_nft::Config for Test {
     type StringLimit = StringLimit;
     type Swaps = Swap;
     type WeightInfo = ();
+    type UnsignedPriority = ();
 }
 
 impl parami_ocw::Config for Test {}

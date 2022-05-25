@@ -201,6 +201,7 @@ impl parami_nft::Config for Test {
     type StringLimit = StringLimit;
     type Swaps = Swap;
     type WeightInfo = ();
+    type UnsignedPriority = ();
 }
 
 pub fn new_test_ext() -> sp_io::TestExternalities {

@@ -1210,6 +1210,7 @@ impl parami_nft::Config for Runtime {
     type StringLimit = StringLimit;
     type Swaps = Swap;
     type WeightInfo = parami_nft::weights::SubstrateWeight<Runtime>;
+    type UnsignedPriority = UnsignedPriority;
 }
 
 impl parami_ocw::Config for Runtime {}
@@ -1303,7 +1304,7 @@ construct_runtime!(
         Did: parami_did::{Pallet, Call, Storage, Config<T>, Event<T>} = 104,
         Linker: parami_linker::{Pallet, Call, Storage, Config<T>, Event<T>, ValidateUnsigned} = 105,
         Magic: parami_magic::{Pallet,Storage} = 106,
-        Nft: parami_nft::{Pallet, Call, Storage, Config<T>, Event<T>} = 107,
+        Nft: parami_nft::{Pallet, Call, Storage, Config<T>, Event<T>, ValidateUnsigned} = 107,
         Swap: parami_swap::{Pallet, Call, Storage, Config<T>, Event<T>} = 108,
         Tag: parami_tag::{Pallet, Call, Storage, Config<T>, Event<T>} = 109,
     }
