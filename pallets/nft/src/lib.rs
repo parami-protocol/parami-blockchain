@@ -507,13 +507,14 @@ pub mod pallet {
                     id,
                     types::External {
                         network,
-                        namespace,
-                        token,
+                        namespace: namespace.clone(),
+                        token: token.clone(),
                         owner: task.task.owner,
                     },
                 );
             }
 
+            <Porting<T>>::remove((network, namespace, token));
             Ok(().into())
         }
     }
