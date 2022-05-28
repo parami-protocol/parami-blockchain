@@ -1,6 +1,7 @@
 use crate as parami_nft;
 use frame_support::{parameter_types, traits::GenesisBuild, PalletId};
 use frame_system::{self as system, EnsureRoot};
+use parami_linker;
 use sp_core::{sr25519, H160, H256};
 use sp_runtime::{
     testing::{Header, TestXt},
@@ -44,6 +45,8 @@ frame_support::construct_runtime!(
         Ocw: parami_ocw::{Pallet},
         Swap: parami_swap::{Pallet, Call, Storage, Event<T>},
         Nft: parami_nft::{Pallet, Call, Storage, Event<T>},
+        Linker: parami_linker::{Pallet, Call, Storage, Event<T>},
+        Tag: parami_tag::{Pallet, Call, Storage, Event<T>},
     }
 );
 
@@ -180,6 +183,38 @@ impl parami_swap::Config for Test {
 }
 
 parameter_types! {
+    pub const SubmissionFee: Balance = 10;
+}
+
+impl parami_tag::Config for Test {
+    type Event = Event;
+    type Currency = Balances;
+    type DecentralizedId = <Self as parami_did::Config>::DecentralizedId;
+    type SubmissionFee = SubmissionFee;
+    type CallOrigin = parami_did::EnsureDid<Test>;
+    type ForceOrigin = frame_system::EnsureRoot<Self::AccountId>;
+    type WeightInfo = ();
+}
+
+parameter_types! {
+    pub const MinimumDeposit: u32 = 1u32;
+    pub const LinkerPalletId: PalletId = PalletId(*b"prm/link");
+    pub const LinkerPendingLifetime: BlockNumber = 10;
+}
+
+impl parami_linker::Config for Test {
+    type Event = Event;
+    type MinimumDeposit = MinimumDeposit;
+    type PalletId = LinkerPalletId;
+    type PendingLifetime = LinkerPendingLifetime;
+    type UnsignedPriority = ();
+    type Slash = ();
+    type Tags = Tag;
+    type ForceOrigin = frame_system::EnsureSigned<Self::AccountId>;
+    type WeightInfo = ();
+}
+
+parameter_types! {
     pub const InitialMintingDeposit: Balance = 1_000 * DOLLARS;
     pub const InitialMintingLockupPeriod: BlockNumber = 5;
     pub const InitialMintingValueBase: Balance = 1_000_000 * DOLLARS;
@@ -194,7 +229,7 @@ impl parami_nft::Config for Test {
     type InitialMintingDeposit = InitialMintingDeposit;
     type InitialMintingLockupPeriod = InitialMintingLockupPeriod;
     type InitialMintingValueBase = InitialMintingValueBase;
-    type Links = ();
+    type Links = Linker;
     type Nft = Uniques;
     type PalletId = NftPalletId;
     type PendingLifetime = PendingLifetime;

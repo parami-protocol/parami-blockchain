@@ -1,6 +1,5 @@
 use crate::{mock::*, Deposit, Deposits, Error, Metadata, Porting};
 use frame_support::{assert_noop, assert_ok};
-use log::Log;
 use parami_primitives::constants::DOLLARS;
 use parami_traits::{types::Network, Swaps};
 
@@ -9,6 +8,9 @@ fn should_import() {
     new_test_ext().execute_with(|| {
         let namespace = NAMESPACE.to_vec();
         let token = vec![0x02];
+        let did = DID_BOB;
+
+        let _result = Linker::insert_link(did, Network::Ethereum, "something".into(), did);
 
         assert_ok!(Nft::port(
             Origin::signed(BOB),
@@ -53,6 +55,9 @@ fn should_fail_when_importing() {
     new_test_ext().execute_with(|| {
         let namespace = NAMESPACE.to_vec();
         let token = vec![0x02];
+        let did = DID_BOB;
+
+        let _result = Linker::insert_link(did, Network::Ethereum, "something".into(), did);
 
         assert_ok!(Nft::port(
             Origin::signed(BOB),
@@ -69,6 +74,24 @@ fn should_fail_when_importing() {
                 token.clone()
             ),
             Error::<Test>::Exists
+        );
+    });
+}
+
+#[test]
+fn should_fail_when_did_not_linked_network() {
+    new_test_ext().execute_with(|| {
+        let namespace = NAMESPACE.to_vec();
+        let token = vec![0x02];
+
+        assert_noop!(
+            Nft::port(
+                Origin::signed(BOB),
+                Network::Ethereum,
+                namespace.clone(),
+                token.clone(),
+            ),
+            Error::<Test>::NetworkNotLinked
         );
     });
 }

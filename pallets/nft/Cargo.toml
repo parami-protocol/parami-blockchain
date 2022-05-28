@@ -54,6 +54,8 @@ pallet-assets = { git = 'https://github.com/paritytech/substrate', branch = 'pol
 pallet-balances = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13' }
 pallet-uniques = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13' }
 parami-primitives = { path = '../../primitives' }
+parami-linker = { path = '../linker'}
+parami-tag = { path = '../tag'}
 
 [features]
 default = ['std']

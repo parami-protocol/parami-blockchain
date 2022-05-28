@@ -266,6 +266,7 @@ pub mod pallet {
         NotExists,
         Overflow,
         YourSelf,
+        NetworkNotLinked,
     }
 
     #[pallet::call]
@@ -289,6 +290,12 @@ pub mod pallet {
             ensure!(
                 !<Ported<T>>::contains_key((network, &namespace, &token)),
                 Error::<T>::Exists
+            );
+
+            // user should link network first
+            ensure!(
+                T::Links::all_links(&owner).contains_key(&network),
+                Error::<T>::NetworkNotLinked
             );
 
             let created = <frame_system::Pallet<T>>::block_number();
