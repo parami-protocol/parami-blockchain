@@ -261,12 +261,13 @@ pub mod pallet {
         Deadline,
         Exists,
         InsufficientBalance,
-        InvalidExternalToken,
         Minted,
         NotExists,
         Overflow,
         YourSelf,
         NetworkNotLinked,
+        OcwParseError,
+        NotTokenOwner,
     }
 
     #[pallet::call]

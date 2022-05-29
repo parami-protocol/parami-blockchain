@@ -2,6 +2,10 @@ use crate::{mock::*, Deposit, Deposits, Error, Metadata, Porting};
 use frame_support::{assert_noop, assert_ok};
 use parami_primitives::constants::DOLLARS;
 use parami_traits::{types::Network, Swaps};
+use sp_core::offchain::{testing, OffchainWorkerExt};
+use sp_core::U256;
+use sp_runtime::offchain::testing::OffchainState;
+use sp_std::prelude::*;
 
 #[test]
 fn should_import() {
@@ -311,5 +315,52 @@ fn should_claim() {
 
         assert_eq!(Assets::balance(nft, &ALICE), 1_000_000 * DOLLARS);
         assert_eq!(<Deposits<Test>>::get(nft, &DID_ALICE), None);
+    });
+}
+fn mock_validate_request(ether_endpoint: &str, body: String) -> testing::PendingRequest {
+    let res = r#"{"jsonrpc":"2.0","id":1,"result":"0x000000000000000000000000dbd04424318d1e06b34259add64bf10a8eb45a87"}"#;
+    testing::PendingRequest {
+        method: "POST".into(),
+        uri: ether_endpoint.into(),
+        sent: true,
+        headers: vec![(
+            "User-Agent".into(),
+            "GoogleBot (compatible; ParamiWorker/1.0; +http://parami.io/worker/)".into(),
+        )],
+        body: body.into(),
+        response: Some(res.into()),
+        ..Default::default()
+    }
+}
+
+#[test]
+fn should_success_when_validate_etherum_token_owner() {
+    let (offchain, state) = testing::TestOffchainExt::new();
+    let mut t = new_test_ext();
+    t.register_extension(OffchainWorkerExt::new(offchain));
+
+    let ether_endpoint = "http://etherum.endpoint/example";
+    let links: &[Vec<u8>] = &[vec![
+        219, 208, 68, 36, 49, 141, 30, 6, 179, 66, 89, 173, 214, 75, 241, 10, 142, 180, 90, 135,
+    ]];
+    let contract_address = b"contractaddress";
+    let token = 546u64;
+
+    let body = Nft::construct_request_body(contract_address, &token.to_be_bytes());
+
+    {
+        let mut state = state.write();
+        state.expect_request(mock_validate_request(ether_endpoint.into(), body));
+    }
+
+    t.execute_with(|| {
+        let result = Nft::ocw_validate_etherum_token_owner(
+            links,
+            ether_endpoint,
+            b"contractaddress",
+            &token.to_be_bytes(),
+        );
+
+        assert_ok!(result);
     });
 }

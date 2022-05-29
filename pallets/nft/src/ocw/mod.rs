@@ -3,10 +3,13 @@ pub use abi::eth_abi;
 mod abi;
 
 use crate::{Call, Config, Error, Pallet, Porting};
+use frame_support::dispatch::DispatchError;
 use frame_support::dispatch::DispatchResult;
 use frame_system::offchain::{SendTransactionTypes, SubmitTransaction};
+use parami_ocw::JsonValue;
 use parami_ocw::{submit_unsigned, Pallet as Ocw};
 use parami_traits::Links;
+use scale_info::prelude::string::String;
 use sp_core::U256;
 use sp_std::prelude::Vec;
 
@@ -39,7 +42,7 @@ impl<T: Config + SendTransactionTypes<Call<T>>> Pallet<T> {
                 let links = T::Links::links(&task.task.owner, task.task.network);
 
                 let result = match task.task.network {
-                    Ethereum => Self::ocw_port_erc721(
+                    Ethereum => Self::ocw_validate_etherum_token_owner(
                         &links,
                         "https://rinkeby.infura.io/v3/cffb10a5fde442cb80af59a65783c296",
                         &task.task.namespace,
@@ -92,14 +95,7 @@ impl<T: Config + SendTransactionTypes<Call<T>>> Pallet<T> {
         let _ = submit_unsigned!(call);
     }
 
-    pub(super) fn ocw_port_erc721(
-        links: &[Vec<u8>],
-        rpc: &str,
-        namespace: &[u8],
-        token: &[u8],
-    ) -> DispatchResult {
-        use parami_ocw::JsonValue;
-
+    pub(super) fn construct_request_body(namespace: &[u8], token: &[u8]) -> String {
         let body = r#"{
     "jsonrpc": "2.0",
     "id": 1,
@@ -107,8 +103,8 @@ impl<T: Config + SendTransactionTypes<Call<T>>> Pallet<T> {
     "params": [
         {
             "from": "0x0000000000000000000000000000000000000000",
-            "data": "<data>",
-            "to": "<contract>"
+            "data": "0x<data>",
+            "to": "0x<contract>"
         },
         "latest"
     ]
@@ -120,28 +116,57 @@ impl<T: Config + SendTransactionTypes<Call<T>>> Pallet<T> {
         );
         let body = body
             .replace("<data>", &hex::encode(&encoded))
-            .replace("<contract>", &hex::encode(namespace));
+            .replace("<contract>", &hex::encode(&namespace));
+        return body;
+    }
 
+    pub(super) fn ocw_validate_etherum_token_owner(
+        links: &[Vec<u8>],
+        rpc: &str,
+        namespace: &[u8],
+        token: &[u8],
+    ) -> DispatchResult {
+        let token_owner = Self::ocw_fetch_etherum_token_owner(rpc, namespace, token)?;
+
+        Self::ocw_validate_token_owner(links, &token_owner)
+    }
+
+    pub(super) fn ocw_fetch_etherum_token_owner(
+        rpc: &str,
+        contract: &[u8],
+        token: &[u8],
+    ) -> Result<U256, DispatchError> {
+        let body = Self::construct_request_body(contract, token);
         let res = Ocw::<T>::ocw_post(rpc, body.into())?;
 
-        let res: Vec<u8> = match res.json() {
+        let json = res.json();
+        match json {
             JsonValue::Object(res) => {
                 let v = res
                     .into_iter()
                     .find(|(k, _)| k.iter().copied().eq("result".chars()));
                 match v {
-                    Some((_, JsonValue::String(str))) => str.iter().map(|s| *s as u8).collect(),
-                    _ => return Err(Error::<T>::InvalidExternalToken)?,
+                    Some((_, JsonValue::String(chars))) => {
+                        let str: String = chars.into_iter().collect();
+                        Ok(U256::from_str_radix(str.as_str(), 16)
+                            .map_err(|_e| Error::<T>::OcwParseError)?)
+                    }
+                    _ => return Err(Error::<T>::OcwParseError)?,
                 }
             }
-            _ => return Err(Error::<T>::InvalidExternalToken)?,
-        };
+            _ => return Err(Error::<T>::OcwParseError)?,
+        }
+    }
 
-        let res = eth_abi::decode(&[abi::ParamType::Address], &res);
-        let res = res.first();
-        match res {
-            Some(abi::Token::Address(addr)) if links.contains(&addr.as_bytes().to_vec()) => Ok(()),
-            _ => Err(Error::<T>::InvalidExternalToken)?,
+    pub(super) fn ocw_validate_token_owner(
+        links: &[Vec<u8>],
+        token_owner: &U256,
+    ) -> DispatchResult {
+        let links: Vec<U256> = links.into_iter().map(|l| U256::from(l as &[u8])).collect();
+        if links.contains(token_owner) {
+            Ok(())
+        } else {
+            Err(Error::<T>::NotTokenOwner)?
         }
     }
 }
