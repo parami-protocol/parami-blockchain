@@ -448,7 +448,7 @@ fn should_pay() {
 }
 
 #[test]
-fn should_pay_3_for_taga$5_tagb$2() {
+fn should_pay_3_for_taga5_tagb2() {
     new_test_ext().execute_with(|| {
         // 1. prepare
         let (ad, nft) = prepare_pay();
@@ -509,7 +509,7 @@ fn should_pay_10_when_all_tags_are_full_score() {
     });
 }
 #[test]
-fn should_pay_5() {
+fn should_pay_10_when_all_tags_are_fullscore_or_overflow() {
     new_test_ext().execute_with(|| {
         // 1. prepare
         let (ad, nft) = prepare_pay();
