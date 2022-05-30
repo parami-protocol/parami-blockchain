@@ -192,7 +192,14 @@ fn elevate_token_price_to_target(target_ad3_amount_per_1000_token: u128) -> u128
 
     let mut ad3_amount_per_1000_token = Swap::token_out_dry(nft, 1000 * DOLLARS).unwrap();
     while ad3_amount_per_1000_token < target_ad3_amount_per_1000_token {
-        Swap::buy_tokens(Origin::signed(BOB), nft, 100_000 * DOLLARS, 1000 * DOLLARS, 100).unwrap();
+        Swap::buy_tokens(
+            Origin::signed(BOB),
+            nft,
+            100_000 * DOLLARS,
+            1000 * DOLLARS,
+            100,
+        )
+        .unwrap();
         ad3_amount_per_1000_token = Swap::token_out_dry(nft, 1000 * DOLLARS).unwrap();
     }
 

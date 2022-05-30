@@ -27,14 +27,14 @@ jobs:
 
       - uses: Swatinem/rust-cache@v1
         with:
-          sharedKey: rscache
+          sharedKey: rcache
       - uses: actions/cache@v3
         continue-on-error: false
         with:
           path: ~/.cache/sccache
-          key: sccache-${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('**/Cargo.lock') }}
+          key: scache-${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            sccache-${{ matrix.os }}-${{ matrix.arch }}-
+            scache-${{ matrix.os }}-${{ matrix.arch }}-
 
       - name: Install sccache
         env:
@@ -46,6 +46,7 @@ jobs:
           mv -f $SCCACHE_FILE/sccache $HOME/.local/bin/sccache
           chmod +x $HOME/.local/bin/sccache
           echo "$HOME/.local/bin" >> $GITHUB_PATH
+          sccache --stop-server || true
           sccache --start-server
 
       - name: Install toolchain
@@ -53,7 +54,9 @@ jobs:
           rustup update nightly
           rustup target add wasm32-unknown-unknown --toolchain nightly
 
-          cargo install --force cargo-sweep
+          cargo install --locked --force cargo-binstall
+
+          cargo binstall --no-confirm cargo-sweep
 
       - name: Build Release
         run: cargo build --release --locked

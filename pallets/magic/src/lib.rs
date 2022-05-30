@@ -64,14 +64,11 @@ pub mod pallet {
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-
         #[cfg(feature = "try-runtime")]
         fn pre_upgrade() -> Result<(), &'static str> {
             // assert!(StorageVersion::<T>::get() == Releases::V0, "Storage version too high.");
 
-            info! (
-                "migration: magic storage version v4 PRE migration checks succesful!"
-            );
+            info!("migration: magic storage version v4 PRE migration checks succesful!");
 
             Ok(())
         }

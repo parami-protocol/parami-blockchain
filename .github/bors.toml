@@ -1,0 +1,6 @@
+status = ["Actions", "codecov/patch"]
+required_approvals = 1
+delete_merged_branches = true
+timeout_sec = 7200
+use_squash_merge = true
+up_to_date_approvals = true

@@ -27,14 +27,14 @@ jobs:
 
       - uses: Swatinem/rust-cache@v1
         with:
-          sharedKey: rscache
+          sharedKey: rcache
       - uses: actions/cache@v3
         continue-on-error: false
         with:
           path: ~/.cache/sccache
-          key: sccache-${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('**/Cargo.lock') }}
+          key: scache-${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            sccache-${{ matrix.os }}-${{ matrix.arch }}-
+            scache-${{ matrix.os }}-${{ matrix.arch }}-
 
       - name: Install sccache
         env:
@@ -46,6 +46,7 @@ jobs:
           mv -f $SCCACHE_FILE/sccache $HOME/.local/bin/sccache
           chmod +x $HOME/.local/bin/sccache
           echo "$HOME/.local/bin" >> $GITHUB_PATH
+          sccache --stop-server || true
           sccache --start-server
 
       - name: Install toolchain
@@ -53,10 +54,12 @@ jobs:
           rustup update nightly
           rustup target add wasm32-unknown-unknown --toolchain nightly
 
-          cargo install --force cargo-sweep
+          cargo install --locked --force cargo-binstall
+
+          cargo binstall --no-confirm cargo-sweep
 
       - name: Install tarpaulin
-        run: cargo install --force cargo-tarpaulin
+        run: cargo binstall --no-confirm cargo-tarpaulin
         if: matrix.arch == 'x86_64' && matrix.os == 'linux'
 
       - name: Build Tests
@@ -65,7 +68,12 @@ jobs:
         run: cargo test -- --nocapture --quiet
         if: matrix.arch != 'x86_64' || matrix.os != 'linux'
       - name: Generate coverage
-        run: cargo tarpaulin -v --no-fail-fast --locked --workspace -t 120 -o Xml --exclude-files **/mock.rs **/weights.rs **/weights/*
+        run: |
+          cargo tarpaulin --forward --release --locked -t 120 -o Xml \
+          --ignore-tests --workspace \
+          --exclude parami-primitives parami-traits \
+          parami-dana parami-para parami-dana-runtime parami-para-runtime \
+          --exclude-files **/mock.rs **/weights.rs **/weights/*
         if: matrix.arch == 'x86_64' && matrix.os == 'linux'
 
       - name: Post-build
