@@ -468,7 +468,7 @@ fn should_pay_3_for_taga$5_tagb$2() {
 }
 
 #[test]
-fn should_pay_3() {
+fn should_pay_0_when_all_tags_score_are_zero() {
     new_test_ext().execute_with(|| {
         // 1. prepare
         let (ad, nft) = prepare_pay();
