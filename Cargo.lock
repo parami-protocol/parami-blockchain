@@ -5834,6 +5834,7 @@ dependencies = [
  "parami-tag",
  "parami-traits",
  "parity-scale-codec",
+ "parking_lot 0.11.2",
  "scale-info",
  "serde",
  "sp-core",

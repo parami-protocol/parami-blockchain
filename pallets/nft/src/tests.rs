@@ -1,11 +1,14 @@
-use crate::{mock::*, Deposit, Deposits, Error, Metadata, Porting};
+use crate::{mock::*, Deposit, Deposits, Error, External, Metadata, Ported, Porting, Preferred};
+use codec::Decode;
 use frame_support::{assert_noop, assert_ok};
 use parami_primitives::constants::DOLLARS;
 use parami_traits::{types::Network, Swaps};
-use sp_core::offchain::{testing, OffchainWorkerExt};
-use sp_core::U256;
-use sp_runtime::offchain::testing::OffchainState;
+use parking_lot::RwLock;
+use sp_core::offchain::{testing, OffchainWorkerExt, TransactionPoolExt};
+use sp_runtime::offchain::testing::PoolState;
+use sp_runtime::traits::AccountIdConversion;
 use sp_std::prelude::*;
+use std::sync::Arc;
 
 #[test]
 fn should_import() {
@@ -317,8 +320,12 @@ fn should_claim() {
         assert_eq!(<Deposits<Test>>::get(nft, &DID_ALICE), None);
     });
 }
-fn mock_validate_request(ether_endpoint: &str, body: String) -> testing::PendingRequest {
-    let res = r#"{"jsonrpc":"2.0","id":1,"result":"0x000000000000000000000000dbd04424318d1e06b34259add64bf10a8eb45a87"}"#;
+
+fn mock_validate_request(
+    ether_endpoint: &str,
+    body: String,
+    response: &str,
+) -> testing::PendingRequest {
     testing::PendingRequest {
         method: "POST".into(),
         uri: ether_endpoint.into(),
@@ -328,17 +335,34 @@ fn mock_validate_request(ether_endpoint: &str, body: String) -> testing::Pending
             "GoogleBot (compatible; ParamiWorker/1.0; +http://parami.io/worker/)".into(),
         )],
         body: body.into(),
-        response: Some(res.into()),
+        response: Some(response.into()),
         ..Default::default()
     }
 }
 
-#[test]
-fn should_success_when_validate_etherum_token_owner() {
+fn offchain_execute(
+    mock_requests: Vec<testing::PendingRequest>,
+    test_executable: impl FnOnce(Arc<RwLock<PoolState>>) -> (),
+) {
     let (offchain, state) = testing::TestOffchainExt::new();
+    let (pool, pool_state) = testing::TestTransactionPoolExt::new();
+
     let mut t = new_test_ext();
     t.register_extension(OffchainWorkerExt::new(offchain));
+    t.register_extension(TransactionPoolExt::new(pool));
 
+    {
+        let mut state = state.write();
+        for r in mock_requests.into_iter() {
+            state.expect_request(r);
+        }
+    }
+
+    t.execute_with(|| test_executable(pool_state));
+}
+
+#[test]
+fn should_success_when_validate_etherum_token_owner() {
     let ether_endpoint = "http://etherum.endpoint/example";
     let links: &[Vec<u8>] = &[vec![
         219, 208, 68, 36, 49, 141, 30, 6, 179, 66, 89, 173, 214, 75, 241, 10, 142, 180, 90, 135,
@@ -347,20 +371,173 @@ fn should_success_when_validate_etherum_token_owner() {
     let token = 546u64;
 
     let body = Nft::construct_request_body(contract_address, &token.to_be_bytes());
+    let res = r#"{"jsonrpc":"2.0","id":1,"result":"0x000000000000000000000000dbd04424318d1e06b34259add64bf10a8eb45a87"}"#;
 
-    {
-        let mut state = state.write();
-        state.expect_request(mock_validate_request(ether_endpoint.into(), body));
-    }
+    offchain_execute(
+        vec![mock_validate_request(ether_endpoint.into(), body, res)],
+        |_| {
+            let result = Nft::ocw_validate_etherum_token_owner(
+                links,
+                ether_endpoint,
+                b"contractaddress",
+                &token.to_be_bytes(),
+            );
 
-    t.execute_with(|| {
-        let result = Nft::ocw_validate_etherum_token_owner(
-            links,
-            ether_endpoint,
-            b"contractaddress",
-            &token.to_be_bytes(),
+            assert_ok!(result);
+        },
+    );
+}
+
+#[test]
+fn should_fail_when_task_owner_not_token_owner() {
+    let ether_endpoint = "http://etherum.endpoint/example";
+    let links: &[Vec<u8>] = &[[0; 32].into()];
+    let contract_address = b"contractaddress";
+    let token = 546u64;
+
+    let body = Nft::construct_request_body(contract_address, &token.to_be_bytes());
+    let res = r#"{"jsonrpc":"2.0","id":1,"result":"0x000000000000000000000000dbd04424318d1e06b34259add64bf10a8eb45a87"}"#;
+
+    offchain_execute(
+        vec![mock_validate_request(ether_endpoint.into(), body, res)],
+        |_| {
+            let result = Nft::ocw_validate_etherum_token_owner(
+                links,
+                ether_endpoint,
+                b"contractaddress",
+                &token.to_be_bytes(),
+            );
+
+            assert_noop!(result, Error::<Test>::NotTokenOwner);
+        },
+    );
+}
+
+// TODO: we should test with response with status code 400, however, substrate doesn't support mocking status code for now.
+#[test]
+fn should_fail_when_server_response_not_expected() {
+    let ether_endpoint = "http://etherum.endpoint/example";
+    let links: &[Vec<u8>] = &[[0; 32].into()];
+    let contract_address = b"contractaddress";
+    let token = 546u64;
+
+    let body = Nft::construct_request_body(contract_address, &token.to_be_bytes());
+    let res = r#"{"jsonrpc":"2.0","id":1,"result":"invalid argument: xxxx"}"#;
+
+    offchain_execute(
+        vec![mock_validate_request(ether_endpoint.into(), body, res)],
+        |_| {
+            let result = Nft::ocw_validate_etherum_token_owner(
+                links,
+                ether_endpoint,
+                b"contractaddress",
+                &token.to_be_bytes(),
+            );
+
+            assert_noop!(result, Error::<Test>::OcwParseError);
+        },
+    );
+}
+
+#[test]
+fn should_import_nft_by_ocw() {
+    let ether_endpoint = "https://rinkeby.infura.io/v3/cffb10a5fde442cb80af59a65783c296";
+    let profile: Vec<u8> = vec![
+        219, 208, 68, 36, 49, 141, 30, 6, 179, 66, 89, 173, 214, 75, 241, 10, 142, 180, 90, 135,
+    ];
+    let contract_address = b"contractaddress";
+    let token = 546u64.to_be_bytes();
+
+    let body = Nft::construct_request_body(contract_address, &token);
+    let res = r#"{"jsonrpc":"2.0","id":1,"result":"0x000000000000000000000000dbd04424318d1e06b34259add64bf10a8eb45a87"}"#;
+
+    offchain_execute(
+        vec![mock_validate_request(ether_endpoint.into(), body, res)],
+        |pool_state| {
+            let namespace = contract_address.to_vec();
+            let did = DID_BOB;
+
+            let _result = Linker::insert_link(did, Network::Ethereum, profile, did);
+
+            assert_ok!(Nft::port(
+                Origin::signed(BOB),
+                Network::Ethereum,
+                namespace.clone(),
+                token.into(),
+            ));
+
+            assert_ok!(Nft::ocw_begin_block(System::block_number()));
+
+            let tx = pool_state.write().transactions.pop().unwrap();
+
+            assert!(pool_state.read().transactions.is_empty());
+
+            let tx = Extrinsic::decode(&mut &*tx).unwrap();
+
+            assert_eq!(tx.signature, None);
+            assert_eq!(
+                tx.call,
+                Call::Nft(crate::Call::submit_porting {
+                    did: DID_BOB,
+                    network: Network::Ethereum,
+                    namespace: contract_address.to_vec(),
+                    token: token.to_vec(),
+                    validated: true
+                })
+            );
+        },
+    );
+}
+
+#[test]
+fn should_sumbit_porting() {
+    new_test_ext().execute_with(|| {
+        let namespace = NAMESPACE.to_vec();
+        let token = vec![0x22];
+        let did = DID_BOB;
+
+        let _result = Linker::insert_link(did, Network::Ethereum, "something".into(), did);
+
+        assert_ok!(Nft::port(
+            Origin::signed(BOB),
+            Network::Ethereum,
+            namespace.clone(),
+            token.clone()
+        ));
+        assert_ok!(Nft::submit_porting(
+            frame_system::RawOrigin::None.into(),
+            DID_BOB,
+            Network::Ethereum,
+            namespace.clone(),
+            token.clone(),
+            true,
+        ));
+
+        let token: &Vec<u8> = &token.into();
+        assert!(<Porting<Test>>::get((Network::Ethereum, &namespace, token)).is_none());
+
+        assert_eq!(
+            <Ported<Test>>::get((Network::Ethereum, &namespace, token)).expect("should be ported"),
+            // genesis config creates the first token, so we got 2 here.
+            2,
         );
 
-        assert_ok!(result);
+        let external = <External<Test>>::get(2).expect("external should have data");
+        assert_eq!(external.owner, did);
+        assert_eq!(external.network, Network::Ethereum);
+        assert_eq!(external.namespace, namespace);
+        assert_eq!(external.token, token.clone());
+
+        let subaccount_id = <Test as crate::Config>::PalletId::get().into_sub_account(DID_BOB);
+
+        let metadata = <Metadata<Test>>::get(2).expect("meta should have data");
+        assert_eq!(metadata.owner, did);
+        assert_eq!(metadata.class_id, 2);
+        assert_eq!(metadata.pot, subaccount_id);
+        assert_eq!(metadata.minted, false);
+        assert_eq!(metadata.token_asset_id, 2);
+
+        let preferred = <Preferred<Test>>::get(DID_BOB).expect("prefered should have data");
+        assert_eq!(preferred, 2);
     });
 }

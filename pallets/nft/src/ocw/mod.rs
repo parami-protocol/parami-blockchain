@@ -34,11 +34,6 @@ impl<T: Config + SendTransactionTypes<Call<T>>> Pallet<T> {
                     continue;
                 }
 
-                if task.created < block_number {
-                    // only start once (at created)
-                    continue;
-                }
-
                 let links = T::Links::links(&task.task.owner, task.task.network);
 
                 let result = match task.task.network {
