@@ -206,6 +206,7 @@ pub mod pallet {
         ScoreOutOfRange,
         TagNotExists,
         Underbid,
+        FungiblesNotEqualToFractions
     }
 
     #[pallet::call]
@@ -386,6 +387,10 @@ pub mod pallet {
                     ensure!(
                         fungibles <= T::Assets::balance(fungible_id, &who),
                         Error::<T>::InsufficientFungibles
+                    );
+                    ensure!(
+                        fungibles == value,
+                        Error::<T>::FungiblesNotEqualToFractions
                     );
 
                     fungibles
