@@ -487,7 +487,7 @@ fn should_pay_0_when_all_tags_score_are_zero() {
     });
 }
 #[test]
-fn should_pay_4() {
+fn should_pay_10_when_all_tags_are_full_score() {
     new_test_ext().execute_with(|| {
         // 1. prepare
         let (ad, nft) = prepare_pay();
