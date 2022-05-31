@@ -369,7 +369,7 @@ pub mod pallet {
             origin: OriginFor<T>,
             ad_id: HashOf<T>,
             nft_id: NftOf<T>,
-            #[pallet::compact] value: BalanceOf<T>,// AD3
+            #[pallet::compact] value: BalanceOf<T>, // AD3
             fungible_id: Option<AssetsOf<T>>,
             fungibles: Option<BalanceOf<T>>,
         ) -> DispatchResult {
@@ -555,7 +555,7 @@ pub mod pallet {
                     Error::<T>::InsufficientFungibles
                 );
                 fungibles
-            } else{
+            } else {
                 Zero::zero()
             };
             // 3. influence visitor
