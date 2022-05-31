@@ -206,7 +206,7 @@ pub mod pallet {
         ScoreOutOfRange,
         TagNotExists,
         Underbid,
-        FungiblesNotEqualToFractions, //TODO(octopus): if value == fungibles, shall we delete this?
+        FungiblesNotEqualToFractions,
     }
 
     #[pallet::call]
@@ -371,7 +371,7 @@ pub mod pallet {
             nft_id: NftOf<T>,
             #[pallet::compact] value: BalanceOf<T>,// AD3
             fungible_id: Option<AssetsOf<T>>,
-            fungibles: Option<BalanceOf<T>>, //TODO: if value == fungibles, shall we delete this?  asset
+            fungibles: Option<BalanceOf<T>>,
         ) -> DispatchResult {
             let (did, who) = T::CallOrigin::ensure_origin(origin)?;
 
@@ -383,13 +383,10 @@ pub mod pallet {
             let fungibles = match fungibles {
                 Some(fungibles) if fungibles > Zero::zero() && fungible_id.is_some() => {
                     let fungible_id = fungible_id.unwrap();
-
                     ensure!(
                         fungibles <= T::Assets::balance(fungible_id, &who),
                         Error::<T>::InsufficientFungibles
                     );
-                    //ensure!(fungibles == value, Error::<T>::FungiblesNotEqualToFractions); //TODO: if value == fungibles, shall we delete this?
-
                     fungibles
                 }
                 _ => Zero::zero(),
@@ -552,12 +549,11 @@ pub mod pallet {
                 Error::<T>::InsufficientFractions
             );
             let fungibles = if slot.fungibles_budget > Zero::zero() {
-                // let fungibles = amount.saturating_mul(slot.fungibles_budget) / slot.budget;
                 let fungibles = amount.clone();
                 ensure!(
                     slot.fungibles_remain >= fungibles,
                     Error::<T>::InsufficientFungibles
-                ); //TODO: Over protection -- unreachable code
+                );
                 fungibles
             } else{
                 Zero::zero()
@@ -581,14 +577,14 @@ pub mod pallet {
 
                 let referrer = Did::<T>::lookup_did(referrer).ok_or(Error::<T>::DidNotExists)?;
 
-                T::Assets::transfer(slot.nft_id, &meta.pot, &referrer, award.clone(), false)?;
+                T::Assets::transfer(slot.nft_id, &meta.pot, &referrer, award, false)?;
 
                 award
             } else {
                 Zero::zero()
             };
 
-            let reward = amount.saturating_sub(award.clone());
+            let reward = amount.saturating_sub(award);
 
             T::Assets::transfer(slot.nft_id, &meta.pot, &account, reward, false)?;
 
