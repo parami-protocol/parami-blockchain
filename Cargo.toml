@@ -9,7 +9,7 @@ members = [
 ]
 
 [profile.dev]
-debug = true
+debug = 0
 
 [profile.release]
 panic = 'unwind'
@@ -17,7 +17,7 @@ incremental = true
 debug = 0
 
 [profile.test]
-debug = true
+debug = 0
 
 [profile.bench]
 panic = 'unwind'
