@@ -9,7 +9,6 @@ members = [
 ]
 
 [profile.dev]
-debug = 0
 
 [profile.release]
 panic = 'unwind'
