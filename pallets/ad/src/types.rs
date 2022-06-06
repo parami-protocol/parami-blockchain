@@ -18,6 +18,9 @@ pub struct Metadata<A, B, D, H, N> {
     pub metadata: Vec<u8>,
     pub reward_rate: u16,
     pub created: N,
+    pub payout_base: B,
+    pub payout_min: B,
+    pub payout_max: B,
 }
 
 #[derive(Clone, Decode, Default, Encode, Eq, PartialEq, RuntimeDebug, TypeInfo)]

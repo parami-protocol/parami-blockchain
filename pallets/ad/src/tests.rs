@@ -30,7 +30,10 @@ fn should_create() {
             tags,
             metadata.clone(),
             1,
-            1
+            1,
+            1u128,
+            0,
+            10u128
         ));
 
         assert_eq!(<AdsOf<Test>>::get(&DID_ALICE).unwrap().len(), 1);
@@ -59,7 +62,17 @@ fn should_create() {
 fn should_fail_when_insufficient() {
     new_test_ext().execute_with(|| {
         assert_noop!(
-            Ad::create(Origin::signed(ALICE), 200, vec![], [0u8; 64].into(), 1, 1),
+            Ad::create(
+                Origin::signed(ALICE),
+                200,
+                vec![],
+                [0u8; 64].into(),
+                1,
+                1,
+                1u128,
+                0,
+                10u128
+            ),
             pallet_balances::Error::<Test>::InsufficientBalance
         );
     });
@@ -75,7 +88,17 @@ fn should_fail_when_tag_not_exists() {
         ];
 
         assert_noop!(
-            Ad::create(Origin::signed(ALICE), 200, tags, [0u8; 64].into(), 1, 1),
+            Ad::create(
+                Origin::signed(ALICE),
+                200,
+                tags,
+                [0u8; 64].into(),
+                1,
+                1,
+                1u128,
+                0,
+                10u128
+            ),
             Error::<Test>::TagNotExists
         );
     });
@@ -90,7 +113,10 @@ fn should_update_reward_rate() {
             vec![],
             [0u8; 64].into(),
             1,
-            1
+            1,
+            1u128,
+            0,
+            10u128
         ));
 
         let ad = <Metadata<Test>>::iter_keys().next().unwrap();
@@ -115,7 +141,10 @@ fn should_fail_when_not_exists_or_not_owned() {
             vec![],
             [0u8; 64].into(),
             1,
-            1
+            1,
+            1u128,
+            0,
+            10u128
         ));
 
         let ad = <Metadata<Test>>::iter_keys().next().unwrap();
@@ -147,7 +176,10 @@ fn should_update_tags() {
             vec![vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8],],
             [0u8; 64].into(),
             1,
-            1
+            1,
+            1u128,
+            0,
+            10u128
         ));
 
         let ad = <Metadata<Test>>::iter_keys().next().unwrap();
@@ -167,7 +199,10 @@ fn should_add_budget() {
             vec![],
             [0u8; 64].into(),
             1,
-            1
+            1,
+            1u128,
+            0,
+            10u128
         ));
 
         let ad = <Metadata<Test>>::iter_keys().next().unwrap();
@@ -207,7 +242,10 @@ fn should_bid() {
             vec![],
             [0u8; 64].into(),
             1,
-            43200
+            43200,
+            1u128,
+            0,
+            10u128
         ));
 
         let ad1 = <Metadata<Test>>::iter_keys().next().unwrap();
@@ -225,7 +263,10 @@ fn should_bid() {
             vec![],
             [0u8; 64].into(),
             1,
-            1
+            1,
+            1u128,
+            0,
+            10u128
         ));
 
         let ad2 = <Metadata<Test>>::iter_keys().next().unwrap();
@@ -330,7 +371,10 @@ fn should_drawback() {
             vec![],
             [0u8; 64].into(),
             1,
-            43200 * 2
+            43200 * 2,
+            1u128,
+            0,
+            10u128
         ));
 
         let ad = <Metadata<Test>>::iter_keys().next().unwrap();
@@ -400,7 +444,10 @@ fn prepare_pay() -> (HashOf<Test>, NftOf<Test>) {
         ],
         [0u8; 64].into(),
         1,
-        1
+        1,
+        1u128,
+        0,
+        10u128
     ));
 
     let ad = <Metadata<Test>>::iter_keys().next().unwrap();
@@ -555,7 +602,10 @@ fn should_pay_dual() {
             vec![vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8]],
             [0u8; 64].into(),
             1,
-            1
+            1,
+            1u128,
+            0,
+            10u128
         ));
 
         assert_ok!(Assets::create(
@@ -630,7 +680,10 @@ fn should_pay_failed() {
             vec![vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8]],
             [0u8; 64].into(),
             1,
-            1
+            1,
+            1u128,
+            0,
+            10u128
         ));
 
         assert_ok!(Assets::create(
@@ -700,7 +753,10 @@ fn should_auto_swap_when_swapped_token_used_up() {
             vec![vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8]],
             [0u8; 64].into(),
             1,
-            1
+            1,
+            1u128,
+            0,
+            10u128
         ));
 
         let ad = <Metadata<Test>>::iter_keys().next().unwrap();
