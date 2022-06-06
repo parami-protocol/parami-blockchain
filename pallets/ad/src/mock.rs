@@ -221,7 +221,6 @@ impl parami_tag::Config for Test {
 parameter_types! {
     pub const AdPalletId: PalletId = PalletId(*b"prm/ad  ");
     pub const AdvertiserMinimumFee: Balance = 1;
-    //pub const PayoutBase: Balance = 1;
     pub const SlotLifetime: BlockNumber = 43200;
 }
 
@@ -229,7 +228,6 @@ impl parami_ad::Config for Test {
     type Event = Event;
     type MinimumFeeBalance = AdvertiserMinimumFee;
     type PalletId = AdPalletId;
-    //type PayoutBase = PayoutBase;
     type SlotLifetime = SlotLifetime;
     type Tags = Tag;
     type CallOrigin = parami_did::EnsureDid<Self>;

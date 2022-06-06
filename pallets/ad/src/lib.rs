@@ -76,10 +76,6 @@ pub mod pallet {
         #[pallet::constant]
         type PalletId: Get<PalletId>;
 
-        /// The base of payout
-        // #[pallet::constant]
-        // type PayoutBase: Get<BalanceOf<Self>>;
-
         /// The maximum lifetime of a slot
         #[pallet::constant]
         type SlotLifetime: Get<HeightOf<Self>>;
