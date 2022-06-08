@@ -77,7 +77,38 @@ fn should_fail_when_insufficient() {
         );
     });
 }
+#[test]
+fn should_fail_when_min_greater_than_max() {
+    new_test_ext().execute_with(|| {
+        let tags = vec![
+            vec![5u8, 4u8, 3u8, 2u8, 1u8, 0u8],
+            vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8],
+        ];
 
+        let mut hashes = BTreeMap::new();
+        for tag in &tags {
+            let hash = Tag::key(tag);
+            hashes.insert(hash, true);
+        }
+
+        let metadata = vec![0u8; 64];
+
+        assert_noop!(
+            Ad::create(
+                Origin::signed(ALICE),
+                50,
+                tags,
+                metadata.clone(),
+                1,
+                1,
+                1u128,
+                11u128,
+                10u128
+            ),
+            Error::<Test>::WrongPayoutSetting
+        );
+    });
+}
 #[test]
 fn should_fail_when_tag_not_exists() {
     new_test_ext().execute_with(|| {
