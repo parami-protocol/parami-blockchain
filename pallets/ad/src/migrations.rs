@@ -92,9 +92,6 @@ mod v2 {
         pub metadata: Vec<u8>,
         pub reward_rate: u16,
         pub created: N,
-        pub payout_base: B,
-        pub payout_min: B,
-        pub payout_max: B,
     }
     type AccountOf<T> = <T as frame_system::Config>::AccountId;
     type DidOf<T> = <T as parami_did::Config>::DecentralizedId;

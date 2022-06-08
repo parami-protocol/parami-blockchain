@@ -187,30 +187,26 @@ pub mod pallet {
         }
         #[cfg(feature = "try-runtime")]
         fn post_upgrade() -> Result<(), &'static str> {
-            assert_eq!(
-                StorageVersion::get::<Pallet<T>>(),
-                2,
-                "Storage version error."
-            );
-
-            for (_, ad_meta) in <Metadata<T>>::iter() {
-                assert_eq!(
-                    ad_meta.payout_base,
-                    (1 * DOLLARS).saturated_into(),
-                    "migration error"
-                );
-                assert_eq!(
-                    ad_meta.payout_min,
-                    0u128.saturated_into(),
-                    "migration error"
-                );
-                assert_eq!(
-                    ad_meta.payout_max,
-                    (10 * DOLLARS).saturated_into(),
-                    "migration error"
-                );
+            let version = StorageVersion::get::<Pallet<T>>();
+            if version == 2 {
+                for (_, ad_meta) in <Metadata<T>>::iter() {
+                    assert_eq!(
+                        ad_meta.payout_base,
+                        (1 * DOLLARS).saturated_into(),
+                        "migration error"
+                    );
+                    assert_eq!(
+                        ad_meta.payout_min,
+                        0u128.saturated_into(),
+                        "migration error"
+                    );
+                    assert_eq!(
+                        ad_meta.payout_max,
+                        (10 * DOLLARS).saturated_into(),
+                        "migration error"
+                    );
+                }
             }
-
             Ok(())
         }
 
