@@ -1,7 +1,7 @@
 use crate::{Config, Pallet};
 use frame_support::{traits::Get, weights::Weight};
+use parami_primitives::constants::DOLLARS;
 use sp_runtime::traits::Saturating;
-
 pub fn migrate<T: Config>() -> Weight {
     use frame_support::traits::StorageVersion;
 
@@ -77,6 +77,7 @@ mod v2 {
     use serde::{Deserialize, Serialize};
     use sp_runtime::traits::Zero;
     use sp_runtime::SaturatedConversion;
+    use sp_std::vec::Vec;
 
     #[derive(Clone, Decode, Default, Encode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
     #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
@@ -113,9 +114,9 @@ mod v2 {
                     metadata: meta.metadata,
                     reward_rate: meta.reward_rate,
                     created: meta.created,
-                    payout_base: 1_000_000_000_000_000_000u128.saturated_into(),
+                    payout_base: (1u128 * DOLLARS).saturated_into(),
                     payout_min: Zero::zero(),
-                    payout_max: 10_000_000_000_000_000_000u128.saturated_into(),
+                    payout_max: (10u128 * DOLLARS).saturated_into(),
                 })
             },
         );

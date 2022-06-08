@@ -5540,6 +5540,7 @@ dependencies = [
  "parami-did",
  "parami-nft",
  "parami-ocw",
+ "parami-primitives",
  "parami-swap",
  "parami-tag",
  "parami-traits",

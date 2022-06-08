@@ -40,7 +40,7 @@ sp-std = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v
 frame-benchmarking = { git = 'https://github.com/paritytech/substrate', default-features = false, optional = true, branch = 'polkadot-v0.9.13' }
 frame-support = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }
 frame-system = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }
-
+parami-primitives = { path = '../../primitives', default-features = false }
 [dev-dependencies]
 parami-ocw = { path = '../ocw' }
 
@@ -67,16 +67,12 @@ std = [
     'parami-swap/std',
     'parami-tag/std',
     'parami-traits/std',
-
     'serde',
-
     'codec/std',
     'scale-info/std',
-
     'sp-core/std',
     'sp-runtime/std',
     'sp-std/std',
-
     'frame-benchmarking/std',
     'frame-support/std',
     'frame-system/std',

@@ -17,6 +17,7 @@ mod benchmarking;
 mod migrations;
 mod types;
 
+use frame_support::traits::Hooks;
 use frame_support::{
     dispatch::DispatchResult,
     ensure,
@@ -29,6 +30,7 @@ use frame_support::{
     weights::Weight,
     Blake2_256, PalletId, StorageHasher,
 };
+use frame_system::pallet_prelude::BlockNumberFor;
 use parami_did::Pallet as Did;
 use parami_nft::Pallet as Nft;
 use parami_traits::{Swaps, Tags};
@@ -58,6 +60,8 @@ pub mod pallet {
     use super::*;
     use frame_support::pallet_prelude::*;
     use frame_system::pallet_prelude::*;
+    use parami_primitives::constants::DOLLARS;
+    use sp_runtime::SaturatedConversion;
 
     #[pallet::config]
     pub trait Config:
@@ -180,6 +184,34 @@ pub mod pallet {
                 sp_runtime::print(e);
                 0
             })
+        }
+        #[cfg(feature = "try-runtime")]
+        fn post_upgrade() -> Result<(), &'static str> {
+            assert_eq!(
+                StorageVersion::get::<Pallet<T>>(),
+                2,
+                "Storage version error."
+            );
+
+            for (_, ad_meta) in <Metadata<T>>::iter() {
+                assert_eq!(
+                    ad_meta.payout_base,
+                    (1 * DOLLARS).saturated_into(),
+                    "migration error"
+                );
+                assert_eq!(
+                    ad_meta.payout_min,
+                    0u128.saturated_into(),
+                    "migration error"
+                );
+                assert_eq!(
+                    ad_meta.payout_max,
+                    (10 * DOLLARS).saturated_into(),
+                    "migration error"
+                );
+            }
+
+            Ok(())
         }
 
         fn on_runtime_upgrade() -> Weight {
