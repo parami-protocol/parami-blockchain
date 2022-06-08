@@ -449,9 +449,19 @@ fn should_drawback() {
         );
     });
 }
+macro_rules! prepare_pay {
+    ($a:expr,$b:expr,$c: expr) => {
+        _prepare_pay($a, $b, $c)
+    };
+
+    () => {
+        _prepare_pay(1u128, 0u128, 10u128)
+    };
+}
+
 type HashOf<T> = <<T as frame_system::Config>::Hashing as Hash>::Output;
 type NftOf<T> = <T as parami_nft::Config>::AssetId;
-fn prepare_pay() -> (HashOf<Test>, NftOf<Test>) {
+fn _prepare_pay(base: u128, min: u128, max: u128) -> (HashOf<Test>, NftOf<Test>) {
     // 1. prepare
 
     let nft = Nft::preferred(DID_ALICE).unwrap();
@@ -476,9 +486,9 @@ fn prepare_pay() -> (HashOf<Test>, NftOf<Test>) {
         [0u8; 64].into(),
         1,
         1,
-        1u128,
-        0,
-        10u128
+        base,
+        min,
+        max
     ));
 
     let ad = <Metadata<Test>>::iter_keys().next().unwrap();
@@ -494,7 +504,7 @@ fn prepare_pay() -> (HashOf<Test>, NftOf<Test>) {
 fn should_pay() {
     new_test_ext().execute_with(|| {
         // 1. prepare
-        let (ad, nft) = prepare_pay();
+        let (ad, nft) = prepare_pay!();
 
         // 2. pay
 
@@ -530,7 +540,7 @@ fn should_pay() {
 fn should_pay_3_for_taga5_tagb2() {
     new_test_ext().execute_with(|| {
         // 1. prepare
-        let (ad, nft) = prepare_pay();
+        let (ad, nft) = prepare_pay!();
         let nft_meta = Nft::meta(nft).unwrap();
         // 2 pay
         assert_ok!(Ad::pay(
@@ -550,7 +560,7 @@ fn should_pay_3_for_taga5_tagb2() {
 fn should_pay_0_when_all_tags_score_are_zero() {
     new_test_ext().execute_with(|| {
         // 1. prepare
-        let (ad, nft) = prepare_pay();
+        let (ad, nft) = prepare_pay!();
         let nft_meta = Nft::meta(nft).unwrap();
         // 2 pay
         assert_ok!(Ad::pay(
@@ -565,11 +575,31 @@ fn should_pay_0_when_all_tags_score_are_zero() {
         assert_eq!(Assets::balance(nft_meta.token_asset_id, &TAGA0_TAGB0), 0);
     });
 }
+
+#[test]
+fn should_pay_5_when_all_tags_score_are_zero_with_payout_min_is_5() {
+    new_test_ext().execute_with(|| {
+        // 1. prepare
+        let (ad, nft) = prepare_pay!(1u128, 5u128, 10u128);
+        let nft_meta = Nft::meta(nft).unwrap();
+        // 2 pay
+        assert_ok!(Ad::pay(
+            Origin::signed(BOB),
+            ad,
+            nft,
+            DID_TAGA0_TAGB0,
+            vec![(vec![0u8, 1u8, 2u8, 3u8, 4u8, 5u8], 5)],
+            None
+        ));
+
+        assert_eq!(Assets::balance(nft_meta.token_asset_id, &TAGA0_TAGB0), 5);
+    });
+}
 #[test]
 fn should_pay_10_when_all_tags_are_full_score() {
     new_test_ext().execute_with(|| {
         // 1. prepare
-        let (ad, nft) = prepare_pay();
+        let (ad, nft) = prepare_pay!();
         let nft_meta = Nft::meta(nft).unwrap();
         // 2 pay
         assert_ok!(Ad::pay(
@@ -588,10 +618,10 @@ fn should_pay_10_when_all_tags_are_full_score() {
     });
 }
 #[test]
-fn should_pay_10_when_all_tags_are_fullscore_or_overflow() {
+fn should_pay_10_when_all_tags_are_full_score_or_overflow() {
     new_test_ext().execute_with(|| {
         // 1. prepare
-        let (ad, nft) = prepare_pay();
+        let (ad, nft) = prepare_pay!();
         let nft_meta = Nft::meta(nft).unwrap();
         // 2 pay
         assert_ok!(Ad::pay(
