@@ -31,6 +31,7 @@ use frame_support::{
     Blake2_256, PalletId, StorageHasher,
 };
 use frame_system::pallet_prelude::BlockNumberFor;
+use log::info;
 use parami_did::Pallet as Did;
 use parami_nft::Pallet as Nft;
 use parami_traits::{Swaps, Tags};
@@ -39,7 +40,6 @@ use sp_runtime::{
     DispatchError,
 };
 use sp_std::prelude::*;
-
 use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
@@ -206,6 +206,7 @@ pub mod pallet {
                         "migration error"
                     );
                 }
+                info!("migration: parami-ad storage version v2 post migration checks successful!");
             }
             Ok(())
         }

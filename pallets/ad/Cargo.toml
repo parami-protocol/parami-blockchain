@@ -41,6 +41,8 @@ frame-benchmarking = { git = 'https://github.com/paritytech/substrate', default-
 frame-support = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }
 frame-system = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }
 parami-primitives = { path = '../../primitives', default-features = false }
+log = { version = "0.4.14", default-features = false }
+
 [dev-dependencies]
 parami-ocw = { path = '../ocw' }
 
