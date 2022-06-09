@@ -25,17 +25,6 @@ jobs:
           toolchain: stable
           default: true
 
-      - uses: Swatinem/rust-cache@v1
-        with:
-          sharedKey: rcache
-      - uses: actions/cache@v3
-        continue-on-error: false
-        with:
-          path: ~/.cache/sccache
-          key: scache-${{ matrix.os }}-${{ matrix.arch }}-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            scache-${{ matrix.os }}-${{ matrix.arch }}-
-
       - name: Install sccache
         env:
           SCCACHE_VERSION: v0.3.0
