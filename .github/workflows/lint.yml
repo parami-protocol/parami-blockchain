@@ -3,7 +3,7 @@ name: Lint
 on: workflow_call
 
 jobs:
-  release:
+  lint:
     runs-on: ubuntu-latest
 
     steps:

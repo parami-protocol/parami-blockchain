@@ -9,9 +9,10 @@ jobs:
     steps:
       - uses: dawidd6/action-download-artifact@v2
         with:
-          workflow: actions.yml
+          workflow: build.yml
           workflow_conclusion: success
           commit: ${{ github.event.head_commit.id }}
+
 
       - uses: softprops/action-gh-release@v1
         with:
