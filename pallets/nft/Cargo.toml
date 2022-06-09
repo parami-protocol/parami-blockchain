@@ -25,6 +25,7 @@ version = '1.0'
 
 [dependencies]
 parami-did = { path = '../did', default-features = false }
+parami-linker = { path = '../linker', default-features = false, optional = true }
 parami-ocw = { path = '../ocw', default-features = false }
 parami-swap = { path = '../swap', default-features = false, optional = true }
 parami-traits = { path = '../traits', default-features = false }
@@ -54,18 +55,17 @@ pallet-assets = { git = 'https://github.com/paritytech/substrate', branch = 'pol
 pallet-balances = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13' }
 pallet-uniques = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13' }
 parami-primitives = { path = '../../primitives' }
-parami-linker = { path = '../linker'}
-parami-tag = { path = '../tag'}
-parking_lot = { version = "0.11.1"}
-
+parami-tag = { path = '../tag' }
+parking_lot = { version = "0.11.1" }
 
 [features]
 default = ['std']
 
-runtime-benchmarks = ['frame-benchmarking', 'parami-swap']
+runtime-benchmarks = ['frame-benchmarking', 'parami-linker', 'parami-swap']
 
 std = [
     'parami-did/std',
+    'parami-linker/std',
     'parami-ocw/std',
     'parami-swap/std',
     'parami-traits/std',

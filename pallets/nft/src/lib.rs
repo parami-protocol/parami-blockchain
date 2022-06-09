@@ -273,8 +273,7 @@ pub mod pallet {
     #[pallet::call]
     impl<T: Config> Pallet<T> {
         /// Import an existing NFT for crowdfunding.
-        // #[pallet::weight(<T as Config>::WeightInfo::back())]
-        #[pallet::weight(1_000_000)]
+        #[pallet::weight(<T as Config>::WeightInfo::port())]
         pub fn port(
             origin: OriginFor<T>,
             network: Network,
@@ -321,8 +320,7 @@ pub mod pallet {
         }
 
         /// Create a new NFT for crowdfunding.
-        // #[pallet::weight(<T as Config>::WeightInfo::back())]
-        #[pallet::weight(1_000_000)]
+        #[pallet::weight(<T as Config>::WeightInfo::kick())]
         pub fn kick(origin: OriginFor<T>) -> DispatchResult {
             let (owner, _) = EnsureDid::<T>::ensure_origin(origin)?;
 
@@ -488,8 +486,7 @@ pub mod pallet {
             Ok(())
         }
 
-        // #[pallet::weight(<T as Config>::WeightInfo::submit_porting(profile.len() as u32))]
-        #[pallet::weight(1_000_000)]
+        #[pallet::weight(<T as Config>::WeightInfo::submit_porting())]
         pub fn submit_porting(
             origin: OriginFor<T>,
             _did: DidOf<T>,

@@ -20,10 +20,6 @@ benchmarks! {
 
         let caller: T::AccountId = whitelisted_caller();
 
-        let min = T::Currency::minimum_balance();
-        let pot = min.saturating_mul(1_000_000_000u32.into());
-
-        T::Currency::make_free_balance_be(&caller, pot);
         Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), None)?;
         let did = Did::<T>::did_of(&caller).unwrap();
 
@@ -36,10 +32,6 @@ benchmarks! {
     link_crypto {
         let caller: T::AccountId = whitelisted_caller();
 
-        let min = T::Currency::minimum_balance();
-        let pot = min.saturating_mul(1_000_000_000u32.into());
-
-        T::Currency::make_free_balance_be(&caller, pot);
         Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), None)?;
         let did = Did::<T>::did_of(&caller).unwrap();
 
@@ -55,7 +47,7 @@ benchmarks! {
 
         let max = BalanceOf::<T>::max_value();
         let min = T::Currency::minimum_balance();
-        let pot = min.saturating_mul(1_000_000u32.into());
+        let pot = min.saturating_mul(100_000u32.into()).saturating_mul(1_000_000u32.into());
 
         T::Currency::make_free_balance_be(&caller, max);
         Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), None)?;
@@ -71,7 +63,7 @@ benchmarks! {
 
         let max = BalanceOf::<T>::max_value();
         let min = T::Currency::minimum_balance();
-        let pot = min.saturating_mul(1_000_000u32.into());
+        let pot = min.saturating_mul(100_000u32.into()).saturating_mul(1_000_000u32.into());
 
         T::Currency::make_free_balance_be(&caller, max);
         Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), None)?;
@@ -87,7 +79,7 @@ benchmarks! {
 
         let max = BalanceOf::<T>::max_value();
         let min = T::Currency::minimum_balance();
-        let pot = min.saturating_mul(1_000_000u32.into());
+        let pot = min.saturating_mul(100_000u32.into()).saturating_mul(1_000_000u32.into());
 
         T::Currency::make_free_balance_be(&caller, max);
         Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), None)?;
@@ -103,7 +95,7 @@ benchmarks! {
         let caller: T::AccountId = whitelisted_caller();
 
         let min = T::Currency::minimum_balance();
-        let pot = min.saturating_mul(1_000_000_000u32.into());
+        let pot = min.saturating_mul(100_000u32.into()).saturating_mul(1_000_000u32.into());
 
         T::Currency::make_free_balance_be(&caller, pot);
         Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), None)?;
@@ -122,12 +114,11 @@ benchmarks! {
         let n in 0 .. 1000;
 
         let caller: T::AccountId = whitelisted_caller();
-
         let applicant: T::AccountId = account("applicant", 1, 1);
 
         let max = BalanceOf::<T>::max_value();
         let min = T::Currency::minimum_balance();
-        let pot = min.saturating_mul(1_000_000u32.into());
+        let pot = min.saturating_mul(100_000u32.into()).saturating_mul(1_000_000u32.into());
 
         T::Currency::make_free_balance_be(&caller, max);
         Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), None)?;
@@ -151,12 +142,11 @@ benchmarks! {
         let n in 0 .. 1000;
 
         let caller: T::AccountId = whitelisted_caller();
-
         let applicant: T::AccountId = account("applicant", 1, 1);
 
         let max = BalanceOf::<T>::max_value();
         let min = T::Currency::minimum_balance();
-        let pot = min.saturating_mul(1_000_000u32.into());
+        let pot = min.saturating_mul(100_000u32.into()).saturating_mul(1_000_000u32.into());
 
         T::Currency::make_free_balance_be(&caller, max);
         Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), None)?;
@@ -171,7 +161,7 @@ benchmarks! {
         let tag = vec![0u8; n as usize];
     }: _(RawOrigin::Signed(caller), did.clone(), tag.clone(), 100)
     verify {
-        assert_eq!(T::Tags::get_score(&did, &tag), 100);
+        assert!(T::Tags::get_score(&did, &tag) > 0);
     }
 }
 

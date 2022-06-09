@@ -1,7 +1,6 @@
 use crate as parami_nft;
 use frame_support::{parameter_types, traits::GenesisBuild, PalletId};
 use frame_system::{self as system, EnsureRoot};
-use parami_linker;
 use sp_core::{sr25519, H160, H256};
 use sp_runtime::{
     testing::{Header, TestXt},

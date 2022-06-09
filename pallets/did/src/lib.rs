@@ -127,9 +127,8 @@ pub mod pallet {
 
     #[pallet::error]
     pub enum Error<T> {
-        Exists,
-        Minted,
-        NotExists,
+        DidExists,
+        DidNotExists,
         ReferrerNotExists,
     }
 
@@ -153,7 +152,7 @@ pub mod pallet {
         pub fn transfer(origin: OriginFor<T>, account: AccountOf<T>) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
-            let did = <DidOf<T>>::get(&who).ok_or(Error::<T>::NotExists)?;
+            let did = <DidOf<T>>::get(&who).ok_or(Error::<T>::DidNotExists)?;
 
             Self::assign(&did, &account)?;
 
@@ -165,9 +164,9 @@ pub mod pallet {
         pub fn revoke(origin: OriginFor<T>) -> DispatchResult {
             let who = ensure_signed(origin)?;
 
-            let did = <DidOf<T>>::get(&who).ok_or(Error::<T>::NotExists)?;
+            let did = <DidOf<T>>::get(&who).ok_or(Error::<T>::DidNotExists)?;
 
-            let meta = <Metadata<T>>::get(&did).ok_or(Error::<T>::NotExists)?;
+            let meta = <Metadata<T>>::get(&did).ok_or(Error::<T>::DidNotExists)?;
 
             <Metadata<T>>::insert(
                 &did,
@@ -240,7 +239,7 @@ impl<T: Config> Pallet<T> {
     ) -> Result<T::DecentralizedId, DispatchError> {
         use codec::Encode;
 
-        ensure!(!<DidOf<T>>::contains_key(&account), Error::<T>::Exists);
+        ensure!(!<DidOf<T>>::contains_key(&account), Error::<T>::DidExists);
 
         if let Some(r) = referrer.as_ref() {
             ensure!(
@@ -283,9 +282,9 @@ impl<T: Config> Pallet<T> {
     }
 
     pub fn assign(did: &T::DecentralizedId, dest: &AccountOf<T>) -> DispatchResult {
-        ensure!(!<DidOf<T>>::contains_key(dest), Error::<T>::Exists);
+        ensure!(!<DidOf<T>>::contains_key(dest), Error::<T>::DidExists);
 
-        let mut meta = <Metadata<T>>::get(did).ok_or(Error::<T>::NotExists)?;
+        let mut meta = <Metadata<T>>::get(did).ok_or(Error::<T>::DidNotExists)?;
 
         let source = meta.account.clone();
 

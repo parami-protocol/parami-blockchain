@@ -17,7 +17,7 @@ fn should_register() {
 
         let r = Did::register(Origin::signed(BOB), None);
 
-        assert_noop!(r, Error::<Test>::Exists);
+        assert_noop!(r, Error::<Test>::DidExists);
 
         let maybe_did = <DidOf<Test>>::get(&BOB);
         assert_ne!(maybe_did, None);
@@ -32,7 +32,7 @@ fn should_register() {
 fn should_fail_when_exist() {
     new_test_ext().execute_with(|| {
         let r = Did::register(Origin::signed(ALICE), None);
-        assert_noop!(r, Error::<Test>::Exists);
+        assert_noop!(r, Error::<Test>::DidExists);
     });
 }
 
@@ -73,7 +73,10 @@ fn should_revoke() {
 #[test]
 fn should_fail_when_not_exist() {
     new_test_ext().execute_with(|| {
-        assert_noop!(Did::revoke(Origin::signed(BOB)), Error::<Test>::NotExists);
+        assert_noop!(
+            Did::revoke(Origin::signed(BOB)),
+            Error::<Test>::DidNotExists
+        );
     });
 }
 
@@ -125,7 +128,7 @@ fn should_fail_when_already_have_did() {
     new_test_ext().execute_with(|| {
         assert_noop!(
             Did::transfer(Origin::signed(ALICE), ALICE),
-            Error::<Test>::Exists
+            Error::<Test>::DidExists
         );
     });
 }
@@ -137,7 +140,7 @@ fn should_fail_when_revoked() {
 
         assert_noop!(
             Did::transfer(Origin::signed(ALICE), BOB),
-            Error::<Test>::NotExists
+            Error::<Test>::DidNotExists
         );
     });
 }

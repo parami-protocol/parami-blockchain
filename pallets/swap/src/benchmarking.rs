@@ -3,7 +3,7 @@ use super::*;
 #[allow(unused)]
 use crate::Pallet as Swap;
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite, whitelisted_caller};
-use frame_support::traits::fungibles::{Create, Inspect, Mutate};
+use frame_support::traits::tokens::fungibles::{Create, Inspect, Mutate};
 use frame_system::RawOrigin;
 use sp_runtime::traits::{Saturating, Zero};
 

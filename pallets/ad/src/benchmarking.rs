@@ -20,31 +20,20 @@ benchmarks! {
     }
 
     create {
-        let m in 0 .. 1000;
-        let n in 1 .. 1000;
+        // TODO: add back variables
 
         let caller: T::AccountId = whitelisted_caller();
 
-        let max = BalanceOf::<T>::max_value();
         let min = <T as parami_did::Config>::Currency::minimum_balance();
+        let pot = min.saturating_mul(1_000_000_000u32.into());
 
-        let pot = <T as parami_did::Config>::Currency::minimum_balance().saturating_mul(1_000_000u32.into());
-
-        <T as parami_did::Config>::Currency::make_free_balance_be(&caller, max);
+        <T as parami_did::Config>::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 
         Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), None)?;
         Advertiser::<T>::deposit(RawOrigin::Signed(caller.clone()).into(), pot)?;
 
-        let mut tags = vec![];
-
-        for i in 0..n {
-            let name: Vec<u8> = i.to_be_bytes().to_vec();
-            Tag::<T>::create(RawOrigin::Signed(caller.clone()).into(), name.clone())?;
-            tags.push(name);
-        }
-
-        let metadata = vec![0u8; m as usize];
-    }: _(RawOrigin::Signed(caller), min, tags, metadata, 1, HeightOf::<T>::max_value())
+        Tag::<T>::force_create(RawOrigin::Root.into(), vec![1u8; 6])?;
+    }: _(RawOrigin::Signed(caller), min, vec![vec![1u8; 6]], vec![0u8; 500], 1, HeightOf::<T>::max_value(), min, min, pot)
     verify {
         assert_ne!(<Metadata<T>>::iter_values().next(), None);
     }
@@ -52,12 +41,10 @@ benchmarks! {
     update_reward_rate {
         let caller: T::AccountId = whitelisted_caller();
 
-        let max = BalanceOf::<T>::max_value();
         let min = <T as parami_did::Config>::Currency::minimum_balance();
+        let pot = min.saturating_mul(1_000_000_000u32.into());
 
-        let pot = <T as parami_did::Config>::Currency::minimum_balance().saturating_mul(1_000_000u32.into());
-
-        <T as parami_did::Config>::Currency::make_free_balance_be(&caller, max);
+        <T as parami_did::Config>::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 
         Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), None)?;
         Advertiser::<T>::deposit(RawOrigin::Signed(caller.clone()).into(), pot)?;
@@ -69,6 +56,9 @@ benchmarks! {
             Default::default(),
             1,
             HeightOf::<T>::max_value(),
+            min,
+            min,
+            pot,
         )?;
 
         let ad = <Metadata<T>>::iter_keys().next().unwrap();
@@ -79,27 +69,17 @@ benchmarks! {
     }
 
     update_tags {
-        let n in 1 .. 1000;
+        Tag::<T>::force_create(RawOrigin::Root.into(), vec![1u8; 6])?;
 
         let caller: T::AccountId = whitelisted_caller();
 
-        let max = BalanceOf::<T>::max_value();
         let min = <T as parami_did::Config>::Currency::minimum_balance();
+        let pot = min.saturating_mul(1_000_000_000u32.into());
 
-        let pot = <T as parami_did::Config>::Currency::minimum_balance().saturating_mul(1_000_000u32.into());
-
-        <T as parami_did::Config>::Currency::make_free_balance_be(&caller, max);
+        <T as parami_did::Config>::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 
         Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), None)?;
         Advertiser::<T>::deposit(RawOrigin::Signed(caller.clone()).into(), pot)?;
-
-        let mut tags = vec![];
-
-        for i in 0..n {
-            let name: Vec<u8> = i.to_be_bytes().to_vec();
-            Tag::<T>::create(RawOrigin::Signed(caller.clone()).into(), name.clone())?;
-            tags.push(name);
-        }
 
         Ad::<T>::create(
             RawOrigin::Signed(caller.clone()).into(),
@@ -108,156 +88,131 @@ benchmarks! {
             Default::default(),
             1,
             HeightOf::<T>::max_value(),
+            min,
+            min,
+            pot,
         )?;
 
         let ad = <Metadata<T>>::iter_keys().next().unwrap();
-    }: _(RawOrigin::Signed(caller), ad, tags.clone())
+    }: _(RawOrigin::Signed(caller), ad, vec![vec![1u8; 6]])
     verify {
-        assert_eq!(Tag::<T>::tags_of(&ad).len(), tags.len());
+        assert_eq!(Tag::<T>::tags_of(&ad).len(), 1);
     }
 
     add_budget {
         let caller: T::AccountId = whitelisted_caller();
 
-        let max = BalanceOf::<T>::max_value();
         let min = <T as parami_did::Config>::Currency::minimum_balance();
+        let pot = min.saturating_mul(1_000_000_000u32.into());
 
-        let pot = <T as parami_did::Config>::Currency::minimum_balance().saturating_mul(1_000_000u32.into());
-
-        <T as parami_did::Config>::Currency::make_free_balance_be(&caller, max);
+        <T as parami_did::Config>::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 
         Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), None)?;
         Advertiser::<T>::deposit(RawOrigin::Signed(caller.clone()).into(), pot)?;
 
         Ad::<T>::create(
             RawOrigin::Signed(caller.clone()).into(),
-            pot,
+            min,
             vec![],
             Default::default(),
             1,
             HeightOf::<T>::max_value(),
+            min,
+            min,
+            pot,
         )?;
 
         let ad = <Metadata<T>>::iter_keys().next().unwrap();
     }: _(RawOrigin::Signed(caller.clone()), ad, pot)
     verify {
         let meta = <Metadata<T>>::get(&ad).unwrap();
-        assert_eq!(<T as parami_did::Config>::Currency::free_balance(&meta.pot), pot.saturating_mul(2u32.into()));
+        assert_eq!(<T as parami_did::Config>::Currency::free_balance(&meta.pot), pot.saturating_add(min));
     }
 
     bid {
         let caller: T::AccountId = whitelisted_caller();
-
         let kol: T::AccountId = account("kol", 1, 1);
 
-        let max = BalanceOf::<T>::max_value();
         let min = <T as parami_did::Config>::Currency::minimum_balance();
-        let pot = min.saturating_mul(1_000_000u32.into());
+        let pot = min.saturating_mul(1_000_000_000u32.into());
 
-        <T as parami_did::Config>::Currency::make_free_balance_be(&caller, max);
-        <T as parami_did::Config>::Currency::make_free_balance_be(&kol, pot);
+        <T as parami_did::Config>::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 
         Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), None)?;
-        Advertiser::<T>::deposit(RawOrigin::Signed(caller.clone()).into(), pot)?;
-
         Did::<T>::register(RawOrigin::Signed(kol.clone()).into(), None)?;
-        let did = Did::<T>::did_of(&kol).unwrap();
+
+        Advertiser::<T>::deposit(RawOrigin::Signed(caller.clone()).into(), pot)?;
 
         Ad::<T>::create(
             RawOrigin::Signed(caller.clone()).into(),
-            pot,
+            min,
             vec![],
             Default::default(),
             1,
             HeightOf::<T>::max_value(),
+            min,
+            min,
+            pot,
         )?;
+
         let ad = <Metadata<T>>::iter_keys().next().unwrap();
 
-        Nft::<T>::back(
-            RawOrigin::Signed(caller.clone()).into(),
-            did,
-            pot.saturating_mul(2u32.into()),
-        )?;
+        Nft::<T>::kick(RawOrigin::Signed(kol.clone()).into())?;
+        Nft::<T>::back(RawOrigin::Signed(caller.clone()).into(), Zero::zero(), pot)?;
+        Nft::<T>::mint(RawOrigin::Signed(kol).into(), Zero::zero(), b"Test Token".to_vec(), b"XTT".to_vec())?;
 
-        Nft::<T>::mint(
-            RawOrigin::Signed(kol).into(),
-            b"Test Token".to_vec(),
-            b"XTT".to_vec(),
-        )?;
-    }: _(RawOrigin::Signed(caller.clone()), ad, did, pot)
+        Nft::<T>::claim(RawOrigin::Signed(caller.clone()).into(), Zero::zero())?;
+    }: _(RawOrigin::Signed(caller.clone()), ad, Zero::zero(), min, None, None)
     verify {
-        let nft = Nft::<T>::preferred_nft_of(&did).unwrap();
-        assert_ne!(<SlotOf<T>>::get(&nft), None);
+        assert_ne!(<SlotOf<T>>::get(T::AssetId::zero()), None);
     }
 
     pay {
-        let n in 1 .. 1000;
+        Tag::<T>::force_create(RawOrigin::Root.into(), vec![1u8; 6])?;
 
         let caller: T::AccountId = whitelisted_caller();
-
         let kol: T::AccountId = account("kol", 1, 1);
-
         let visitor: T::AccountId = account("visitor", 2, 2);
 
-        let max = BalanceOf::<T>::max_value();
         let min = <T as parami_did::Config>::Currency::minimum_balance();
-        let pot = min.saturating_mul(1_000_000u32.into());
+        let pot = min.saturating_mul(1_000_000_000u32.into());
 
-        <T as parami_did::Config>::Currency::make_free_balance_be(&caller, max);
+        <T as parami_did::Config>::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
+
         Did::<T>::register(RawOrigin::Signed(caller.clone()).into(), None)?;
-        Advertiser::<T>::deposit(RawOrigin::Signed(caller.clone()).into(), pot)?;
-
-        <T as parami_did::Config>::Currency::make_free_balance_be(&kol, pot);
         Did::<T>::register(RawOrigin::Signed(kol.clone()).into(), None)?;
-        let slot = Did::<T>::did_of(&kol).unwrap();
-
-        <T as parami_did::Config>::Currency::make_free_balance_be(&visitor, pot);
         Did::<T>::register(RawOrigin::Signed(visitor.clone()).into(), None)?;
-        let visitor = Did::<T>::did_of(&visitor).unwrap();
 
-        let mut tags = vec![];
-        let mut scores = vec![];
-        if n > 0 {
-            for i in 0..n {
-                let name: Vec<u8> = i.to_be_bytes().to_vec();
-                Tag::<T>::create(RawOrigin::Signed(caller.clone()).into(), name.clone())?;
-                tags.push(name.clone());
-                scores.push((name, 5))
-            }
-        }
+        let did = Did::<T>::did_of(&visitor).unwrap();
+
+        Advertiser::<T>::deposit(RawOrigin::Signed(caller.clone()).into(), pot)?;
 
         Ad::<T>::create(
             RawOrigin::Signed(caller.clone()).into(),
-            pot,
-            tags,
+            min,
+            vec![vec![1u8; 6]],
             Default::default(),
             1,
             HeightOf::<T>::max_value(),
+            min,
+            min,
+            pot,
         )?;
+
         let ad = <Metadata<T>>::iter_keys().next().unwrap();
 
-        Nft::<T>::back(
-            RawOrigin::Signed(caller.clone()).into(),
-            slot,
-            pot.saturating_mul(2u32.into()),
-        )?;
+        Nft::<T>::kick(RawOrigin::Signed(kol.clone()).into())?;
 
-        Nft::<T>::mint(
-            RawOrigin::Signed(kol).into(),
-            b"Test Token".to_vec(),
-            b"XTT".to_vec(),
-        )?;
+        Nft::<T>::back(RawOrigin::Signed(caller.clone()).into(), Zero::zero(), pot)?;
+        Nft::<T>::mint(RawOrigin::Signed(kol).into(), Zero::zero(), b"Test Token".to_vec(), b"XTT".to_vec())?;
+        Nft::<T>::claim(RawOrigin::Signed(caller.clone()).into(), Zero::zero())?;
 
-        Ad::<T>::bid(RawOrigin::Signed(caller.clone()).into(), ad, slot, pot)?;
-    }: _(RawOrigin::Signed(caller.clone()), ad, slot, visitor, scores, None)
+        Ad::<T>::bid(RawOrigin::Signed(caller.clone()).into(), ad, Zero::zero(), min, None, None)?;
+    }: _(RawOrigin::Signed(caller.clone()), ad, Zero::zero(), did, vec![(vec![1u8; 6], 5)], None)
     verify {
-        use frame_support::traits::fungibles::Inspect;
+        use frame_support::traits::tokens::fungibles::Inspect;
 
-        let nft = Nft::<T>::preferred_nft_of(&slot).unwrap();
-
-        let visitor: T::AccountId = account("visitor", 2, 2);
-
-        assert!(<T as parami_nft::Config>::Assets::balance(nft, &visitor) > min.into());
+        assert_ne!(<T as parami_nft::Config>::Assets::balance(T::AssetId::zero(), &visitor), Zero::zero());
     }
 }
 

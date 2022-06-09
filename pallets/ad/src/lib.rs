@@ -31,7 +31,6 @@ use frame_support::{
     Blake2_256, PalletId, StorageHasher,
 };
 use frame_system::pallet_prelude::BlockNumberFor;
-use log::info;
 use parami_did::Pallet as Did;
 use parami_nft::Pallet as Nft;
 use parami_traits::{Swaps, Tags};
@@ -60,8 +59,6 @@ pub mod pallet {
     use super::*;
     use frame_support::pallet_prelude::*;
     use frame_system::pallet_prelude::*;
-    use parami_primitives::constants::DOLLARS;
-    use sp_runtime::SaturatedConversion;
 
     #[pallet::config]
     pub trait Config:
@@ -219,7 +216,6 @@ pub mod pallet {
     #[pallet::error]
     pub enum Error<T> {
         Deadline,
-        DidNotExists,
         EmptyTags,
         InsufficientBalance,
         InsufficientFractions,
@@ -237,10 +233,7 @@ pub mod pallet {
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {
-        #[pallet::weight(<T as Config>::WeightInfo::create(
-            metadata.len() as u32,
-            tags.len() as u32
-        ))]
+        #[pallet::weight(<T as Config>::WeightInfo::create())]
         pub fn create(
             origin: OriginFor<T>,
             #[pallet::compact] budget: BalanceOf<T>,
@@ -341,7 +334,7 @@ pub mod pallet {
             Ok(())
         }
 
-        #[pallet::weight(<T as Config>::WeightInfo::update_tags(tags.len() as u32))]
+        #[pallet::weight(<T as Config>::WeightInfo::update_tags())]
         pub fn update_tags(
             origin: OriginFor<T>,
             id: HashOf<T>,
@@ -503,7 +496,7 @@ pub mod pallet {
             Ok(())
         }
 
-        #[pallet::weight(<T as Config>::WeightInfo::pay(scores.len() as u32))]
+        #[pallet::weight(<T as Config>::WeightInfo::pay())]
         pub fn pay(
             origin: OriginFor<T>,
             ad_id: HashOf<T>,
@@ -603,13 +596,15 @@ pub mod pallet {
 
             // 4. payout assets
 
-            let account = Did::<T>::lookup_did(visitor).ok_or(Error::<T>::DidNotExists)?;
+            let account =
+                Did::<T>::lookup_did(visitor).ok_or(parami_did::Error::<T>::DidNotExists)?;
 
             let award = if let Some(referrer) = referrer {
                 let rate = ad_meta.reward_rate.into();
                 let award = amount.saturating_mul(rate) / 100u32.into();
 
-                let referrer = Did::<T>::lookup_did(referrer).ok_or(Error::<T>::DidNotExists)?;
+                let referrer =
+                    Did::<T>::lookup_did(referrer).ok_or(parami_did::Error::<T>::DidNotExists)?;
 
                 T::Assets::transfer(slot.nft_id, &ad_meta.pot, &referrer, award, false)?;
 
