@@ -16,13 +16,20 @@ pub fn migrate<T: Config>() -> Weight {
 
 mod v3 {
     use super::*;
-    use crate::{AssetsOf, BalanceOf, Config, HashOf, HeightOf, Metadata, NftOf, SlotOf};
+    use crate::{
+        AssetsOf, BalanceOf, Config, Did, EndtimeOf, HashOf, HeightOf, Metadata, NftOf, SlotOf,
+    };
     use codec::{Decode, Encode};
     use scale_info::TypeInfo;
     #[cfg(feature = "std")]
     use serde::{Deserialize, Serialize};
     use sp_runtime::RuntimeDebug;
+    use sp_std::collections::btree_map::BTreeMap;
     use sp_std::prelude::*;
+
+    use frame_support::traits::{
+        tokens::fungibles::Transfer, Currency, ExistenceRequirement::AllowDeath,
+    };
 
     #[derive(Clone, Decode, Default, Encode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
     #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
@@ -67,18 +74,62 @@ mod v3 {
     pub fn migrate<T: Config>() -> Weight {
         let mut weight: Weight = 0;
 
-        //TODO: refund all ad3s
-        <Metadata<T>>::translate_values(
-            |_meta: MetadataV2<AccountOf<T>, BalanceOf<T>, DidOf<T>, HashOf<T>, HeightOf<T>>| {
-                weight.saturating_accrue(T::DbWeight::get().reads_writes(1, 1));
+        let mut ad_id_2_meta = BTreeMap::new();
 
-                None
+        <Metadata<T>>::translate_values(
+            |meta: MetadataV2<AccountOf<T>, BalanceOf<T>, DidOf<T>, HashOf<T>, HeightOf<T>>| {
+                weight.saturating_accrue(T::DbWeight::get().reads_writes(1, 1));
+                ad_id_2_meta.insert(meta.id, meta.clone());
+
+                <EndtimeOf<T>>::remove(meta.id);
+                Some(crate::types::Metadata {
+                    id: meta.id,
+                    creator: meta.creator,
+                    metadata: meta.metadata,
+                    reward_rate: meta.reward_rate,
+                    created: meta.created,
+                    payout_base: meta.payout_base,
+                    payout_min: meta.payout_min,
+                    payout_max: meta.payout_max,
+                })
             },
         );
 
         <SlotOf<T>>::translate_values(
-            |_slot: SlotV2<BalanceOf<T>, HashOf<T>, HeightOf<T>, NftOf<T>, AssetsOf<T>>| {
+            |slot: SlotV2<BalanceOf<T>, HashOf<T>, HeightOf<T>, NftOf<T>, AssetsOf<T>>| {
                 weight.saturating_accrue(T::DbWeight::get().reads_writes(1, 1));
+
+                let ad_meta = &ad_id_2_meta[&slot.ad_id];
+
+                let owner_account = Did::<T>::lookup_did(ad_meta.creator).unwrap();
+
+                T::Currency::transfer(&ad_meta.pot, &owner_account, slot.remain, AllowDeath)
+                    .expect("transfer failed");
+                T::Assets::transfer(
+                    slot.nft_id,
+                    &ad_meta.pot,
+                    &owner_account,
+                    slot.fractions_remain,
+                    false,
+                )
+                .unwrap();
+
+                if let Some(fungible_id) = slot.fungible_id {
+                    T::Assets::transfer(
+                        fungible_id,
+                        &ad_meta.pot,
+                        &owner_account,
+                        slot.fungibles_remain,
+                        false,
+                    )
+                    .unwrap();
+                }
+
+                crate::Pallet::<T>::deposit_event(crate::Event::End(
+                    slot.nft_id,
+                    slot.ad_id,
+                    slot.remain,
+                ));
 
                 None
             },
