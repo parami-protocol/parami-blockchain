@@ -20,6 +20,9 @@ pub const TAGA0_TAGB0: sr25519::Public = sr25519::Public([5; 32]);
 pub const TAGA100_TAGB100: sr25519::Public = sr25519::Public([8; 32]);
 pub const TAGA120_TAGB0: sr25519::Public = sr25519::Public([9; 32]);
 
+pub const BOB_BALANCE: u128 = 500;
+pub const CHARLIE_BALANCE: u128 = 500;
+
 pub const DID_ALICE: H160 = H160([0xff; 20]);
 pub const DID_BOB: H160 = H160([0xee; 20]);
 pub const DID_CHARLIE: H160 = H160([0xdd; 20]);
@@ -321,11 +324,23 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     .unwrap();
 
     parami_nft::GenesisConfig::<Test> {
-        deposit: Default::default(),
-        deposits: Default::default(),
+        deposit: vec![],
+        deposits: vec![],
         next_instance_id: 1,
-        nfts: vec![(0, DID_ALICE, false)],
+        nfts: vec![(0, DID_ALICE, true)],
         externals: Default::default(),
+    }
+    .assimilate_storage(&mut t)
+    .unwrap();
+
+    pallet_assets::GenesisConfig::<Test> {
+        assets: vec![(0, ALICE, true, 1)],
+        accounts: vec![
+            (0, ALICE, 10000),
+            (0, BOB, BOB_BALANCE),
+            (0, CHARLIE, CHARLIE_BALANCE),
+        ],
+        metadata: vec![],
     }
     .assimilate_storage(&mut t)
     .unwrap();
