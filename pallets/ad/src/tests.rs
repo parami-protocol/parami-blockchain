@@ -2,6 +2,7 @@ use crate::{mock::*, AdsOf, Config, DeadlineOf, EndtimeOf, Error, Metadata, Slot
 use frame_support::{assert_noop, assert_ok, traits::Hooks};
 use parami_traits::Tags;
 use sp_runtime::traits::Hash;
+use sp_runtime::MultiAddress;
 use sp_std::collections::btree_map::BTreeMap;
 
 #[test]
@@ -308,8 +309,23 @@ fn should_bid() {
 }
 
 #[test]
-fn should_add_budget() {
+fn should_fail_to_add_budget_when_fungible_not_same_with_bid() {
     new_test_ext().execute_with(|| {
+        assert_ok!(Assets::force_create(
+            Origin::root(),
+            9,
+            MultiAddress::Id(BOB),
+            true,
+            1
+        ));
+        let fungible_id = 9;
+        assert_ok!(Assets::mint(
+            Origin::signed(BOB),
+            fungible_id,
+            MultiAddress::Id(BOB),
+            1000
+        ));
+
         assert_ok!(Ad::create(
             Origin::signed(BOB),
             vec![],
@@ -337,10 +353,83 @@ fn should_add_budget() {
         assert_eq!(Ad::slot_current_fraction_balance(&slot), bob_bid_fraction);
 
         let new_budget = 250;
-        assert_ok!(Ad::add_budget(Origin::signed(BOB), ad, nft, new_budget));
+        let new_fungibles = 123;
+        assert_noop!(
+            Ad::add_budget(
+                Origin::signed(BOB),
+                ad,
+                nft,
+                new_budget,
+                Some(fungible_id),
+                Some(new_fungibles)
+            ),
+            Error::<Test>::FungibleNotForSlot
+        );
+    });
+}
+
+#[test]
+fn should_add_budget() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Assets::force_create(
+            Origin::root(),
+            9,
+            MultiAddress::Id(BOB),
+            true,
+            1
+        ));
+        let fungible_id = 9;
+        assert_ok!(Assets::mint(
+            Origin::signed(BOB),
+            fungible_id,
+            MultiAddress::Id(BOB),
+            1000
+        ));
+
+        assert_ok!(Ad::create(
+            Origin::signed(BOB),
+            vec![],
+            [0u8; 64].into(),
+            1,
+            1,
+            1u128,
+            0,
+            10u128
+        ));
+
+        let nft = Nft::preferred(DID_ALICE).unwrap();
+        let ad = <Metadata<Test>>::iter_keys().next().unwrap();
+        let bob_bid_fraction = 250;
+        let bob_bid_fungible = 100;
+
+        assert_ok!(Ad::bid_with_fraction(
+            Origin::signed(BOB),
+            ad,
+            nft,
+            bob_bid_fraction,
+            Some(fungible_id),
+            Some(bob_bid_fungible)
+        ));
+        let slot = <SlotOf<Test>>::get(nft).unwrap();
+        assert_eq!(Ad::slot_current_fraction_balance(&slot), bob_bid_fraction);
+
+        let new_budget = 250;
+        let new_fungibles = 123;
+        assert_ok!(Ad::add_budget(
+            Origin::signed(BOB),
+            ad,
+            nft,
+            new_budget,
+            Some(fungible_id),
+            Some(new_fungibles)
+        ));
+        assert_eq!(
+            Assets::balance(slot.fungible_id.unwrap(), slot.budget_pot),
+            bob_bid_fungible + new_fungibles
+        );
         assert_eq!(
             Assets::balance(slot.fraction_id, BOB),
-            (Into::<u128>::into(BOB_BALANCE) - bob_bid_fraction - new_budget)
+            BOB_BALANCE - bob_bid_fraction - new_budget
         );
 
         assert_eq!(
@@ -582,8 +671,6 @@ fn should_pay_10_when_all_tags_are_full_score_or_overflow() {
 
 #[test]
 fn should_pay_dual() {
-    use sp_runtime::MultiAddress;
-
     new_test_ext().execute_with(|| {
         // 1. prepare
 

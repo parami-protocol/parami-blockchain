@@ -31,6 +31,7 @@ parami-swap = { path = '../swap', default-features = false, optional = true }
 parami-tag = { path = '../tag', default-features = false, optional = true }
 parami-traits = { path = '../traits', default-features = false }
 
+log = { version = "0.4.14", default-features = false }
 serde = { version = '1.0', optional = true }
 
 sp-core = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13', default-features = false }

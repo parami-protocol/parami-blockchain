@@ -29,6 +29,13 @@ use frame_support::{
     weights::Weight,
     Blake2_256, PalletId, StorageHasher,
 };
+use log::info;
+
+#[cfg(feature = "try-runtime")]
+use frame_support::storage::migration::storage_iter;
+#[cfg(feature = "try-runtime")]
+use frame_support::traits::OnRuntimeUpgradeHelpersExt;
+
 use frame_system::pallet_prelude::BlockNumberFor;
 use frame_system::pallet_prelude::*;
 use parami_did::Pallet as Did;
@@ -129,11 +136,6 @@ pub mod pallet {
     #[pallet::getter(fn slot_of)]
     pub(super) type SlotOf<T: Config> = StorageMap<_, Twox64Concat, NftOf<T>, SlotMetaOf<T>>;
 
-    /// Slots of an advertisement
-    #[pallet::storage]
-    #[pallet::getter(fn slots_of)]
-    pub(super) type SlotsOf<T: Config> = StorageMap<_, Identity, HashOf<T>, Vec<NftOf<T>>>;
-
     /// Payouts of an advertisement
     #[pallet::storage]
     #[pallet::getter(fn payout)]
@@ -180,28 +182,42 @@ pub mod pallet {
                 0
             })
         }
+
+        #[cfg(feature = "try-runtime")]
+        fn pre_upgrade() -> Result<(), &'static str> {
+            let version = StorageVersion::get::<Pallet<T>>();
+            if version == 2 {
+                log::info!("running pre uprade");
+                let metadata_count: u32 = <Metadata<T>>::iter().count() as u32;
+                Self::set_temp_storage(metadata_count, "metadata_count");
+                let slots_of_keys = storage_iter::<Identity, HashOf<T>, Vec<NFtOf<T>>>(
+                    <Pallet<T>>::name().as_bytes(),
+                    b"SlotsOf",
+                )
+                .count();
+                assert!(slots_of_keys > 0);
+            }
+            Ok(())
+        }
         #[cfg(feature = "try-runtime")]
         fn post_upgrade() -> Result<(), &'static str> {
             let version = StorageVersion::get::<Pallet<T>>();
-            if version == 2 {
-                for (_, ad_meta) in <Metadata<T>>::iter() {
-                    assert_eq!(
-                        ad_meta.payout_base,
-                        (1 * DOLLARS).saturated_into(),
-                        "migration error"
-                    );
-                    assert_eq!(
-                        ad_meta.payout_min,
-                        0u128.saturated_into(),
-                        "migration error"
-                    );
-                    assert_eq!(
-                        ad_meta.payout_max,
-                        (10 * DOLLARS).saturated_into(),
-                        "migration error"
-                    );
-                }
-                info!("migration: parami-ad storage version v2 post migration checks successful!");
+            if version == 3 {
+                log::info!("running post uprade");
+                let metadata_count: Option<u32> = Self::get_temp_storage("metadata_count");
+                assert_eq!(
+                    <Metadata<T>>::iter().count(),
+                    metadata_count.unwrap() as usize
+                );
+                assert_eq!(<SlotOf<T>>::iter().count(), 0);
+                assert_eq!(<EndtimeOf<T>>::iter().count(), 0);
+                assert_eq!(<DeadlineOf<T>>::iter().count(), 0);
+                let slots_of_keys = storage_iter::<Identity, HashOf<T>, Vec<NFtOf<T>>>(
+                    <Pallet<T>>::name().as_bytes(),
+                    b"SlotsOf",
+                )
+                .count();
+                assert_eq!(slots_of_keys, 0);
             }
             Ok(())
         }
@@ -229,6 +245,7 @@ pub mod pallet {
         WrongPayoutSetting,
         DrawbackFailedForDidNotExists,
         SlotNotExists,
+        FungibleNotForSlot,
     }
 
     #[pallet::call]
@@ -445,14 +462,6 @@ pub mod pallet {
             <DeadlineOf<T>>::insert(nft_id, &ad_id, deadline);
             <Metadata<T>>::insert(&ad_id, &ad_meta);
 
-            <SlotsOf<T>>::mutate(&ad_id, |maybe| {
-                if let Some(slots) = maybe {
-                    slots.push(nft_id);
-                } else {
-                    *maybe = Some(vec![nft_id].into());
-                }
-            });
-
             Self::deposit_event(Event::Bid(nft_id, ad_id, fraction_value));
 
             Ok(())
@@ -464,6 +473,8 @@ pub mod pallet {
             ad_id: HashOf<T>,
             nft_id: NftOf<T>,
             #[pallet::compact] fraction_value: BalanceOf<T>,
+            fungible_id: Option<AssetsOf<T>>,
+            fungible_value: Option<BalanceOf<T>>,
         ) -> DispatchResult {
             let (did, who) = T::CallOrigin::ensure_origin(origin)?;
 
@@ -473,6 +484,24 @@ pub mod pallet {
 
             let slot = <SlotOf<T>>::get(nft_id).ok_or(Error::<T>::SlotNotExists)?;
             ensure!(slot.ad_id == ad_id, Error::<T>::NotOwned);
+
+            ensure!(
+                T::Assets::balance(slot.fraction_id, &who) >= fraction_value,
+                Error::<T>::InsufficientFractions
+            );
+
+            ensure!(
+                fungible_id == slot.fungible_id,
+                Error::<T>::FungibleNotForSlot
+            );
+            if let (Some(fungible_id), Some(fungible_value)) = (fungible_id, fungible_value) {
+                ensure!(
+                    T::Assets::balance(fungible_id, &who) >= fungible_value,
+                    Error::<T>::InsufficientFungibles
+                );
+
+                T::Assets::transfer(fungible_id, &who, &slot.budget_pot, fungible_value, false)?;
+            }
 
             T::Assets::transfer(
                 slot.fraction_id,
@@ -522,7 +551,6 @@ pub mod pallet {
             ensure!(slot.ad_id == ad_id, Error::<T>::Underbid);
 
             // 2. scoring visitor
-
             let mut scoring = 5i32;
 
             let tags = T::Tags::tags_of(&ad_id);
@@ -569,8 +597,8 @@ pub mod pallet {
             } else {
                 Zero::zero()
             };
-            // 3. influence visitor
 
+            // 3. influence visitor
             for (tag, score) in scores {
                 ensure!(T::Tags::has_tag(&ad_id, &tag), Error::<T>::TagNotExists);
                 ensure!(score >= -5 && score <= 5, Error::<T>::ScoreOutOfRange);
@@ -690,13 +718,6 @@ impl<T: Config> Pallet<T> {
                 continue;
             }
 
-            read += 1;
-            if let Some(slots) = <SlotsOf<T>>::get(ad_id) {
-                if slots.len() > 0 {
-                    continue;
-                }
-            }
-
             write += 1;
             <EndtimeOf<T>>::remove(ad_id);
 
@@ -734,12 +755,6 @@ impl<T: Config> Pallet<T> {
         )?;
 
         <SlotOf<T>>::remove(slot.nft_id);
-
-        <SlotsOf<T>>::mutate(slot.ad_id, |maybe| {
-            if let Some(slots) = maybe {
-                slots.retain(|x| *x != slot.nft_id);
-            }
-        });
 
         <DeadlineOf<T>>::remove(slot.nft_id, slot.ad_id);
 

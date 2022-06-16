@@ -1,5 +1,6 @@
 use crate::{Config, Pallet};
-use frame_support::{traits::Get, weights::Weight};
+use frame_support::migration::remove_storage_prefix;
+use frame_support::{pallet_prelude::*, traits::Get, weights::Weight};
 use sp_runtime::traits::Saturating;
 pub fn migrate<T: Config>() -> Weight {
     use frame_support::traits::StorageVersion;
@@ -75,6 +76,9 @@ mod v3 {
         let mut weight: Weight = 0;
 
         let mut ad_id_2_meta = BTreeMap::new();
+
+        // remove SlotsOf
+        remove_storage_prefix(<Pallet<T>>::name().as_bytes(), b"SlotsOf", b"");
 
         <Metadata<T>>::translate_values(
             |meta: MetadataV2<AccountOf<T>, BalanceOf<T>, DidOf<T>, HashOf<T>, HeightOf<T>>| {
