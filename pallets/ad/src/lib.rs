@@ -34,6 +34,7 @@ use frame_support::{
 use frame_support::storage::migration::storage_iter;
 #[cfg(feature = "try-runtime")]
 use frame_support::traits::OnRuntimeUpgradeHelpersExt;
+use log;
 
 use frame_system::pallet_prelude::BlockNumberFor;
 use frame_system::pallet_prelude::*;
