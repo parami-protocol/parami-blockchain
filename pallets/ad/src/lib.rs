@@ -29,7 +29,6 @@ use frame_support::{
     weights::Weight,
     Blake2_256, PalletId, StorageHasher,
 };
-use log::info;
 
 #[cfg(feature = "try-runtime")]
 use frame_support::storage::migration::storage_iter;
@@ -190,11 +189,9 @@ pub mod pallet {
                 log::info!("running pre uprade");
                 let metadata_count: u32 = <Metadata<T>>::iter().count() as u32;
                 Self::set_temp_storage(metadata_count, "metadata_count");
-                let slots_of_keys = storage_iter::<Identity, HashOf<T>, Vec<NFtOf<T>>>(
-                    <Pallet<T>>::name().as_bytes(),
-                    b"SlotsOf",
-                )
-                .count();
+                let slots_of_keys =
+                    storage_iter::<Vec<NftOf<T>>>(<Pallet<T>>::name().as_bytes(), b"SlotsOf")
+                        .count();
                 assert!(slots_of_keys > 0);
             }
             Ok(())
@@ -212,11 +209,9 @@ pub mod pallet {
                 assert_eq!(<SlotOf<T>>::iter().count(), 0);
                 assert_eq!(<EndtimeOf<T>>::iter().count(), 0);
                 assert_eq!(<DeadlineOf<T>>::iter().count(), 0);
-                let slots_of_keys = storage_iter::<Identity, HashOf<T>, Vec<NFtOf<T>>>(
-                    <Pallet<T>>::name().as_bytes(),
-                    b"SlotsOf",
-                )
-                .count();
+                let slots_of_keys =
+                    storage_iter::<Vec<NftOf<T>>>(<Pallet<T>>::name().as_bytes(), b"SlotsOf")
+                        .count();
                 assert_eq!(slots_of_keys, 0);
             }
             Ok(())
