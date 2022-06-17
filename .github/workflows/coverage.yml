@@ -62,7 +62,7 @@ jobs:
           --ignore-tests --workspace \
           --exclude parami-primitives parami-traits \
           parami-dana parami-para parami-dana-runtime parami-para-runtime \
-          --exclude-files **/mock.rs **/weights.rs **/weights/*
+          --exclude-files **/mock.rs **/weights.rs **/weights/* **/migrations.rs **/types.rs **/benchmarking.rs **/tests.rs
         if: matrix.arch == 'x86_64' && matrix.os == 'linux'
 
       - name: Post-build
