@@ -13,3 +13,4 @@ jobs:
       - uses: styfle/cancel-workflow-action@0.9.1
         with:
           workflow_id: ${{ github.event.workflow.id }}
+        if: ${{ github.ref != 'refs/heads/master' }}
