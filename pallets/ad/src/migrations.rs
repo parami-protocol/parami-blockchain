@@ -1,10 +1,12 @@
+use crate::StorageVersion;
 use crate::{Config, Pallet};
-use frame_support::migration::remove_storage_prefix;
+use frame_support::generate_storage_alias;
+use frame_support::migration::*;
+use frame_support::traits::OnRuntimeUpgradeHelpersExt;
 use frame_support::{pallet_prelude::*, traits::Get, weights::Weight};
 use sp_runtime::traits::Saturating;
-pub fn migrate<T: Config>() -> Weight {
-    use frame_support::traits::StorageVersion;
 
+pub fn migrate<T: Config>() -> Weight {
     let version = StorageVersion::get::<Pallet<T>>();
     let mut weight: Weight = 0;
 
@@ -15,10 +17,11 @@ pub fn migrate<T: Config>() -> Weight {
     weight
 }
 
-mod v3 {
+pub mod v3 {
     use super::*;
     use crate::{
-        AssetsOf, BalanceOf, Config, Did, EndtimeOf, HashOf, HeightOf, Metadata, NftOf, SlotOf,
+        AssetsOf, BalanceOf, Config, DeadlineOf, Did, EndtimeOf, HashOf, HeightOf, Metadata, NftOf,
+        SlotOf,
     };
     use codec::{Decode, Encode};
     use scale_info::TypeInfo;
@@ -29,7 +32,7 @@ mod v3 {
     use sp_std::prelude::*;
 
     use frame_support::traits::{
-        tokens::fungibles::Transfer, Currency, ExistenceRequirement::AllowDeath,
+        tokens::fungibles::Transfer, Currency, ExistenceRequirement::AllowDeath, OnRuntimeUpgrade,
     };
 
     #[derive(Clone, Decode, Default, Encode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
@@ -48,6 +51,102 @@ mod v3 {
         pub payout_base: B,
         pub payout_min: B,
         pub payout_max: B,
+    }
+
+    #[derive(Clone, Decode, Default, Encode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
+    pub struct MetaInfo<T: Config> {
+        pot: AccountOf<T>,
+        owner_balance: BalanceOf<T>,
+        pot_balance: BalanceOf<T>,
+    }
+
+    pub struct MigrateToV3<T: Config>(PhantomData<T>);
+
+    impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
+        fn on_runtime_upgrade() -> frame_support::weights::Weight {
+            return 0;
+        }
+
+        #[cfg(feature = "try-runtime")]
+        fn pre_upgrade() -> Result<(), &'static str> {
+            let version = StorageVersion::get::<Pallet<T>>();
+
+            if version == 2 {
+                generate_storage_alias!(
+                    Ad, Metadata<T: Config> => Map<
+                        (Identity, HashOf<T>),
+                        MetadataV2<AccountOf<T>, BalanceOf<T>, DidOf<T>, HashOf<T>, HeightOf<T>>
+                    >
+                );
+                log::info!("running pre uprade");
+                let metadata_count: u32 = <Metadata<T>>::iter().count() as u32;
+                log::info!("meta data count, {}", metadata_count);
+
+                Self::set_temp_storage(metadata_count, "metadata_count");
+                let slots_of_keys =
+                    storage_iter::<Vec<NftOf<T>>>(<Pallet<T>>::name().as_bytes(), b"SlotsOf")
+                        .count();
+                assert!(slots_of_keys > 0);
+                log::info!("slots of key count, {}", slots_of_keys);
+
+                let mut iter = storage_iter::<
+                    MetadataV2<AccountOf<T>, BalanceOf<T>, DidOf<T>, HashOf<T>, HeightOf<T>>,
+                >(<Pallet<T>>::name().as_bytes(), b"Metadata");
+
+                let mut ad_metas = BTreeMap::new();
+                while let Some((_, ad_meta)) = iter.next() {
+                    let owner_account = Did::<T>::lookup_did(ad_meta.creator).unwrap();
+                    ad_metas.insert(
+                        ad_meta.id,
+                        MetaInfo::<T> {
+                            pot: ad_meta.pot.clone(),
+                            owner_balance: T::Currency::total_balance(&owner_account),
+                            pot_balance: T::Currency::total_balance(&ad_meta.pot),
+                        },
+                    );
+                }
+
+                Self::set_temp_storage(ad_metas, "ad_metas");
+            }
+            Ok(())
+        }
+
+        #[cfg(feature = "try-runtime")]
+        fn post_upgrade() -> Result<(), &'static str> {
+            let version = StorageVersion::get::<Pallet<T>>();
+            if version == 3 {
+                log::info!("running post uprade");
+                let metadata_count: Option<u32> = Self::get_temp_storage("metadata_count");
+                assert_eq!(
+                    <Metadata<T>>::iter().count(),
+                    metadata_count.unwrap() as usize
+                );
+                assert_eq!(<SlotOf<T>>::iter().count(), 0);
+                assert_eq!(<EndtimeOf<T>>::iter().count(), 0);
+                assert_eq!(<DeadlineOf<T>>::iter().count(), 0);
+                let slots_of_keys =
+                    storage_iter::<Vec<NftOf<T>>>(<Pallet<T>>::name().as_bytes(), b"SlotsOf")
+                        .count();
+                assert_eq!(slots_of_keys, 0);
+
+                let ad_metas: BTreeMap<HashOf<T>, MetaInfo<T>> =
+                    Self::get_temp_storage("ad_metas").unwrap();
+                let mut iter = <Metadata<T>>::iter();
+                while let Some((_, ad_meta)) = iter.next() {
+                    log::info!("ad meta: {:?}", ad_meta);
+                    let meta = &ad_metas[&ad_meta.id];
+                    let owner_account = Did::<T>::lookup_did(ad_meta.creator).unwrap();
+
+                    assert_eq!(T::Currency::total_balance(&meta.pot), 0u32.into());
+
+                    assert_eq!(
+                        T::Currency::total_balance(&owner_account),
+                        meta.owner_balance + meta.pot_balance
+                    );
+                }
+            }
+            Ok(())
+        }
     }
 
     #[derive(Clone, Decode, Default, Encode, Eq, PartialEq, RuntimeDebug, TypeInfo)]

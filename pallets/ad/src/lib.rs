@@ -31,10 +31,7 @@ use frame_support::{
 };
 
 #[cfg(feature = "try-runtime")]
-use frame_support::storage::migration::storage_iter;
-#[cfg(feature = "try-runtime")]
-use frame_support::traits::OnRuntimeUpgradeHelpersExt;
-use log;
+use frame_support::traits::OnRuntimeUpgrade;
 
 use frame_system::pallet_prelude::BlockNumberFor;
 use frame_system::pallet_prelude::*;
@@ -185,36 +182,13 @@ pub mod pallet {
 
         #[cfg(feature = "try-runtime")]
         fn pre_upgrade() -> Result<(), &'static str> {
-            let version = StorageVersion::get::<Pallet<T>>();
-            if version == 2 {
-                log::info!("running pre uprade");
-                let metadata_count: u32 = <Metadata<T>>::iter().count() as u32;
-                Self::set_temp_storage(metadata_count, "metadata_count");
-                let slots_of_keys =
-                    storage_iter::<Vec<NftOf<T>>>(<Pallet<T>>::name().as_bytes(), b"SlotsOf")
-                        .count();
-                assert!(slots_of_keys > 0);
-            }
+            migrations::v3::MigrateToV3::<T>::pre_upgrade()?;
             Ok(())
         }
+
         #[cfg(feature = "try-runtime")]
         fn post_upgrade() -> Result<(), &'static str> {
-            let version = StorageVersion::get::<Pallet<T>>();
-            if version == 3 {
-                log::info!("running post uprade");
-                let metadata_count: Option<u32> = Self::get_temp_storage("metadata_count");
-                assert_eq!(
-                    <Metadata<T>>::iter().count(),
-                    metadata_count.unwrap() as usize
-                );
-                assert_eq!(<SlotOf<T>>::iter().count(), 0);
-                assert_eq!(<EndtimeOf<T>>::iter().count(), 0);
-                assert_eq!(<DeadlineOf<T>>::iter().count(), 0);
-                let slots_of_keys =
-                    storage_iter::<Vec<NftOf<T>>>(<Pallet<T>>::name().as_bytes(), b"SlotsOf")
-                        .count();
-                assert_eq!(slots_of_keys, 0);
-            }
+            migrations::v3::MigrateToV3::<T>::post_upgrade()?;
             Ok(())
         }
 
