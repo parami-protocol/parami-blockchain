@@ -16,7 +16,6 @@ incremental = true
 debug = 0
 
 [profile.test]
-debug = 0
 
 [profile.bench]
 panic = 'unwind'
