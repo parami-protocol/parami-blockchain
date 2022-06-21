@@ -1,0 +1,24 @@
+name: Prepare
+description: toolchain and cache
+
+inputs:
+  arch:
+    required: true
+    description: x86_64 or aarch64
+  os:
+    required: true
+    description: linux, windows, or macos
+
+runs:
+  using: composite
+  steps:
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+
+    - name: Install Nightly Toolchain
+      run: |
+        rustup update nightly
+        rustup target add wasm32-unknown-unknown --toolchain nightly
+      shell: bash
