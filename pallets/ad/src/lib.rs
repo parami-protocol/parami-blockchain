@@ -30,9 +30,6 @@ use frame_support::{
     Blake2_256, PalletId, StorageHasher,
 };
 
-#[cfg(feature = "try-runtime")]
-use frame_support::traits::OnRuntimeUpgrade;
-
 use frame_system::pallet_prelude::BlockNumberFor;
 use frame_system::pallet_prelude::*;
 use parami_did::Pallet as Did;
