@@ -18,23 +18,200 @@ on:
     paths-ignore:
       - "**/*.md"
 
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: full
+
 jobs:
-  ru-lint:
-    uses: ./.github/workflows/lint.yml
+  lint:
+    runs-on: ubuntu-latest
 
-  ru-test:
-    uses: ./.github/workflows/coverage.yml
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions/prepare
+        with:
+          arch: x86_64
+          os: linux
 
-  ru-build:
-    uses: ./.github/workflows/build.yml
+      - name: Cargo Check
+        run: cargo fmt --all -- --check
+
+      # - name: Clippy Lint for parami-dana-runtime
+      #   run: cargo +nightly clippy -p parami-dana-runtime
+      # - name: Clippy Lint for parami-para-runtime
+      #   run: cargo +nightly clippy -p parami-para-runtime
+
+  build:
+    strategy:
+      matrix:
+        os: [linux]
+        arch: [x86_64, aarch64]
+
+    runs-on: ["self-hosted", "${{ matrix.os }}", "${{ matrix.arch }}"]
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions/prepare
+        with:
+          arch: ${{ matrix.arch }}
+          os: ${{ matrix.os }}
+
+      - name: Build Release
+        run: cargo build --release --locked
+
+      - name: Post-build
+        run: |
+          mkdir -p ./out/
+          cp ./target/release/parami ./out/parami-${{ matrix.os }}-${{ matrix.arch }}
+          cp ./target/release/wbuild/parami-dana-runtime/parami_dana_runtime.compact.compressed.wasm ./out/
+          cp ./target/release/parami-collator ./out/parami-collator-${{ matrix.os }}-${{ matrix.arch }}
+          cp ./target/release/wbuild/parami-para-runtime/parami_para_runtime.compact.compressed.wasm ./out/
+
+          strip ./out/parami-${{ matrix.os }}-${{ matrix.arch }}
+          strip ./out/parami-collator-${{ matrix.os }}-${{ matrix.arch }}
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: parami-${{ matrix.os }}-${{ matrix.arch }}
+          path: ./out/parami-${{ matrix.os }}-${{ matrix.arch }}
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: parami-dana-runtime
+          path: ./out/parami_dana_runtime.compact.compressed.wasm
+          if-no-files-found: error
+        if: matrix.arch == 'x86_64' && matrix.os == 'linux'
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: parami-collator-${{ matrix.os }}-${{ matrix.arch }}
+          path: ./out/parami-collator-${{ matrix.os }}-${{ matrix.arch }}
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: parami-para-runtime
+          path: ./out/parami_para_runtime.compact.compressed.wasm
+          if-no-files-found: error
+        if: matrix.arch == 'x86_64' && matrix.os == 'linux'
+
+  test:
     needs:
-      - ru-lint
-      - ru-test
+      - build
 
-  ru-release:
-    uses: ./.github/workflows/release.yml
+    strategy:
+      matrix:
+        os: [linux]
+        arch: [x86_64, aarch64]
+
+    runs-on: ["self-hosted", "${{ matrix.os }}", "${{ matrix.arch }}"]
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions/prepare
+        with:
+          arch: ${{ matrix.arch }}
+          os: ${{ matrix.os }}
+
+      - name: Install tarpaulin
+        run: cargo install --locked --force cargo-tarpaulin
+        if: matrix.arch == 'x86_64' && matrix.os == 'linux'
+
+      - name: Build Tests
+        run: cargo test --no-run --locked
+
+      - name: Run Test
+        run: cargo test -- --nocapture --quiet
+        if: matrix.arch != 'x86_64' || matrix.os != 'linux'
+
+      - name: Generate coverage
+        run: |
+          cargo tarpaulin --forward --release --locked -t 120 -o Xml \
+          --ignore-tests --workspace \
+          --exclude parami-primitives parami-traits \
+          parami-dana parami-para parami-dana-runtime parami-para-runtime \
+          --exclude-files **/mock.rs **/weights.rs **/weights/* **/migrations.rs **/benchmarking.rs
+        if: matrix.arch == 'x86_64' && matrix.os == 'linux'
+      - uses: codecov/codecov-action@v3
+        with:
+          fail_ci_if_error: true
+        if: matrix.arch == 'x86_64' && matrix.os == 'linux'
+
+  e2e:
+    needs:
+      - build
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
+
+      - uses: actions/download-artifact@v3
+        with:
+          name: parami-linux-x86_64
+
+      - run: |
+          chmod +x ./parami-linux-x86_64
+          nohup ./parami-linux-x86_64 --dev --tmp &
+
+      - run: npm i
+      - run: npm test
+
+      - run: killall parami-linux-x86_64 || true
+
+  bench:
+    needs:
+      - lint
+      - build
+
+    strategy:
+      matrix:
+        os: [linux]
+        arch: [x86_64, aarch64]
+
+    runs-on: ["self-hosted", "${{ matrix.os }}", "${{ matrix.arch }}"]
+
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions/prepare
+        with:
+          arch: ${{ matrix.arch }}
+          os: ${{ matrix.os }}
+
+      - name: Build Benchmarks
+        run: cargo build --release --locked --features=runtime-benchmarks
+
+      - name: Run Benchmark
+        run: |
+          ./.maintain/benchmark.sh swap
+          ./.maintain/benchmark.sh did 2 50
+          ./.maintain/benchmark.sh advertiser
+          ./.maintain/benchmark.sh tag
+          ./.maintain/benchmark.sh linker 2 50
+          ./.maintain/benchmark.sh nft 2 50
+          ./.maintain/benchmark.sh ad 2 100
+
+  release:
+    needs:
+      - lint
+      - build
+      - test
+      - e2e
+
     if: startsWith(github.ref, 'refs/tags/r')
-    needs:
-      - ru-build
-      - ru-lint
-      - ru-test
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/download-artifact@v3
+
+      - uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            **/parami-*
+            **/parami_*_runtime.compact.compressed.wasm

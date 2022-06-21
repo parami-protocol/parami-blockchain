@@ -23,9 +23,10 @@ jobs:
 
       - uses: dawidd6/action-download-artifact@v2
         with:
-          workflow: actions.yml
-          workflow_conclusion: success
           branch: main
+          workflow: actions.yml
+
+      - run: npm i
 
       - run: npm run upgrade
         env:
