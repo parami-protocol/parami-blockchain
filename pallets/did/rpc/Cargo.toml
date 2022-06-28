@@ -24,6 +24,6 @@ jsonrpc-core = '18.0'
 jsonrpc-core-client = '18.0'
 jsonrpc-derive = '18.0'
 
-sp-core = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13' }
-sp-offchain = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13' }
-sp-rpc = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.13' }
+sp-core = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24' }
+sp-offchain = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24' }
+sp-rpc = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24' }

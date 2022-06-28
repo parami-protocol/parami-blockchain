@@ -24,7 +24,7 @@ rustc 1.61.0 (fe5b13d68 2022-05-18)
 rustc 1.63.0-nightly (76761db59 2022-05-24)
 
 substrate-node-template v3.0.0+monthly-2021-10
-substrate polkadot-v0.9.13
+substrate polkadot-v0.9.24
 ```
 
 ## Contributing
