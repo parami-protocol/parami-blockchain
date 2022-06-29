@@ -1,10 +1,22 @@
-use codec::{Decode, Encode};
+use codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 use sp_runtime::RuntimeDebug;
 
-#[derive(Clone, Copy, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, RuntimeDebug, TypeInfo)]
+#[derive(
+    Clone,
+    Copy,
+    Decode,
+    Encode,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    RuntimeDebug,
+    TypeInfo,
+    MaxEncodedLen,
+)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub enum Network {
     Unknown = 0,

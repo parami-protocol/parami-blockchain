@@ -173,7 +173,7 @@ pub mod pallet {
                 types::Metadata {
                     account: meta.account.clone(),
                     revoked: true,
-                    ..Default::default()
+                    created: 0u32.into(),
                 },
             );
 
@@ -223,7 +223,7 @@ pub mod pallet {
                     types::Metadata {
                         account: id.clone(),
                         revoked: false,
-                        ..Default::default()
+                        created: 0u32.into(),
                     },
                 );
                 <DidOf<T>>::insert(id, did);
@@ -268,7 +268,6 @@ impl<T: Config> Pallet<T> {
                 account: account.clone(),
                 revoked: false,
                 created,
-                ..Default::default()
             },
         );
         <DidOf<T>>::insert(&account, did);

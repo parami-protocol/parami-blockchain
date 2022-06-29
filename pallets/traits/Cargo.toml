@@ -16,12 +16,12 @@ targets = ['x86_64-unknown-linux-gnu']
 default-features = false
 features = ['derive']
 package = 'parity-scale-codec'
-version = '2.2.0'
+version = '3.0.0'
 
 [dependencies.scale-info]
 default-features = false
 features = ['derive']
-version = '1.0'
+version = '2.1.1'
 
 [dependencies]
 parami-primitives = { path = '../../primitives', default-features = false }

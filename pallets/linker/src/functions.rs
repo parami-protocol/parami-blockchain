@@ -202,7 +202,8 @@ impl<T: Config> Pallet<T> {
         nonce.copy_from_slice(&address[1..33]);
 
         let address = sr25519::Public::from_raw(nonce);
-        let signature = sr25519::Signature::from_slice(&signature[1..]);
+        let signature =
+            sr25519::Signature::from_slice(&signature[1..]).ok_or(Error::<T>::InvalidAddress)?;
 
         if sp_io::crypto::sr25519_verify(&signature, &bytes, &address) {
             Ok(raw)
@@ -247,7 +248,8 @@ impl<T: Config> Pallet<T> {
         nonce.copy_from_slice(&address[0..32]);
 
         let address = ed25519::Public::from_raw(nonce);
-        let signature = ed25519::Signature::from_slice(&signature[1..]);
+        let signature =
+            ed25519::Signature::from_slice(&signature[1..]).ok_or(Error::<T>::InvalidAddress)?;
 
         if sp_io::crypto::ed25519_verify(&signature, &bytes, &address) {
             Ok(raw)

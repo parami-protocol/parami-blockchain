@@ -1,7 +1,7 @@
 //! Various basic types for use in the assets pallet
 
 use super::*;
-use codec::{Decode, Encode};
+use codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default, TypeInfo)]
@@ -12,7 +12,7 @@ pub struct External<Did> {
     pub token: Vec<u8>,
 }
 
-#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default, TypeInfo)]
+#[derive(Clone, Encode, Decode, Eq, PartialEq, RuntimeDebug, Default, TypeInfo, MaxEncodedLen)]
 pub struct Metadata<Did, AccountId, NftClassId, AssetId> {
     pub owner: Did,
     pub pot: AccountId,

@@ -1,8 +1,10 @@
 pub use abi::eth_abi;
 
 mod abi;
+mod types;
 
 use crate::{Call, Config, Error, Pallet, Porting};
+use ethabi::ethereum_types::U256;
 use frame_support::dispatch::DispatchError;
 use frame_support::dispatch::DispatchResult;
 use frame_system::offchain::{SendTransactionTypes, SubmitTransaction};
@@ -10,7 +12,6 @@ use parami_ocw::JsonValue;
 use parami_ocw::{submit_unsigned, Pallet as Ocw};
 use parami_traits::Links;
 use scale_info::prelude::string::String;
-use sp_core::U256;
 use sp_std::prelude::Vec;
 
 impl<T: Config + SendTransactionTypes<Call<T>>> Pallet<T> {
@@ -106,8 +107,8 @@ impl<T: Config + SendTransactionTypes<Call<T>>> Pallet<T> {
 }"#;
         let encoded = eth_abi::encode_input(
             "ownerOf".as_bytes(),
-            &[abi::ParamType::Uint(256)],
-            &[abi::Token::Uint(U256::from(token))],
+            &[types::ParamType::Uint(256)],
+            &[types::Token::Uint(U256::from(token))],
         );
         let body = body
             .replace("<data>", &hex::encode(&encoded))

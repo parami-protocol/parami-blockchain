@@ -62,7 +62,8 @@ pub mod pallet {
             + AtLeast32BitUnsigned
             + Default
             + Bounded
-            + Copy;
+            + Copy
+            + MaxEncodedLen;
 
         /// The assets trait to create, mint, and transfer fungible tokens
         type Assets: FungMeta<AccountOf<Self>, AssetId = AssetOf<Self>>

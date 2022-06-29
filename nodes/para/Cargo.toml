@@ -32,14 +32,14 @@ try-runtime = [
 default-features = false
 features = ['derive']
 package = 'parity-scale-codec'
-version = '2.2.0'
+version = '3.0.0'
 
 [dependencies]
 derive_more = '0.99'
 hex-literal = '0.3'
 log = '0.4'
 rand = '0.7'
-serde = { version = '1.0', features = ['derive'] }
+serde = { version = '1.0.0', features = ['derive'] }
 structopt = '0.3'
 
 # RPC related Dependencies

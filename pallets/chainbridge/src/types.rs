@@ -1,4 +1,4 @@
-use codec::{Decode, Encode};
+use codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 use sp_core::H256;
 use sp_runtime::RuntimeDebug;
@@ -8,14 +8,26 @@ pub type ChainId = u8;
 pub type DepositNonce = u64;
 pub type ResourceId = H256;
 
-#[derive(Clone, Copy, Decode, Encode, Eq, Ord, PartialEq, PartialOrd, RuntimeDebug, TypeInfo)]
+#[derive(
+    Clone,
+    Copy,
+    Decode,
+    Encode,
+    Eq,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    RuntimeDebug,
+    TypeInfo,
+    MaxEncodedLen,
+)]
 pub enum ProposalStatus {
     Initiated,
     Approved,
     Rejected,
 }
 
-#[derive(Clone, Decode, Encode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
+#[derive(Clone, Decode, Encode, Eq, PartialEq, RuntimeDebug, TypeInfo, MaxEncodedLen)]
 pub struct ProposalVotes<AccountId, BlockNumber> {
     pub votes_for: Vec<AccountId>,
     pub votes_against: Vec<AccountId>,

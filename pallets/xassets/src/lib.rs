@@ -62,7 +62,7 @@ pub mod pallet {
             Balance = BalanceOf<Self>,
         >;
 
-        type AssetId: Parameter + Member + Default + Copy;
+        type AssetId: Parameter + Member + Default + Copy + MaxEncodedLen;
 
         /// Ids can be defined by the runtime and passed in, perhaps from blake2b_128 hashes.
         type HashId: Get<ResourceId>;

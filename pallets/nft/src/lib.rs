@@ -91,7 +91,8 @@ pub mod pallet {
             + AtLeast32BitUnsigned
             + Default
             + Bounded
-            + Copy;
+            + Copy
+            + MaxEncodedLen;
 
         /// The assets trait to create, mint, and transfer fragments (fungible token)
         type Assets: FungCreate<AccountOf<Self>, AssetId = AssetOf<Self>>
@@ -121,8 +122,8 @@ pub mod pallet {
         type Links: Links<DidOf<Self>>;
 
         /// The NFT trait to create, mint non-fungible token
-        type Nft: NftCreate<AccountOf<Self>, InstanceId = NftOf<Self>, ClassId = NftOf<Self>>
-            + NftMutate<AccountOf<Self>, InstanceId = NftOf<Self>, ClassId = NftOf<Self>>;
+        type Nft: NftCreate<AccountOf<Self>, ItemId = NftOf<Self>, CollectionId = NftOf<Self>>
+            + NftMutate<AccountOf<Self>, ItemId = NftOf<Self>, CollectionId = NftOf<Self>>;
 
         /// The pallet id, used for deriving "pot" accounts to receive donation
         #[pallet::constant]
@@ -151,6 +152,7 @@ pub mod pallet {
     #[pallet::pallet]
     #[pallet::storage_version(STORAGE_VERSION)]
     #[pallet::generate_store(pub(super) trait Store)]
+    #[pallet::without_storage_info]
     pub struct Pallet<T>(_);
 
     /// Total deposit in pot
@@ -414,7 +416,7 @@ pub mod pallet {
             // 2. create NFT token
             let tid = nft;
 
-            T::Nft::create_class(&meta.class_id, &meta.pot, &meta.pot)?;
+            T::Nft::create_collection(&meta.class_id, &meta.pot, &meta.pot)?;
             T::Nft::mint_into(&meta.class_id, &nft, &meta.pot)?;
 
             // 3. initial minting
@@ -567,7 +569,7 @@ pub mod pallet {
                     panic!("NFT ID must be less than next_instance_id");
                 }
 
-                let pot: AccountOf<T> = T::PalletId::get().into_sub_account(owner);
+                let pot: AccountOf<T> = T::PalletId::get().into_sub_account_truncating(owner);
 
                 <Metadata<T>>::insert(
                     id,
@@ -584,7 +586,7 @@ pub mod pallet {
 
                 if minted {
                     // MARK: pallet_uniques does not support genesis
-                    T::Nft::create_class(&id, &pot, &pot).unwrap();
+                    T::Nft::create_collection(&id, &pot, &pot).unwrap();
                     T::Nft::mint_into(&id, &id, &pot).unwrap();
 
                     <Date<T>>::insert(id, HeightOf::<T>::zero());
@@ -646,7 +648,7 @@ impl<T: Config> Pallet<T> {
             Ok(current_id)
         })?;
 
-        let pot = T::PalletId::get().into_sub_account(&owner);
+        let pot = T::PalletId::get().into_sub_account_truncating(&owner);
 
         ensure!(!<Metadata<T>>::contains_key(id), Error::<T>::Exists);
 

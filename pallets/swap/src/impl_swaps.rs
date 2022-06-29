@@ -60,7 +60,7 @@ impl<T: Config> Swaps<AccountOf<T>> for Pallet<T> {
     }
 
     fn get_pool_account(token_id: Self::AssetId) -> AccountOf<T> {
-        T::PalletId::get().into_sub_account(token_id)
+        T::PalletId::get().into_sub_account_truncating(token_id)
     }
 
     fn mint_dry(

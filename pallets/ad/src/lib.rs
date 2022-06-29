@@ -96,6 +96,7 @@ pub mod pallet {
     #[pallet::pallet]
     #[pallet::storage_version(STORAGE_VERSION)]
     #[pallet::generate_store(pub(super) trait Store)]
+    #[pallet::without_storage_info]
     pub struct Pallet<T>(_);
 
     /// Metadata of an advertisement
@@ -744,6 +745,6 @@ impl<T: Config> Pallet<T> {
     fn generate_slot_pot(nft_id: NftOf<T>) -> AccountOf<T> {
         let nft_raw = <NftOf<T>>::encode(&nft_id);
         let hash = <T as frame_system::Config>::Hashing::hash(&nft_raw);
-        <T as Config>::PalletId::get().into_sub_account(hash)
+        <T as Config>::PalletId::get().into_sub_account_truncating(hash)
     }
 }

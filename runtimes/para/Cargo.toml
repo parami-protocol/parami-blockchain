@@ -20,16 +20,16 @@ branch = 'polkadot-v0.9.24'
 default-features = false
 features = ['derive']
 package = 'parity-scale-codec'
-version = '2.2.0'
+version = '3.0.0'
 
 [dependencies.scale-info]
 default-features = false
 features = ['derive']
-version = '1.0'
+version = '2.1.1'
 
 [dependencies]
 hex-literal = { version = '0.3', optional = true }
-serde = { version = '1.0', optional = true, features = ['derive'] }
+serde = { version = '1.0.0', optional = true, features = ['derive'] }
 smallvec = '1.6'
 log = { version = "0.4.14", default-features = false }
 
@@ -114,6 +114,8 @@ pallet-treasury = { git = 'https://github.com/paritytech/substrate', branch = 'p
 pallet-uniques = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24', default-features = false }
 pallet-utility = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24', default-features = false }
 pallet-vesting = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24', default-features = false }
+pallet-bags-list = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24', default-features = false }
+pallet-nomination-pools = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24', default-features = false }
 
 # Cumulus dependencies
 cumulus-pallet-aura-ext = { git = 'https://github.com/paritytech/cumulus', branch = 'polkadot-v0.9.24', default-features = false }

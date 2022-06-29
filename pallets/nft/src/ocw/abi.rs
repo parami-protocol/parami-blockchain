@@ -1,39 +1,18 @@
-pub use ethabi::{ParamType, Token};
+use crate::ocw::types;
+use ethabi::{ParamType, Token};
 use sp_runtime_interface::runtime_interface;
 use sp_std::prelude::*;
 
 #[runtime_interface]
 pub trait EthAbi {
-    fn encode(tokens: &[Token]) -> Vec<u8> {
-        #[cfg(feature = "std")]
-        {
-            ethabi::encode(tokens)
-        }
-
-        #[cfg(not(feature = "std"))]
-        {
-            unimplemented!()
-        }
-    }
-
-    fn decode(types: &[ParamType], data: &[u8]) -> Vec<Token> {
-        #[cfg(feature = "std")]
-        {
-            ethabi::decode(&types, &data).unwrap_or_default()
-        }
-
-        #[cfg(not(feature = "std"))]
-        {
-            unimplemented!()
-        }
-    }
-
-    fn encode_input(name: &[u8], types: &[ParamType], tokens: &[Token]) -> Vec<u8> {
+    fn encode_input(name: &[u8], types: &[types::ParamType], tokens: &[types::Token]) -> Vec<u8> {
         #[cfg(feature = "std")]
         {
             let name = String::from_utf8_lossy(name);
-            let signed = ethabi::short_signature(&name, types).to_vec();
-            let encoded = ethabi::encode(tokens);
+            let types: Vec<ethabi::ParamType> = types.iter().map(|i| i.into()).collect();
+            let signed = ethabi::short_signature(&name, &types).to_vec();
+            let tokens: Vec<ethabi::Token> = tokens.iter().map(|i| i.into()).collect();
+            let encoded = ethabi::encode(tokens.as_slice());
             signed.into_iter().chain(encoded.into_iter()).collect()
         }
 
