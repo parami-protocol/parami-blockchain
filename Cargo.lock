@@ -6123,6 +6123,7 @@ dependencies = [
  "pallet-aura",
  "pallet-authority-discovery",
  "pallet-authorship",
+ "pallet-bags-list",
  "pallet-balances",
  "pallet-bounties",
  "pallet-collective",
