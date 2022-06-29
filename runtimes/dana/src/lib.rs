@@ -35,18 +35,18 @@ use frame_support::traits::EnsureOneOf;
 use frame_support::{
     construct_runtime, parameter_types,
     traits::{
-        ConstU16, ConstU32, EqualPrivilegeOnly, Everything, KeyOwnerProofSystem, LockIdentifier,
-        Nothing, U128CurrencyToVote,
+        ConstU16, ConstU32, ConstU128, EqualPrivilegeOnly, Everything, KeyOwnerProofSystem, LockIdentifier,
+        Nothing, U128CurrencyToVote, AsEnsureOriginWithArg
     },
     weights::{
         constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
-        DispatchClass, IdentityFee, Weight,
+        DispatchClass, IdentityFee, Weight, ConstantMultiplier,
     },
     PalletId,
 };
 use frame_system::{
     limits::{BlockLength, BlockWeights},
-    EnsureRoot,
+    EnsureRoot, EnsureSigned,
 };
 use pallet_contracts::weights::WeightInfo;
 use pallet_grandpa::{
@@ -67,6 +67,8 @@ pub use parami_primitives::{
 };
 use parami_swap::LinearFarmingCurve;
 use parami_traits::Swaps;
+/// Generated voter bag information.
+mod voter_bags;
 
 /// We allow for 0.5 of a second of compute with a 12 second average block time.
 const MAXIMUM_BLOCK_WEIGHT: Weight = WEIGHT_PER_SECOND / 2;
@@ -420,7 +422,7 @@ parameter_types! {
 
 impl pallet_transaction_payment::Config for Runtime {
     type OnChargeTransaction = pallet_transaction_payment::CurrencyAdapter<Balances, ()>;
-    type LengthToFee = TransactionByteFee;
+    type LengthToFee = ConstantMultiplier<Balance, TransactionByteFee>;
     type WeightToFee = IdentityFee<Balance>;
     type FeeMultiplierUpdate =
         TargetedFeeAdjustment<Self, TargetBlockFullness, AdjustmentVariable, MinimumMultiplier>;
@@ -450,6 +452,7 @@ impl pallet_assets::Config for Runtime {
     type Currency = Balances;
     type ForceOrigin = EnsureRoot<AccountId>;
     type AssetDeposit = AssetDeposit;
+    type AssetAccountDeposit = ConstU128<DOLLARS>;
     type MetadataDepositBase = MetadataDepositBase;
     type MetadataDepositPerByte = MetadataDepositPerByte;
     type ApprovalDeposit = ApprovalDeposit;
@@ -480,6 +483,8 @@ impl pallet_uniques::Config for Runtime {
     type KeyLimit = StringLimit;
     type ValueLimit = StringLimit;
     type WeightInfo = pallet_uniques::weights::SubstrateWeight<Runtime>;
+    type CreateOrigin = AsEnsureOriginWithArg<EnsureSigned<AccountId>>;
+	type Locker = ();
 }
 
 parameter_types! {
@@ -607,8 +612,15 @@ parameter_types! {
     pub const MaxNominations: u32 = MAX_NOMINATIONS;
 }
 
+pub struct StakingBenchmarkingConfig;
+impl pallet_staking::BenchmarkingConfig for StakingBenchmarkingConfig {
+	type MaxNominators = ConstU32<1000>;
+	type MaxValidators = ConstU32<1000>;
+}
+
 impl pallet_staking::Config for Runtime {
     type Currency = Balances;
+    type CurrencyBalance = Balance;
     type UnixTime = Timestamp;
     type CurrencyToVote = U128CurrencyToVote;
     type ElectionProvider = ElectionProviderMultiPhase;
@@ -629,7 +641,10 @@ impl pallet_staking::Config for Runtime {
     type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
     type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
     type VoterList = BagsList;
+    type MaxUnlockingChunks = ConstU32<32>;
+    type OnStakerSlash = NominationPools;
     type WeightInfo = pallet_staking::weights::SubstrateWeight<Runtime>;
+    type BenchmarkingConfig = StakingBenchmarkingConfig;
 }
 
 impl pallet_offences::Config for Runtime {
@@ -844,6 +859,7 @@ impl pallet_treasury::Config for Runtime {
     type OnSlash = ();
     type ProposalBond = ProposalBond;
     type ProposalBondMinimum = ProposalBondMinimum;
+    type ProposalBondMaximum = ();
     type SpendPeriod = SpendPeriod;
     type Burn = Burn;
     type PalletId = TreasuryPalletId;
@@ -856,6 +872,7 @@ impl pallet_treasury::Config for Runtime {
 parameter_types! {
     pub const BountyCuratorDeposit: Permill = Permill::from_percent(50);
     pub const BountyDepositBase: Balance = 1 * DOLLARS;
+    pub const CuratorDepositMultiplier: Permill = Permill::from_percent(50);
     pub const BountyDepositPayoutDelay: BlockNumber = 1 * DAYS;
     pub const BountyUpdatePeriod: BlockNumber = 14 * DAYS;
     pub const BountyValueMinimum: Balance = 5 * DOLLARS;
@@ -868,6 +885,7 @@ impl pallet_bounties::Config for Runtime {
     type BountyDepositBase = BountyDepositBase;
     type BountyDepositPayoutDelay = BountyDepositPayoutDelay;
     type BountyUpdatePeriod = BountyUpdatePeriod;
+    type CuratorDepositMultiplier = CuratorDepositMultiplier;
     type BountyValueMinimum = BountyValueMinimum;
     type DataDepositPerByte = DataDepositPerByte;
     type Event = Event;
@@ -875,6 +893,7 @@ impl pallet_bounties::Config for Runtime {
     type WeightInfo = pallet_bounties::weights::SubstrateWeight<Runtime>;
     type CuratorDepositMin = CuratorDepositMin;
     type CuratorDepositMax = CuratorDepositMax;
+    type ChildBountyManager = ChildBounties;
 }
 
 parameter_types! {
@@ -1059,7 +1078,7 @@ impl pallet_mmr::Config for Runtime {
     const INDEXING_PREFIX: &'static [u8] = b"mmr";
     type Hashing = <Runtime as frame_system::Config>::Hashing;
     type Hash = <Runtime as frame_system::Config>::Hash;
-    type LeafData = frame_system::Pallet<Self>;
+    type LeafData = pallet_mmr::ParentNumberAndHash<Self>;
     type OnNewRoot = ();
     type WeightInfo = ();
 }
@@ -1093,6 +1112,7 @@ parameter_types! {
 
 impl pallet_recovery::Config for Runtime {
     type Event = Event;
+    type WeightInfo = pallet_recovery::weights::SubstrateWeight<Runtime>;
     type Call = Call;
     type Currency = Balances;
     type ConfigDepositBase = ConfigDepositBase;
@@ -1134,6 +1154,17 @@ impl pallet_society::Config for Runtime {
 impl pallet_sudo::Config for Runtime {
     type Event = Event;
     type Call = Call;
+}
+
+parameter_types! {
+	pub const ChildBountyValueMinimum: Balance = 1 * DOLLARS;
+}
+
+impl pallet_child_bounties::Config for Runtime {
+	type Event = Event;
+	type MaxActiveChildBountyCount = ConstU32<5>;
+	type ChildBountyValueMinimum = ChildBountyValueMinimum;
+	type WeightInfo = pallet_child_bounties::weights::SubstrateWeight<Runtime>;
 }
 
 parameter_types! {
@@ -1365,6 +1396,7 @@ construct_runtime!(
         Offences: pallet_offences::{Pallet, Storage, Event} = 33,
         Historical: pallet_session::historical::{Pallet} = 34,
         BagsList: pallet_bags_list = 35,
+        ChildBounties: pallet_child_bounties = 36,
 
         // Governance stuff; uncallable initially.
         Democracy: pallet_democracy::{Pallet, Call, Storage, Config<T>, Event<T>} = 50,
@@ -1373,6 +1405,7 @@ construct_runtime!(
         PhragmenElection: pallet_elections_phragmen::{Pallet, Call, Storage, Event<T>, Config<T>} = 53,
         TechnicalMembership: pallet_membership::<Instance1>::{Pallet, Call, Storage, Event<T>, Config<T>} = 54,
         Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>} = 55,
+        NominationPools: pallet_nomination_pools = 56,
 
         // Miscellaneous.
         Bounties: pallet_bounties::{Pallet, Call, Storage, Event<T>} = 60,
@@ -1581,32 +1614,65 @@ impl_runtime_apis! {
     }
 
     impl pallet_mmr::primitives::MmrApi<Block, mmr::Hash> for Runtime {
-        fn generate_proof(
-            leaf_index: u64,
-        ) -> Result<(mmr::EncodableOpaqueLeaf, mmr::Proof<mmr::Hash>), mmr::Error> {
-            Mmr::generate_proof(leaf_index)
-                .map(|(leaf, proof)| (mmr::EncodableOpaqueLeaf::from_leaf(&leaf), proof))
-        }
+        fn generate_proof(leaf_index: pallet_mmr::primitives::LeafIndex)
+			-> Result<(mmr::EncodableOpaqueLeaf, mmr::Proof<mmr::Hash>), mmr::Error>
+		{
+			Mmr::generate_batch_proof(vec![leaf_index]).and_then(|(leaves, proof)|
+				Ok((
+					mmr::EncodableOpaqueLeaf::from_leaf(&leaves[0]),
+					mmr::BatchProof::into_single_leaf_proof(proof)?
+				))
+			)
+		}
 
-        fn verify_proof(
-            leaf: mmr::EncodableOpaqueLeaf,
-            proof: mmr::Proof<mmr::Hash>,
-        ) -> Result<(), mmr::Error> {
-            let leaf: mmr::Leaf = leaf
-                .into_opaque_leaf()
-                .try_decode()
-                .ok_or(mmr::Error::Verify)?;
-            Mmr::verify_leaf(leaf, proof)
-        }
+		fn verify_proof(leaf: mmr::EncodableOpaqueLeaf, proof: mmr::Proof<mmr::Hash>)
+			-> Result<(), mmr::Error>
+		{
+			let leaf: mmr::Leaf = leaf
+				.into_opaque_leaf()
+				.try_decode()
+				.ok_or(mmr::Error::Verify)?;
+			Mmr::verify_leaves(vec![leaf], mmr::Proof::into_batch_proof(proof))
+		}
 
-        fn verify_proof_stateless(
-            root: mmr::Hash,
-            leaf: mmr::EncodableOpaqueLeaf,
-            proof: mmr::Proof<mmr::Hash>,
-        ) -> Result<(), mmr::Error> {
-            let node = mmr::DataOrHash::Data(leaf.into_opaque_leaf());
-            pallet_mmr::verify_leaves_proof::<mmr::Hashing, _>(root, node, proof)
-        }
+		fn verify_proof_stateless(
+			root: mmr::Hash,
+			leaf: mmr::EncodableOpaqueLeaf,
+			proof: mmr::Proof<mmr::Hash>
+		) -> Result<(), mmr::Error> {
+			let node = mmr::DataOrHash::Data(leaf.into_opaque_leaf());
+			pallet_mmr::verify_leaves_proof::<mmr::Hashing, _>(root, vec![node], mmr::Proof::into_batch_proof(proof))
+		}
+
+		fn mmr_root() -> Result<mmr::Hash, mmr::Error> {
+			Ok(Mmr::mmr_root())
+		}
+
+		fn generate_batch_proof(leaf_indices: Vec<pallet_mmr::primitives::LeafIndex>)
+			-> Result<(Vec<mmr::EncodableOpaqueLeaf>, mmr::BatchProof<mmr::Hash>), mmr::Error>
+		{
+			Mmr::generate_batch_proof(leaf_indices)
+				.map(|(leaves, proof)| (leaves.into_iter().map(|leaf| mmr::EncodableOpaqueLeaf::from_leaf(&leaf)).collect(), proof))
+		}
+
+		fn verify_batch_proof(leaves: Vec<mmr::EncodableOpaqueLeaf>, proof: mmr::BatchProof<mmr::Hash>)
+			-> Result<(), mmr::Error>
+		{
+			let leaves = leaves.into_iter().map(|leaf|
+				leaf.into_opaque_leaf()
+				.try_decode()
+				.ok_or(mmr::Error::Verify)).collect::<Result<Vec<mmr::Leaf>, mmr::Error>>()?;
+			Mmr::verify_leaves(leaves, proof)
+		}
+
+		fn verify_batch_proof_stateless(
+			root: mmr::Hash,
+			leaves: Vec<mmr::EncodableOpaqueLeaf>,
+			proof: mmr::BatchProof<mmr::Hash>
+		) -> Result<(), mmr::Error> {
+			let nodes = leaves.into_iter().map(|leaf|mmr::DataOrHash::Data(leaf.into_opaque_leaf())).collect();
+			pallet_mmr::verify_leaves_proof::<mmr::Hashing, _>(root, nodes, proof)
+		}
     }
 
     impl parami_swap_rpc_runtime_api::SwapRuntimeApi<Block, AssetId, Balance> for Runtime {

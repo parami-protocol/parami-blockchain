@@ -95,6 +95,8 @@ pallet-im-online = { git = 'https://github.com/paritytech/substrate', branch = '
 pallet-membership = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24', default-features = false }
 pallet-mmr = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24', default-features = false }
 pallet-multisig = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24', default-features = false }
+pallet-nomination-pools = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24', default-features = false }
+pallet-nomination-pools-benchmarking = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24', default-features = false, optional = true}
 pallet-offences = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24', default-features = false }
 pallet-randomness-collective-flip = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24', default-features = false }
 pallet-recovery = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24', default-features = false }
@@ -115,6 +117,7 @@ pallet-uniques = { git = 'https://github.com/paritytech/substrate', branch = 'po
 pallet-utility = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24', default-features = false }
 pallet-vesting = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24', default-features = false }
 pallet-bags-list = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24', default-features = false }
+pallet-child-bounties = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24', default-features = false }
 
 [features]
 default = ['std']
@@ -178,6 +181,7 @@ std = [
     'pallet-membership/std',
     'pallet-mmr/std',
     'pallet-multisig/std',
+    "pallet-nomination-pools/std",
     'pallet-offences/std',
     'pallet-randomness-collective-flip/std',
     'pallet-recovery/std',
@@ -194,6 +198,7 @@ std = [
     'pallet-uniques/std',
     'pallet-utility/std',
     'pallet-vesting/std',
+    "pallet-child-bounties/std",
 ]
 
 runtime-benchmarks = [
@@ -230,6 +235,7 @@ runtime-benchmarks = [
     'pallet-membership/runtime-benchmarks',
     'pallet-mmr/runtime-benchmarks',
     'pallet-multisig/runtime-benchmarks',
+    "pallet-nomination-pools-benchmarking",
     'pallet-offences/runtime-benchmarks',
     'pallet-scheduler/runtime-benchmarks',
     'pallet-session-benchmarking',
@@ -272,6 +278,8 @@ try-runtime = [
     'pallet-membership/try-runtime',
     'pallet-mmr/try-runtime',
     'pallet-multisig/try-runtime',
+    "pallet-nomination-pools/try-runtime",
+    
     'pallet-offences/try-runtime',
     'pallet-scheduler/try-runtime',
     'pallet-society/try-runtime',
