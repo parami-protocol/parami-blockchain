@@ -30,7 +30,7 @@ use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 
 // A few exports that help ease life for downstream crates.
-use frame_election_provider_support::onchain;
+use frame_election_provider_support::{onchain, ElectionDataProvider, VoteWeight};
 use frame_support::traits::EnsureOneOf;
 use frame_support::{
     construct_runtime, parameter_types,
@@ -118,26 +118,22 @@ mod mmr {
 
 /// more than 1/2
 type HalfCouncil = pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>;
-type EnsureRootOrHalfCouncil =
-    EnsureOneOf<AccountId, EnsureOneOf<EnsureRoot<AccountId>, HalfCouncil>>;
+type EnsureRootOrHalfCouncil = EnsureOneOf<EnsureRoot<AccountId>, HalfCouncil>;
 
 /// at least 3/5
 type PluralityCouncil =
     pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 3, 5>;
-type EnsureRootOrPluralityCouncil =
-    EnsureOneOf<AccountId, EnsureOneOf<EnsureRoot<AccountId>, PluralityCouncil>>;
+type EnsureRootOrPluralityCouncil = EnsureOneOf<EnsureRoot<AccountId>, PluralityCouncil>;
 
 /// at least 3/4
 type MajoritarianCouncil =
     pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 3, 4>;
-type EnsureRootOrMajoritarianCouncil =
-    EnsureOneOf<AccountId, EnsureOneOf<EnsureRoot<AccountId>, MajoritarianCouncil>>;
+type EnsureRootOrMajoritarianCouncil = EnsureOneOf<EnsureRoot<AccountId>, MajoritarianCouncil>;
 
 /// whole
 type OverallCouncil =
     pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 1, 1>;
-type EnsureRootOrOverallCouncil =
-    EnsureOneOf<AccountId, EnsureOneOf<EnsureRoot<AccountId>, OverallCouncil>>;
+type EnsureRootOrOverallCouncil = EnsureOneOf<EnsureRoot<AccountId>, OverallCouncil>;
 
 /// Opaque types. These are used by the CLI to instantiate machinery that don't need to know
 /// the specifics of the runtime. They can then be made to be agnostic over specific formats
@@ -270,6 +266,8 @@ impl frame_system::Config for Runtime {
     type SS58Prefix = SS58Prefix;
     /// The set code logic, just the default since we're not a parachain.
     type OnSetCode = ();
+
+    type MaxConsumers = ConstU32<16>;
 }
 
 impl frame_election_provider_support::onchain::Config for Runtime {
@@ -345,6 +343,8 @@ parameter_types! {
     pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
         RuntimeBlockWeights::get().max_block;
     pub const MaxScheduledPerBlock: u32 = 50;
+    // Retry a scheduled item every 10 blocks (1 minute) until the preimage exists.
+	pub const NoPreimagePostponement: Option<u32> = Some(10);
 }
 
 impl pallet_scheduler::Config for Runtime {
@@ -357,6 +357,25 @@ impl pallet_scheduler::Config for Runtime {
     type OriginPrivilegeCmp = EqualPrivilegeOnly;
     type MaxScheduledPerBlock = MaxScheduledPerBlock;
     type WeightInfo = pallet_scheduler::weights::SubstrateWeight<Runtime>;
+    type PreimageProvider = Preimage;
+	type NoPreimagePostponement = NoPreimagePostponement;
+}
+
+parameter_types! {
+	pub const PreimageMaxSize: u32 = 4096 * 1024;
+	pub const PreimageBaseDeposit: Balance = 1 * DOLLARS;
+	// One cent: $10,000 / MB
+	pub const PreimageByteDeposit: Balance = 1 * CENTS;
+}
+
+impl pallet_preimage::Config for Runtime {
+	type WeightInfo = pallet_preimage::weights::SubstrateWeight<Runtime>;
+	type Event = Event;
+	type Currency = Balances;
+	type ManagerOrigin = EnsureRoot<AccountId>;
+	type MaxSize = PreimageMaxSize;
+	type BaseDeposit = PreimageBaseDeposit;
+	type ByteDeposit = PreimageByteDeposit;
 }
 
 parameter_types! {
@@ -633,8 +652,6 @@ parameter_types! {
     pub const MaxProposals: u32 = 100;
     pub const MaxVotes: u32 = 100;
     pub const MinimumDeposit: Balance = 100 * DOLLARS;
-    // One cent: $10,000 / MB
-    pub const PreimageByteDeposit: Balance = 1 * CENTS;
     pub const VoteLockingPeriod: u32 = 42 * DAYS;
     pub const VotingPeriod: BlockNumber = 28 * DAYS;
 }
@@ -776,6 +793,25 @@ impl pallet_elections_phragmen::Config for Runtime {
     type DesiredRunnersUp = DesiredRunnersUp;
     type TermDuration = TermDuration;
     type WeightInfo = pallet_elections_phragmen::weights::SubstrateWeight<Runtime>;
+}
+
+impl pallet_election_provider_multi_phase::MinerConfig for Runtime {
+	type AccountId = AccountId;
+	type MaxLength = MinerMaxLength;
+	type MaxWeight = MinerMaxWeight;
+	type Solution = NposSolution16;
+	type MaxVotesPerVoter =
+	<<Self as pallet_election_provider_multi_phase::Config>::DataProvider as ElectionDataProvider>::MaxVotesPerVoter;
+
+	// The unsigned submissions have to respect the weight of the submit_unsigned call, thus their
+	// weight estimate function is wired to this call's weight.
+	fn solution_weight(v: u32, t: u32, a: u32, d: u32) -> Weight {
+		<
+			<Self as pallet_election_provider_multi_phase::Config>::WeightInfo
+			as
+			pallet_election_provider_multi_phase::WeightInfo
+		>::submit_unsigned(v, t, a, d)
+	}
 }
 
 impl pallet_membership::Config<pallet_membership::Instance1> for Runtime {
@@ -1005,6 +1041,18 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
     type MaxElectingVoters = MaxElectingVoters;
     type BenchmarkingConfig = ElectionProviderBenchmarkConfig;
     type WeightInfo = pallet_election_provider_multi_phase::weights::SubstrateWeight<Self>;
+}
+
+parameter_types! {
+	pub const BagThresholds: &'static [u64] = &voter_bags::THRESHOLDS;
+}
+
+impl pallet_bags_list::Config for Runtime {
+	type Event = Event;
+	type ScoreProvider = Staking;
+	type WeightInfo = pallet_bags_list::weights::SubstrateWeight<Runtime>;
+	type BagThresholds = BagThresholds;
+	type Score = VoteWeight;
 }
 
 impl pallet_mmr::Config for Runtime {
@@ -1297,6 +1345,7 @@ construct_runtime!(
         System: frame_system::{Pallet, Call, Config, Storage, Event<T>} = 0,
         Scheduler: pallet_scheduler::{Pallet, Call, Storage, Event<T>} = 2,
         Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent} = 3,
+        Preimage: pallet_preimage = 4,
 
         // Monetary stuff.
         Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>} = 10,

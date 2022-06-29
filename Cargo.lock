@@ -6139,6 +6139,7 @@ dependencies = [
  "pallet-mmr",
  "pallet-multisig",
  "pallet-offences",
+ "pallet-preimage",
  "pallet-randomness-collective-flip",
  "pallet-recovery",
  "pallet-scheduler",
