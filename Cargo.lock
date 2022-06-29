@@ -6085,7 +6085,7 @@ dependencies = [
  "frame-benchmarking",
  "frame-benchmarking-cli",
  "frame-try-runtime",
- "jsonrpc-core",
+ "jsonrpsee",
  "pallet-contracts-rpc",
  "pallet-mmr-rpc",
  "pallet-transaction-payment-rpc",

@@ -73,8 +73,8 @@ pub fn development_config() -> ChainSpec {
     // Give your base currency a unit name and decimal places
     let mut properties = sc_chain_spec::Properties::new();
     properties.insert("tokenSymbol".into(), "AD3".into());
-    properties.insert("tokenDecimals".into(), 18.into());
-    properties.insert("ss58Format".into(), 42.into());
+    properties.insert("tokenDecimals".into(), 18u32.into());
+    properties.insert("ss58Format".into(), 42u32.into());
 
     ChainSpec::from_genesis(
         // Name
@@ -96,6 +96,8 @@ pub fn development_config() -> ChainSpec {
         None,
         // Protocol ID
         None,
+        // Fork Id
+        None,
         // Properties
         Some(properties),
         // Extensions
@@ -107,8 +109,8 @@ pub fn local_testnet_config() -> ChainSpec {
     // Give your base currency a unit name and decimal places
     let mut properties = sc_chain_spec::Properties::new();
     properties.insert("tokenSymbol".into(), "AD3".into());
-    properties.insert("tokenDecimals".into(), 18.into());
-    properties.insert("ss58Format".into(), 42.into());
+    properties.insert("tokenDecimals".into(), 18u32.into());
+    properties.insert("ss58Format".into(), 42u32.into());
 
     ChainSpec::from_genesis(
         // Name
@@ -133,6 +135,8 @@ pub fn local_testnet_config() -> ChainSpec {
         None,
         // Protocol ID
         Some("ad3"),
+        // Fork Id
+        None,
         // Properties
         Some(properties),
         // Extensions
@@ -283,7 +287,9 @@ fn testnet_genesis(
         technical_membership: Default::default(),
         treasury: Default::default(),
 
-        sudo: parami_dana_runtime::SudoConfig { key: root_key },
+        sudo: parami_dana_runtime::SudoConfig {
+            key: Some(root_key),
+        },
         vesting: Default::default(),
 
         ad: Default::default(),
@@ -293,5 +299,6 @@ fn testnet_genesis(
         nft: Default::default(),
         swap: Default::default(),
         tag: Default::default(),
+        nomination_pools: Default::default(),
     }
 }
