@@ -659,6 +659,40 @@ impl pallet_session::historical::Config for Runtime {
 }
 
 parameter_types! {
+	pub const PostUnbondPoolsWindow: u32 = 4;
+	pub const NominationPoolsPalletId: PalletId = PalletId(*b"py/nopls");
+	pub const MinPointsToBalance: u32 = 10;
+}
+
+use sp_runtime::traits::Convert;
+pub struct BalanceToU256;
+impl Convert<Balance, sp_core::U256> for BalanceToU256 {
+	fn convert(balance: Balance) -> sp_core::U256 {
+		sp_core::U256::from(balance)
+	}
+}
+pub struct U256ToBalance;
+impl Convert<sp_core::U256, Balance> for U256ToBalance {
+	fn convert(n: sp_core::U256) -> Balance {
+		n.try_into().unwrap_or(Balance::max_value())
+	}
+}
+
+impl pallet_nomination_pools::Config for Runtime {
+	type WeightInfo = ();
+	type Event = Event;
+	type Currency = Balances;
+	type BalanceToU256 = BalanceToU256;
+	type U256ToBalance = U256ToBalance;
+	type StakingInterface = pallet_staking::Pallet<Self>;
+	type PostUnbondingPoolsWindow = PostUnbondPoolsWindow;
+	type MaxMetadataLen = ConstU32<256>;
+	type MaxUnbonding = ConstU32<8>;
+	type PalletId = NominationPoolsPalletId;
+	type MinPointsToBalance = MinPointsToBalance;
+}
+
+parameter_types! {
     pub const CooloffPeriod: BlockNumber = 28 * DAYS;
     pub const EnactmentPeriod: BlockNumber = 30 * DAYS;
     pub const FastTrackVotingPeriod: BlockNumber = 3 * DAYS;
@@ -1405,7 +1439,6 @@ construct_runtime!(
         PhragmenElection: pallet_elections_phragmen::{Pallet, Call, Storage, Event<T>, Config<T>} = 53,
         TechnicalMembership: pallet_membership::<Instance1>::{Pallet, Call, Storage, Event<T>, Config<T>} = 54,
         Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>} = 55,
-        NominationPools: pallet_nomination_pools = 56,
 
         // Miscellaneous.
         Bounties: pallet_bounties::{Pallet, Call, Storage, Event<T>} = 60,
@@ -1420,6 +1453,7 @@ construct_runtime!(
         Tips: pallet_tips::{Pallet, Call, Storage, Event<T>} = 69,
         Utility: pallet_utility::{Pallet, Call, Event} = 70,
         Vesting: pallet_vesting::{Pallet, Call, Storage, Event<T>, Config<T>} = 71,
+        NominationPools: pallet_nomination_pools = 72,
 
         // Parami pallets.
         Ad: parami_ad::{Pallet, Call, Storage, Config, Event<T>} = 100,
