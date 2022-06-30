@@ -267,6 +267,8 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
         })
     };
 
+    let chain_spec = config.chain_spec.cloned_box();
+
     let _rpc_handlers = sc_service::spawn_tasks(sc_service::SpawnTasksParams {
         network: network.clone(),
         client: client.clone(),
@@ -345,7 +347,7 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
             .ok()
             .flatten()
             .expect("Genesis block exists; qed"),
-        &config.chain_spec,
+        &chain_spec,
     );
 
     let grandpa_config = sc_finality_grandpa::Config {

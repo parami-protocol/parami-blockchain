@@ -21,6 +21,7 @@ use sc_transaction_pool_api::TransactionPool;
 use sp_api::ProvideRuntimeApi;
 use sp_block_builder::BlockBuilder;
 use sp_blockchain::{Error as BlockChainError, HeaderBackend, HeaderMetadata};
+use sp_core::offchain::OffchainDbExt;
 
 /// Extra dependencies for GRANDPA
 pub struct GrandpaDeps<B> {
@@ -113,7 +114,7 @@ where
 
     if let Some(did_rpc) = backend
         .offchain_storage()
-        .map(|storage| DidRpcHandler::new(storage).into_rpc())
+        .map(|storage| DidRpcHandler::<_, DecentralizedId>::new(storage).into_rpc())
     {
         io.merge(did_rpc)?;
     }
