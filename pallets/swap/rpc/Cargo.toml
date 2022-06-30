@@ -20,9 +20,7 @@ version = '3.0.0'
 parami-primitives = { path = '../../../primitives' }
 parami-swap-rpc-runtime-api = { path = 'runtime-api' }
 
-jsonrpc-core = '18.0'
-jsonrpc-core-client = '18.0'
-jsonrpc-derive = '18.0'
+jsonrpsee = { version = "0.13.0", features = ["server"] }
 
 sp-api = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24' }
 sp-blockchain = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24' }

@@ -1,13 +1,14 @@
-pub use self::gen_client::Client as DidClient;
 use codec::Codec;
-use jsonrpc_core::Result;
-use jsonrpc_derive::rpc;
+use jsonrpsee::{
+    core::{async_trait, RpcResult},
+    proc_macros::rpc,
+};
 use parami_did_utils::derive_storage_key;
 use parking_lot::RwLock;
 use sp_core::offchain::OffchainStorage;
 use std::sync::Arc;
 
-#[rpc]
+#[rpc(client, server)]
 pub trait DidApi<DecentralizedId> {
     /// Get metadata of a DID
     ///
@@ -19,8 +20,8 @@ pub trait DidApi<DecentralizedId> {
     /// # Results
     ///
     /// the requested metadata
-    #[rpc(name = "did_getMetadata")]
-    fn get_metadata(&self, did: DecentralizedId, key: String) -> Result<String>;
+    #[method(name = "did_getMetadata")]
+    fn get_metadata(&self, did: DecentralizedId, key: String) -> RpcResult<String>;
 
     /// Batch get metadata of a DID
     ///
@@ -32,8 +33,9 @@ pub trait DidApi<DecentralizedId> {
     /// # Results
     ///
     /// the requested metadata
-    #[rpc(name = "did_batchGetMetadata")]
-    fn batch_get_metadata(&self, did: DecentralizedId, keys: Vec<String>) -> Result<Vec<String>>;
+    #[method(name = "did_batchGetMetadata")]
+    fn batch_get_metadata(&self, did: DecentralizedId, keys: Vec<String>)
+        -> RpcResult<Vec<String>>;
 }
 
 pub struct DidRpcHandler<T: OffchainStorage, DecentralizedId> {
@@ -54,12 +56,13 @@ where
     }
 }
 
-impl<T, DecentralizedId> DidApi<DecentralizedId> for DidRpcHandler<T, DecentralizedId>
+#[async_trait]
+impl<T, DecentralizedId> DidApiServer<DecentralizedId> for DidRpcHandler<T, DecentralizedId>
 where
     T: OffchainStorage + 'static,
     DecentralizedId: Codec + Send + Sync + 'static,
 {
-    fn get_metadata(&self, did: DecentralizedId, key: String) -> Result<String> {
+    fn get_metadata(&self, did: DecentralizedId, key: String) -> RpcResult<String> {
         let metadata = self
             .storage
             .read()
@@ -73,7 +76,11 @@ where
         Ok(metadata)
     }
 
-    fn batch_get_metadata(&self, did: DecentralizedId, keys: Vec<String>) -> Result<Vec<String>> {
+    fn batch_get_metadata(
+        &self,
+        did: DecentralizedId,
+        keys: Vec<String>,
+    ) -> RpcResult<Vec<String>> {
         let mut result = Vec::new();
 
         for key in keys {

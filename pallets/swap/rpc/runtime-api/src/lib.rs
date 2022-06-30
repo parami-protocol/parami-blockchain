@@ -2,12 +2,10 @@
 
 use codec::Codec;
 use parami_primitives::BalanceWrapper;
-use sp_runtime::{
-    traits::{MaybeDisplay, MaybeFromStr},
-    DispatchError,
-};
+use sp_runtime::traits::{MaybeDisplay, MaybeFromStr};
+use sp_runtime::DispatchError;
 
-type ApiResult<T> = Result<T, DispatchError>;
+pub type ApiResult<T> = Result<T, DispatchError>;
 
 sp_api::decl_runtime_apis! {
     pub trait SwapRuntimeApi<AssetId, Balance>

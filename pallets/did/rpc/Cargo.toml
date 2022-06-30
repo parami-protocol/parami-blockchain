@@ -18,11 +18,9 @@ version = '3.0.0'
 
 [dependencies]
 parami-did-utils = { path = '../utils' }
+jsonrpsee = { version = "0.13.0", features = ["server"] }
 
 parking_lot = '0.11'
-jsonrpc-core = '18.0'
-jsonrpc-core-client = '18.0'
-jsonrpc-derive = '18.0'
 
 sp-core = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24' }
 sp-offchain = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24' }

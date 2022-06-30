@@ -1,9 +1,11 @@
-pub use self::gen_client::Client as SwapClient;
 use codec::Codec;
-use jsonrpc_core::{Error as RpcError, ErrorCode, Result};
-use jsonrpc_derive::rpc;
+use jsonrpsee::{
+    core::{async_trait, Error, RpcResult},
+    proc_macros::rpc,
+    types::error::{CallError, ErrorObject, INTERNAL_ERROR_CODE},
+};
 use parami_primitives::BalanceWrapper;
-pub use parami_swap_rpc_runtime_api::SwapRuntimeApi;
+pub use parami_swap_rpc_runtime_api::{ApiResult, SwapRuntimeApi};
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_runtime::{
@@ -12,7 +14,7 @@ use sp_runtime::{
 };
 use std::sync::Arc;
 
-#[rpc]
+#[rpc(client, server)]
 pub trait SwapApi<BlockHash, AssetId, Balance>
 where
     Balance: MaybeDisplay + MaybeFromStr,
@@ -31,14 +33,14 @@ where
     ///
     /// * `tokens` - The amount of tokens to be involved in the swap
     /// * `liquidity` - The amount of liquidity to be minted
-    #[rpc(name = "swap_drylyAddLiquidity")]
+    #[method(name = "swap_drylyAddLiquidity")]
     fn dryly_add_liquidity(
         &self,
         token_id: AssetId,
         currency: BalanceWrapper<Balance>,
         max_tokens: BalanceWrapper<Balance>,
         at: Option<BlockHash>,
-    ) -> Result<(BalanceWrapper<Balance>, BalanceWrapper<Balance>)>;
+    ) -> RpcResult<(BalanceWrapper<Balance>, BalanceWrapper<Balance>)>;
 
     /// Get dry-run result of remove_liquidity
     ///
@@ -54,12 +56,12 @@ where
     /// * `liquidity` - The amount of liquidity removed
     /// * `tokens` - The amount of tokens to be returned
     /// * `currency` - The currency to be returned
-    #[rpc(name = "swap_drylyRemoveLiquidity")]
+    #[method(name = "swap_drylyRemoveLiquidity")]
     fn dryly_remove_liquidity(
         &self,
         lp_token_id: AssetId,
         at: Option<BlockHash>,
-    ) -> Result<(
+    ) -> RpcResult<(
         AssetId,
         BalanceWrapper<Balance>,
         BalanceWrapper<Balance>,
@@ -76,13 +78,13 @@ where
     /// # Results
     ///
     /// The currency needed
-    #[rpc(name = "swap_drylyBuyTokens")]
+    #[method(name = "swap_drylyBuyTokens")]
     fn dryly_buy_tokens(
         &self,
         token_id: AssetId,
         tokens: BalanceWrapper<Balance>,
         at: Option<BlockHash>,
-    ) -> Result<BalanceWrapper<Balance>>;
+    ) -> RpcResult<BalanceWrapper<Balance>>;
 
     /// Get dry-run result of sell_tokens
     ///
@@ -94,13 +96,13 @@ where
     /// # Results
     ///
     /// The currency to be gained
-    #[rpc(name = "swap_drylySellTokens")]
+    #[method(name = "swap_drylySellTokens")]
     fn dryly_sell_tokens(
         &self,
         token_id: AssetId,
         tokens: BalanceWrapper<Balance>,
         at: Option<BlockHash>,
-    ) -> Result<BalanceWrapper<Balance>>;
+    ) -> RpcResult<BalanceWrapper<Balance>>;
 
     /// Get dry-run result of sell_currency
     ///
@@ -112,13 +114,13 @@ where
     /// # Results
     ///
     /// The amount of tokens to be gained
-    #[rpc(name = "swap_drylySellCurrency")]
+    #[method(name = "swap_drylySellCurrency")]
     fn dryly_sell_currency(
         &self,
         token_id: AssetId,
         currency: BalanceWrapper<Balance>,
         at: Option<BlockHash>,
-    ) -> Result<BalanceWrapper<Balance>>;
+    ) -> RpcResult<BalanceWrapper<Balance>>;
 
     /// Get dry-run result of buy_currency
     ///
@@ -130,13 +132,13 @@ where
     /// # Results
     ///
     /// The amount of tokens needed
-    #[rpc(name = "swap_drylyBuyCurrency")]
+    #[method(name = "swap_drylyBuyCurrency")]
     fn dryly_buy_currency(
         &self,
         token_id: AssetId,
         currency: BalanceWrapper<Balance>,
         at: Option<BlockHash>,
-    ) -> Result<BalanceWrapper<Balance>>;
+    ) -> RpcResult<BalanceWrapper<Balance>>;
 
     /// Calculate staking reward
     ///
@@ -147,12 +149,12 @@ where
     /// # Results
     ///
     /// The amount of reward tokens
-    #[rpc(name = "swap_calculateReward")]
+    #[method(name = "swap_calculateReward")]
     fn calculate_reward(
         &self,
         lp_token_id: AssetId,
         at: Option<BlockHash>,
-    ) -> Result<BalanceWrapper<Balance>>;
+    ) -> RpcResult<BalanceWrapper<Balance>>;
 }
 
 pub struct SwapsRpcHandler<C, Block, AssetId, Balance> {
@@ -169,7 +171,8 @@ impl<C, Block, AssetId, Balance> SwapsRpcHandler<C, Block, AssetId, Balance> {
     }
 }
 
-impl<C, Block, AssetId, Balance> SwapApi<<Block as BlockT>::Hash, AssetId, Balance>
+#[async_trait]
+impl<C, Block, AssetId, Balance> SwapApiServer<<Block as BlockT>::Hash, AssetId, Balance>
     for SwapsRpcHandler<C, Block, AssetId, Balance>
 where
     Block: BlockT,
@@ -184,22 +187,26 @@ where
         currency: BalanceWrapper<Balance>,
         max_tokens: BalanceWrapper<Balance>,
         at: Option<<Block as BlockT>::Hash>,
-    ) -> Result<(BalanceWrapper<Balance>, BalanceWrapper<Balance>)> {
+    ) -> RpcResult<(BalanceWrapper<Balance>, BalanceWrapper<Balance>)> {
         let api = self.client.runtime_api();
         let at = BlockId::hash(at.unwrap_or_else(|| self.client.info().best_hash));
 
         let res = api
             .dryly_add_liquidity(&at, token_id, currency, max_tokens)
-            .map_err(|e| RpcError {
-                code: ErrorCode::InternalError,
-                message: "Unable to dry-run mint.".into(),
-                data: Some(format!("{:?}", e).into()),
+            .map_err(|e| {
+                Error::Call(CallError::Custom(ErrorObject::owned(
+                    INTERNAL_ERROR_CODE,
+                    "Unable to dry-run burn.",
+                    Some(format!("{:?}", e)),
+                )))
             })?;
 
-        res.map_err(|e| RpcError {
-            code: ErrorCode::ServerError(1),
-            message: "Unable to dry-run mint.".into(),
-            data: Some(format!("{:?}", e).into()),
+        res.map_err(|e| {
+            Error::Call(CallError::Custom(ErrorObject::owned(
+                INTERNAL_ERROR_CODE,
+                "Unable to dry-run burn.",
+                Some(format!("{:?}", e)),
+            )))
         })
     }
 
@@ -207,7 +214,7 @@ where
         &self,
         lp_token_id: AssetId,
         at: Option<<Block as BlockT>::Hash>,
-    ) -> Result<(
+    ) -> RpcResult<(
         AssetId,
         BalanceWrapper<Balance>,
         BalanceWrapper<Balance>,
@@ -216,18 +223,20 @@ where
         let api = self.client.runtime_api();
         let at = BlockId::hash(at.unwrap_or_else(|| self.client.info().best_hash));
 
-        let res = api
-            .dryly_remove_liquidity(&at, lp_token_id)
-            .map_err(|e| RpcError {
-                code: ErrorCode::InternalError,
-                message: "Unable to dry-run burn.".into(),
-                data: Some(format!("{:?}", e).into()),
-            })?;
+        let res = api.dryly_remove_liquidity(&at, lp_token_id).map_err(|e| {
+            Error::Call(CallError::Custom(ErrorObject::owned(
+                INTERNAL_ERROR_CODE,
+                "Unable to dry-run burn.",
+                Some(format!("{:?}", e)),
+            )))
+        })?;
 
-        res.map_err(|e| RpcError {
-            code: ErrorCode::ServerError(1),
-            message: "Unable to dry-run burn.".into(),
-            data: Some(format!("{:?}", e).into()),
+        res.map_err(|e| {
+            Error::Call(CallError::Custom(ErrorObject::owned(
+                INTERNAL_ERROR_CODE,
+                "Unable to dry-run burn.",
+                Some(format!("{:?}", e)),
+            )))
         })
     }
 
@@ -236,22 +245,24 @@ where
         token_id: AssetId,
         tokens: BalanceWrapper<Balance>,
         at: Option<<Block as BlockT>::Hash>,
-    ) -> Result<BalanceWrapper<Balance>> {
+    ) -> RpcResult<BalanceWrapper<Balance>> {
         let api = self.client.runtime_api();
         let at = BlockId::hash(at.unwrap_or_else(|| self.client.info().best_hash));
 
-        let res = api
-            .dryly_buy_tokens(&at, token_id, tokens)
-            .map_err(|e| RpcError {
-                code: ErrorCode::InternalError,
-                message: "Unable to dry-run token_out.".into(),
-                data: Some(format!("{:?}", e).into()),
-            })?;
+        let res = api.dryly_buy_tokens(&at, token_id, tokens).map_err(|e| {
+            Error::Call(CallError::Custom(ErrorObject::owned(
+                INTERNAL_ERROR_CODE,
+                "Unable to dry-run token_out.",
+                Some(format!("{:?}", e)),
+            )))
+        })?;
 
-        res.map_err(|e| RpcError {
-            code: ErrorCode::ServerError(1),
-            message: "Unable to dry-run token_out.".into(),
-            data: Some(format!("{:?}", e).into()),
+        res.map_err(|e| {
+            Error::Call(CallError::Custom(ErrorObject::owned(
+                INTERNAL_ERROR_CODE,
+                "Unable to dry-run token_out.",
+                Some(format!("{:?}", e)),
+            )))
         })
     }
 
@@ -260,22 +271,24 @@ where
         token_id: AssetId,
         tokens: BalanceWrapper<Balance>,
         at: Option<<Block as BlockT>::Hash>,
-    ) -> Result<BalanceWrapper<Balance>> {
+    ) -> RpcResult<BalanceWrapper<Balance>> {
         let api = self.client.runtime_api();
         let at = BlockId::hash(at.unwrap_or_else(|| self.client.info().best_hash));
 
-        let res = api
-            .dryly_sell_tokens(&at, token_id, tokens)
-            .map_err(|e| RpcError {
-                code: ErrorCode::InternalError,
-                message: "Unable to dry-run token_in.".into(),
-                data: Some(format!("{:?}", e).into()),
-            })?;
+        let res = api.dryly_sell_tokens(&at, token_id, tokens).map_err(|e| {
+            Error::Call(CallError::Custom(ErrorObject::owned(
+                INTERNAL_ERROR_CODE,
+                "Unable to dry-run token_in.",
+                Some(format!("{:?}", e)),
+            )))
+        })?;
 
-        res.map_err(|e| RpcError {
-            code: ErrorCode::ServerError(1),
-            message: "Unable to dry-run token_in.".into(),
-            data: Some(format!("{:?}", e).into()),
+        res.map_err(|e| {
+            Error::Call(CallError::Custom(ErrorObject::owned(
+                INTERNAL_ERROR_CODE,
+                "Unable to dry-run token_in.",
+                Some(format!("{:?}", e)),
+            )))
         })
     }
 
@@ -284,22 +297,26 @@ where
         token_id: AssetId,
         currency: BalanceWrapper<Balance>,
         at: Option<<Block as BlockT>::Hash>,
-    ) -> Result<BalanceWrapper<Balance>> {
+    ) -> RpcResult<BalanceWrapper<Balance>> {
         let api = self.client.runtime_api();
         let at = BlockId::hash(at.unwrap_or_else(|| self.client.info().best_hash));
 
         let res = api
             .dryly_sell_currency(&at, token_id, currency)
-            .map_err(|e| RpcError {
-                code: ErrorCode::InternalError,
-                message: "Unable to dry-run quote_in.".into(),
-                data: Some(format!("{:?}", e).into()),
+            .map_err(|e| {
+                Error::Call(CallError::Custom(ErrorObject::owned(
+                    INTERNAL_ERROR_CODE,
+                    "Unable to dry-run quote_in.",
+                    Some(format!("{:?}", e)),
+                )))
             })?;
 
-        res.map_err(|e| RpcError {
-            code: ErrorCode::ServerError(1),
-            message: "Unable to dry-run quote_in.".into(),
-            data: Some(format!("{:?}", e).into()),
+        res.map_err(|e| {
+            Error::Call(CallError::Custom(ErrorObject::owned(
+                INTERNAL_ERROR_CODE,
+                "Unable to dry-run token_in.",
+                Some(format!("{:?}", e)),
+            )))
         })
     }
 
@@ -308,22 +325,26 @@ where
         token_id: AssetId,
         currency: BalanceWrapper<Balance>,
         at: Option<<Block as BlockT>::Hash>,
-    ) -> Result<BalanceWrapper<Balance>> {
+    ) -> RpcResult<BalanceWrapper<Balance>> {
         let api = self.client.runtime_api();
         let at = BlockId::hash(at.unwrap_or_else(|| self.client.info().best_hash));
 
         let res = api
             .dryly_buy_currency(&at, token_id, currency)
-            .map_err(|e| RpcError {
-                code: ErrorCode::InternalError,
-                message: "Unable to dry-run quote_out.".into(),
-                data: Some(format!("{:?}", e).into()),
+            .map_err(|e| {
+                Error::Call(CallError::Custom(ErrorObject::owned(
+                    INTERNAL_ERROR_CODE,
+                    "Unable to dry-run quote_out.",
+                    Some(format!("{:?}", e)),
+                )))
             })?;
 
-        res.map_err(|e| RpcError {
-            code: ErrorCode::ServerError(1),
-            message: "Unable to dry-run quote_out.".into(),
-            data: Some(format!("{:?}", e).into()),
+        res.map_err(|e| {
+            Error::Call(CallError::Custom(ErrorObject::owned(
+                INTERNAL_ERROR_CODE,
+                "Unable to dry-run quote_out.",
+                Some(format!("{:?}", e)),
+            )))
         })
     }
 
@@ -331,22 +352,24 @@ where
         &self,
         lp_token_id: AssetId,
         at: Option<<Block as BlockT>::Hash>,
-    ) -> Result<BalanceWrapper<Balance>> {
+    ) -> RpcResult<BalanceWrapper<Balance>> {
         let api = self.client.runtime_api();
         let at = BlockId::hash(at.unwrap_or_else(|| self.client.info().best_hash));
 
-        let res = api
-            .calculate_reward(&at, lp_token_id)
-            .map_err(|e| RpcError {
-                code: ErrorCode::InternalError,
-                message: "Unable to calculate reward.".into(),
-                data: Some(format!("{:?}", e).into()),
-            })?;
+        let res = api.calculate_reward(&at, lp_token_id).map_err(|e| {
+            Error::Call(CallError::Custom(ErrorObject::owned(
+                INTERNAL_ERROR_CODE,
+                "Unable to calculate reward.",
+                Some(format!("{:?}", e)),
+            )))
+        })?;
 
-        res.map_err(|e| RpcError {
-            code: ErrorCode::ServerError(1),
-            message: "Unable to calculate reward.".into(),
-            data: Some(format!("{:?}", e).into()),
+        res.map_err(|e| {
+            Error::Call(CallError::Custom(ErrorObject::owned(
+                INTERNAL_ERROR_CODE,
+                "Unable to calculate reward.",
+                Some(format!("{:?}", e)),
+            )))
         })
     }
 }

@@ -71,8 +71,8 @@ where
     use pallet_contracts_rpc::{Contracts, ContractsApiServer};
     use pallet_mmr_rpc::{Mmr, MmrApiServer};
     use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApiServer};
-    use parami_did_rpc::{DidApi, DidRpcHandler};
-    use parami_swap_rpc::{SwapApi, SwapsRpcHandler};
+    use parami_did_rpc::{DidApiServer, DidRpcHandler};
+    use parami_swap_rpc::{SwapApiServer, SwapsRpcHandler};
     use substrate_frame_rpc_system::{System, SystemApiServer};
 
     let mut io = RpcModule::new(());
@@ -113,11 +113,11 @@ where
 
     if let Some(did_rpc) = backend
         .offchain_storage()
-        .map(|storage| DidApi::<DecentralizedId>::to_delegate(DidRpcHandler::new(storage)))
+        .map(|storage| DidRpcHandler::new(storage).into_rpc())
     {
-        io.merge(did_rpc);
+        io.merge(did_rpc)?;
     }
-    io.merge(SwapApi::to_delegate(SwapsRpcHandler::new(client.clone())));
+    io.merge(SwapsRpcHandler::new(client.clone()).into_rpc())?;
 
     Ok(io)
 }
