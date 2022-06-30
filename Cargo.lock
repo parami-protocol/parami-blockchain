@@ -6018,12 +6018,15 @@ dependencies = [
 name = "parami-dana"
 version = "3.0.0"
 dependencies = [
+ "clap 3.2.6",
  "frame-benchmarking",
  "frame-benchmarking-cli",
+ "frame-system",
  "frame-try-runtime",
  "jsonrpsee",
  "pallet-contracts-rpc",
  "pallet-mmr-rpc",
+ "pallet-transaction-payment",
  "pallet-transaction-payment-rpc",
  "parami-dana-runtime",
  "parami-did-rpc",
@@ -6057,6 +6060,8 @@ dependencies = [
  "sp-consensus-aura",
  "sp-core",
  "sp-finality-grandpa",
+ "sp-inherents",
+ "sp-keyring",
  "sp-runtime",
  "sp-timestamp",
  "structopt",

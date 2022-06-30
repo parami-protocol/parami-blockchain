@@ -279,7 +279,7 @@ try-runtime = [
     'pallet-mmr/try-runtime',
     'pallet-multisig/try-runtime',
     "pallet-nomination-pools/try-runtime",
-    
+
     'pallet-offences/try-runtime',
     'pallet-scheduler/try-runtime',
     'pallet-society/try-runtime',
