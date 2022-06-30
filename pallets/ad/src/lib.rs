@@ -180,13 +180,11 @@ pub mod pallet {
 
         #[cfg(feature = "try-runtime")]
         fn pre_upgrade() -> Result<(), &'static str> {
-            migrations::v3::MigrateToV3::<T>::pre_upgrade()?;
             Ok(())
         }
 
         #[cfg(feature = "try-runtime")]
         fn post_upgrade() -> Result<(), &'static str> {
-            migrations::v3::MigrateToV3::<T>::post_upgrade()?;
             Ok(())
         }
 
