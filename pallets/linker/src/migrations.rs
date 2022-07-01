@@ -1,12 +1,11 @@
 use crate::{Config, Pallet};
-use frame_support::{traits::Get, weights::Weight};
-use sp_runtime::traits::Saturating;
+use frame_support::weights::Weight;
 
 pub fn migrate<T: Config>() -> Weight {
     use frame_support::traits::StorageVersion;
 
-    let version = StorageVersion::get::<Pallet<T>>();
-    let mut weight: Weight = 0;
+    let _version = StorageVersion::get::<Pallet<T>>();
+    let weight: Weight = 0;
 
     weight
 }

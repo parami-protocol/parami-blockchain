@@ -11,8 +11,6 @@ use frame_support::traits::{
 };
 use sp_runtime::traits::{AtLeast32BitUnsigned, Bounded};
 
-use log::info;
-
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> = <<T as parami_did::Config>::Currency as Currency<AccountOf<T>>>::Balance;
 type HeightOf<T> = <T as frame_system::Config>::BlockNumber;

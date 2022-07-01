@@ -1,5 +1,4 @@
 use crate::ocw::types;
-use ethabi::{ParamType, Token};
 use sp_runtime_interface::runtime_interface;
 use sp_std::prelude::*;
 

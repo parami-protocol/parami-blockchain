@@ -30,8 +30,8 @@ use num_traits::Float;
 use parami_traits::Tags;
 use scale_info::TypeInfo;
 use sp_runtime::traits::{Hash, MaybeSerializeDeserialize, Member};
+use sp_std::collections::btree_map::BTreeMap;
 use sp_std::vec::Vec;
-use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
 use weights::WeightInfo;
 
