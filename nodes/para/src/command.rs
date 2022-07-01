@@ -4,18 +4,27 @@ use crate::{
     service::{new_partial, TemplateRuntimeExecutor},
 };
 use codec::Encode;
-use cumulus_client_service::genesis::generate_genesis_block;
+use cumulus_client_cli::CollatorOptions;
+use cumulus_client_consensus_aura::{AuraConsensus, BuildAuraConsensusParams, SlotProportion};
+use cumulus_client_consensus_common::ParachainConsensus;
+use cumulus_client_network::BlockAnnounceValidator;
+use cumulus_client_service::{
+	prepare_node_config, start_collator, start_full_node, StartCollatorParams, StartFullNodeParams,
+};
 use cumulus_primitives_core::ParaId;
+use cumulus_primitives_parachain_inherent::{MockValidationDataInherentDataProvider, MockXcmConfig};
+use cumulus_relay_chain_inprocess_interface::build_inprocess_relay_chain;
+use cumulus_relay_chain_interface::{RelayChainError, RelayChainInterface, RelayChainResult};
+use cumulus_relay_chain_rpc_interface::RelayChainRPCInterface;
 use log::info;
 use parami_para_runtime::{Block, RuntimeApi};
-use polkadot_parachain::primitives::AccountIdConversion;
 use sc_cli::{
     ChainSpec, CliConfiguration, DefaultConfigurationValues, ImportParams, KeystoreParams,
     NetworkParams, Result, RuntimeVersion, SharedParams, SubstrateCli,
 };
 use sc_service::config::{BasePath, PrometheusConfig};
 use sp_core::hexdisplay::HexDisplay;
-use sp_runtime::traits::Block as BlockT;
+use sp_runtime::traits::{Block as BlockT, AccountIdConversion};
 use std::{io::Write, net::SocketAddr};
 
 fn load_spec(id: &str) -> std::result::Result<Box<dyn sc_service::ChainSpec>, String> {
@@ -271,8 +280,7 @@ pub fn run() -> Result<()> {
 
                 let id = ParaId::from(para_id);
 
-                let parachain_account =
-                    AccountIdConversion::<polkadot_primitives::v0::AccountId>::into_account(&id);
+                let parachain_account = AccountIdConversion::<AccountId>::into_account(&id);
 
                 let block: Block =
                     generate_genesis_block(&config.chain_spec).map_err(|e| format!("{:?}", e))?;

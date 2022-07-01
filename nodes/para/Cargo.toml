@@ -41,9 +41,7 @@ log = '0.4'
 rand = '0.7'
 serde = { version = '1.0.0', features = ['derive'] }
 structopt = '0.3'
-
-# RPC related Dependencies
-jsonrpc-core = '18.0'
+jsonrpsee = { version = "0.13.0", features = ["server"] }
 
 # Local Dependencies
 parami-para-runtime = { path = '../../runtimes/para' }
@@ -80,6 +78,7 @@ sc-rpc-api = { git = 'https://github.com/paritytech/substrate', branch = 'polkad
 sc-service = { git = 'https://github.com/paritytech/substrate', features = [
     'wasmtime',
 ], branch = 'polkadot-v0.9.24' }
+sc-sysinfo = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
 sc-telemetry = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24' }
 sc-transaction-pool = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24' }
 sc-transaction-pool-api = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24' }
@@ -102,14 +101,19 @@ sp-timestamp = { git = 'https://github.com/paritytech/substrate', branch = 'polk
 sp-transaction-pool = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24' }
 
 # Cumulus dependencies
-cumulus-client-cli = { git = 'https://github.com/paritytech/cumulus', branch = 'polkadot-v0.9.24' }
-cumulus-client-collator = { git = 'https://github.com/paritytech/cumulus', branch = 'polkadot-v0.9.24' }
-cumulus-client-consensus-aura = { git = 'https://github.com/paritytech/cumulus', branch = 'polkadot-v0.9.24' }
-cumulus-client-consensus-common = { git = 'https://github.com/paritytech/cumulus', branch = 'polkadot-v0.9.24' }
-cumulus-client-network = { git = 'https://github.com/paritytech/cumulus', branch = 'polkadot-v0.9.24' }
-cumulus-client-service = { git = 'https://github.com/paritytech/cumulus', branch = 'polkadot-v0.9.24' }
-cumulus-primitives-core = { git = 'https://github.com/paritytech/cumulus', branch = 'polkadot-v0.9.24' }
-cumulus-primitives-parachain-inherent = { git = 'https://github.com/paritytech/cumulus', branch = 'polkadot-v0.9.24' }
+cumulus-client-cli = { git = "https://github.com/paritytech/cumulus", branch = "polkadot-v0.9.24" }
+cumulus-client-network = { git = "https://github.com/paritytech/cumulus", branch = "polkadot-v0.9.24" }
+cumulus-client-service = { git = "https://github.com/paritytech/cumulus", branch = "polkadot-v0.9.24" }
+cumulus-client-consensus-aura = { git = "https://github.com/paritytech/cumulus", branch = "polkadot-v0.9.24" }
+cumulus-client-consensus-common = { git = "https://github.com/paritytech/cumulus", branch = "polkadot-v0.9.24" }
+cumulus-client-consensus-relay-chain = { git = "https://github.com/paritytech/cumulus", branch = "polkadot-v0.9.24" }
+cumulus-primitives-core = { git = "https://github.com/paritytech/cumulus", branch = "polkadot-v0.9.24" }
+cumulus-primitives-parachain-inherent = { git = "https://github.com/paritytech/cumulus", branch = "polkadot-v0.9.24" }
+cumulus-test-relay-sproof-builder = { git = "https://github.com/paritytech/cumulus", branch = "polkadot-v0.9.24" }
+cumulus-pallet-parachain-system = { git = "https://github.com/paritytech/cumulus", branch = "polkadot-v0.9.24" }
+cumulus-relay-chain-interface = { git = "https://github.com/paritytech/cumulus", branch = "polkadot-v0.9.24" }
+cumulus-relay-chain-inprocess-interface = { git = "https://github.com/paritytech/cumulus", branch = "polkadot-v0.9.24" }
+cumulus-relay-chain-rpc-interface = { git = "https://github.com/paritytech/cumulus", branch = "polkadot-v0.9.24" }
 
 # Polkadot dependencies
 polkadot-cli = { git = 'https://github.com/paritytech/polkadot', branch = 'release-v0.9.24' }

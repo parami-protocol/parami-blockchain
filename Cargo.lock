@@ -350,6 +350,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 
 [[package]]
+name = "backoff"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b62ddb9cb1ec0a098ad4bbf9344d0713fa193ae1a80af55febcff2627b6a00c1"
+dependencies = [
+ "futures-core",
+ "getrandom 0.2.7",
+ "instant",
+ "pin-project-lite 0.2.9",
+ "rand 0.8.5",
+ "tokio",
+]
+
+[[package]]
 name = "backtrace"
 version = "0.3.65"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1355,6 +1369,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "cumulus-client-consensus-relay-chain"
+version = "0.1.0"
+source = "git+https://github.com/paritytech/cumulus?branch=polkadot-v0.9.24#95ca5a085727c1494ddeeae4a2b2e69c4ee1933b"
+dependencies = [
+ "async-trait",
+ "cumulus-client-consensus-common",
+ "cumulus-primitives-core",
+ "cumulus-relay-chain-interface",
+ "futures 0.3.21",
+ "parking_lot 0.12.1",
+ "sc-client-api",
+ "sc-consensus",
+ "sp-api",
+ "sp-block-builder",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
+ "substrate-prometheus-endpoint",
+ "tracing",
+]
+
+[[package]]
 name = "cumulus-client-network"
 version = "0.1.0"
 source = "git+https://github.com/paritytech/cumulus?branch=polkadot-v0.9.24#95ca5a085727c1494ddeeae4a2b2e69c4ee1933b"
@@ -1629,6 +1667,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "cumulus-relay-chain-inprocess-interface"
+version = "0.1.0"
+source = "git+https://github.com/paritytech/cumulus?branch=polkadot-v0.9.24#95ca5a085727c1494ddeeae4a2b2e69c4ee1933b"
+dependencies = [
+ "async-trait",
+ "cumulus-primitives-core",
+ "cumulus-relay-chain-interface",
+ "futures 0.3.21",
+ "futures-timer",
+ "parking_lot 0.12.1",
+ "polkadot-cli",
+ "polkadot-client",
+ "polkadot-service",
+ "sc-cli",
+ "sc-client-api",
+ "sc-consensus-babe",
+ "sc-network",
+ "sc-service",
+ "sc-sysinfo",
+ "sc-telemetry",
+ "sc-tracing",
+ "sp-api",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-core",
+ "sp-runtime",
+ "sp-state-machine",
+ "tracing",
+]
+
+[[package]]
 name = "cumulus-relay-chain-interface"
 version = "0.1.0"
 source = "git+https://github.com/paritytech/cumulus?branch=polkadot-v0.9.24#95ca5a085727c1494ddeeae4a2b2e69c4ee1933b"
@@ -1650,6 +1719,32 @@ dependencies = [
  "sp-runtime",
  "sp-state-machine",
  "thiserror",
+]
+
+[[package]]
+name = "cumulus-relay-chain-rpc-interface"
+version = "0.1.0"
+source = "git+https://github.com/paritytech/cumulus?branch=polkadot-v0.9.24#95ca5a085727c1494ddeeae4a2b2e69c4ee1933b"
+dependencies = [
+ "async-trait",
+ "backoff",
+ "cumulus-primitives-core",
+ "cumulus-relay-chain-interface",
+ "futures 0.3.21",
+ "futures-timer",
+ "jsonrpsee",
+ "parity-scale-codec",
+ "parking_lot 0.12.1",
+ "polkadot-service",
+ "sc-client-api",
+ "sc-rpc-api",
+ "sp-api",
+ "sp-core",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-storage",
+ "tracing",
+ "url",
 ]
 
 [[package]]
@@ -3229,21 +3324,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3fac17f7123a73ca62df411b1bf727ccc805daa070338fda671c86dac1bdc27"
 dependencies = [
  "wasm-bindgen",
-]
-
-[[package]]
-name = "jsonrpc-core"
-version = "18.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "14f7f76aef2d054868398427f6c54943cf3d1caa9a7ec7d0c38d69df97a965eb"
-dependencies = [
- "futures 0.3.21",
- "futures-executor",
- "futures-util",
- "log",
- "serde",
- "serde_derive",
- "serde_json",
 ]
 
 [[package]]
@@ -6302,19 +6382,24 @@ name = "parami-para"
 version = "3.0.0"
 dependencies = [
  "cumulus-client-cli",
- "cumulus-client-collator",
  "cumulus-client-consensus-aura",
  "cumulus-client-consensus-common",
+ "cumulus-client-consensus-relay-chain",
  "cumulus-client-network",
  "cumulus-client-service",
+ "cumulus-pallet-parachain-system",
  "cumulus-primitives-core",
  "cumulus-primitives-parachain-inherent",
+ "cumulus-relay-chain-inprocess-interface",
+ "cumulus-relay-chain-interface",
+ "cumulus-relay-chain-rpc-interface",
+ "cumulus-test-relay-sproof-builder",
  "derive_more",
  "frame-benchmarking",
  "frame-benchmarking-cli",
  "frame-try-runtime",
  "hex-literal",
- "jsonrpc-core",
+ "jsonrpsee",
  "log",
  "pallet-contracts-rpc",
  "pallet-mmr-rpc",
@@ -6341,6 +6426,7 @@ dependencies = [
  "sc-rpc",
  "sc-rpc-api",
  "sc-service",
+ "sc-sysinfo",
  "sc-telemetry",
  "sc-tracing",
  "sc-transaction-pool",
@@ -6397,6 +6483,7 @@ dependencies = [
  "pallet-bags-list",
  "pallet-balances",
  "pallet-bounties",
+ "pallet-child-bounties",
  "pallet-collator-selection",
  "pallet-collective",
  "pallet-contracts",
@@ -6411,6 +6498,7 @@ dependencies = [
  "pallet-multisig",
  "pallet-nomination-pools",
  "pallet-offences",
+ "pallet-preimage",
  "pallet-randomness-collective-flip",
  "pallet-recovery",
  "pallet-scheduler",

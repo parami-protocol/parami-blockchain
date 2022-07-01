@@ -100,6 +100,7 @@ pallet-offences = { git = 'https://github.com/paritytech/substrate', branch = 'p
 pallet-randomness-collective-flip = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24', default-features = false }
 pallet-recovery = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24', default-features = false }
 pallet-scheduler = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24', default-features = false }
+pallet-preimage = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24', default-features = false }
 pallet-session = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24', default-features = false }
 pallet-session-benchmarking = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24', default-features = false, optional = true }
 pallet-society = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24', default-features = false }
@@ -116,6 +117,7 @@ pallet-utility = { git = 'https://github.com/paritytech/substrate', branch = 'po
 pallet-vesting = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24', default-features = false }
 pallet-bags-list = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24', default-features = false }
 pallet-nomination-pools = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24', default-features = false }
+pallet-child-bounties = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24', default-features = false }
 
 # Cumulus dependencies
 cumulus-pallet-aura-ext = { git = 'https://github.com/paritytech/cumulus', branch = 'polkadot-v0.9.24', default-features = false }

@@ -7,6 +7,7 @@
 
 use std::sync::Arc;
 
+use jsonrpsee::RpcModule;
 use parami_para_runtime::{
     opaque::Block, AccountId, AssetId, Balance, BlockNumber, DecentralizedId, Hash, Index as Nonce,
 };
@@ -19,7 +20,7 @@ use sp_block_builder::BlockBuilder;
 use sp_blockchain::{Error as BlockChainError, HeaderBackend, HeaderMetadata};
 
 /// A type representing all RPC extensions.
-pub type RpcExtension = jsonrpc_core::IoHandler<sc_rpc::Metadata>;
+pub type RpcExtension = jsonrpsee::RpcModule<()>;
 
 /// Full client dependencies
 pub struct FullDeps<C, P, B> {
@@ -34,7 +35,7 @@ pub struct FullDeps<C, P, B> {
 }
 
 /// Instantiate all Full RPC extensions.
-pub fn create_full<C, P, B>(deps: FullDeps<C, P, B>) -> RpcExtension
+pub fn create_full<C, P, B>(deps: FullDeps<C, P, B>) -> Result<RpcModule<()>, Box<dyn std::error::Error + Send + Sync>>
 where
     C: ProvideRuntimeApi<Block>
         + HeaderBackend<Block>
@@ -53,14 +54,14 @@ where
     B: sc_client_api::Backend<Block> + Send + Sync + 'static,
     B::State: sc_client_api::backend::StateBackend<sp_runtime::traits::HashFor<Block>>,
 {
-    use pallet_contracts_rpc::{Contracts, ContractsApi};
-    use pallet_mmr_rpc::{Mmr, MmrApi};
-    use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApi};
-    use parami_did_rpc::{DidApi, DidRpcHandler};
-    use parami_swap_rpc::{SwapApi, SwapsRpcHandler};
-    use substrate_frame_rpc_system::{FullSystem, SystemApi};
+    use pallet_contracts_rpc::{Contracts};
+    use pallet_mmr_rpc::{Mmr};
+    use pallet_transaction_payment_rpc::{TransactionPayment};
+    use parami_did_rpc::{DidRpcHandler};
+    use parami_swap_rpc::{SwapsRpcHandler};
+    use substrate_frame_rpc_system::{System};
 
-    let mut io = jsonrpc_core::IoHandler::default();
+    let mut io = RpcModule::new(());    
     let FullDeps {
         backend,
         client,
@@ -68,27 +69,27 @@ where
         deny_unsafe,
     } = deps;
 
-    io.extend_with(SystemApi::to_delegate(FullSystem::new(
+    io.merge(System::new(
         client.clone(),
         pool,
         deny_unsafe,
-    )));
+    ));
     // Making synchronous calls in light client freezes the browser currently,
     // more context: https://github.com/paritytech/substrate/pull/3480
     // These RPCs should use an asynchronous caller instead.
-    io.extend_with(ContractsApi::to_delegate(Contracts::new(client.clone())));
-    io.extend_with(MmrApi::to_delegate(Mmr::new(client.clone())));
-    io.extend_with(TransactionPaymentApi::to_delegate(TransactionPayment::new(
+    io.merge(Contracts::new(client.clone()));
+    io.merge(Mmr::new(client.clone()));
+    io.merge(TransactionPayment::new(
         client.clone(),
-    )));
+    ));
 
     if let Some(did_rpc) = backend
         .offchain_storage()
-        .map(|storage| DidApi::<DecentralizedId>::to_delegate(DidRpcHandler::new(storage)))
+        .map(|storage| DidRpcHandler::new(storage).into_rpc())
     {
-        io.extend_with(did_rpc);
+        io.merge(did_rpc);
     }
-    io.extend_with(SwapApi::to_delegate(SwapsRpcHandler::new(client.clone())));
+    io.merge(SwapsRpcHandler::new(client.clone()).into_rpc());
 
     io
 }
