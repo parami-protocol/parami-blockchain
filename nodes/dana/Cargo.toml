@@ -80,6 +80,9 @@ sc-transaction-pool = { git = 'https://github.com/paritytech/substrate', branch 
 sc-transaction-pool-api = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24' }
 sc-tracing = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24' }
 
+# until issue#11691 fixed.(https://github.com/paritytech/substrate/issues/11691)
+tracing-core = "=0.1.26"
+
 ## Substrate Primitive Dependencies
 sp-api = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24' }
 sp-authority-discovery = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24' }
