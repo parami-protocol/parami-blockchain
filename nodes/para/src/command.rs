@@ -14,8 +14,7 @@ use sc_cli::{
     NetworkParams, Result, RuntimeVersion, SharedParams, SubstrateCli,
 };
 use sc_service::{
-    config::{BasePath, PrometheusConfig},
-    TaskManager,
+    config::{BasePath, PrometheusConfig}, TaskManager,
 };
 use sp_core::hexdisplay::HexDisplay;
 use sp_runtime::traits::{AccountIdConversion, Block as BlockT};
@@ -111,21 +110,21 @@ fn extract_genesis_wasm(chain_spec: &Box<dyn sc_service::ChainSpec>) -> Result<V
 }
 
 macro_rules! construct_async_run {
-	(|$components:ident, $cli:ident, $cmd:ident, $config:ident| $( $code:tt )* ) => {{
-		let runner = $cli.create_runner($cmd)?;
-		runner.async_run(|$config| {
-			let $components = new_partial::<
-				RuntimeApi,
-				TemplateRuntimeExecutor,
-				_
-			>(
-				&$config,
-				crate::service::parachain_build_import_queue,
-			)?;
-			let task_manager = $components.task_manager;
-			{ $( $code )* }.map(|v| (v, task_manager))
-		})
-	}}
+    (|$components:ident, $cli:ident, $cmd:ident, $config:ident| $( $code:tt )* ) => {{
+        let runner = $cli.create_runner($cmd)?;
+        runner.async_run(|$config| {
+            let $components = new_partial::<
+                RuntimeApi,
+                TemplateRuntimeExecutor,
+                _
+            >(
+                &$config,
+                crate::service::parachain_build_import_queue,
+            )?;
+            let task_manager = $components.task_manager;
+            { $( $code )* }.map(|v| (v, task_manager))
+        })
+    }}
 }
 
 /// Parse command line arguments into service configuration.
@@ -236,7 +235,7 @@ pub fn run() -> Result<()> {
                         runner.sync_run(|config| cmd.run::<Block, TemplateRuntimeExecutor>(config))
                     } else {
                         Err("Benchmarking wasn't enabled when building the node. \
-					You can enable it with `--features runtime-benchmarks`."
+                    You can enable it with `--features runtime-benchmarks`."
                             .into())
                     }
                 }
@@ -315,7 +314,7 @@ pub fn run() -> Result<()> {
                 let id = ParaId::from(para_id);
 
                 let parachain_account =
-					AccountIdConversion::<polkadot_primitives::v2::AccountId>::into_account_truncating(&id);
+                    AccountIdConversion::<polkadot_primitives::v2::AccountId>::into_account_truncating(&id);
 
                 let state_version = Cli::native_runtime_version(&config.chain_spec).state_version();
                 let block: Block = generate_genesis_block(&config.chain_spec, state_version)
