@@ -19,9 +19,6 @@ use sp_api::ProvideRuntimeApi;
 use sp_block_builder::BlockBuilder;
 use sp_blockchain::{Error as BlockChainError, HeaderBackend, HeaderMetadata};
 
-/// A type representing all RPC extensions.
-pub type RpcExtension = jsonrpsee::RpcModule<()>;
-
 /// Full client dependencies
 pub struct FullDeps<C, P, B> {
     /// The backend instance to use.
@@ -54,12 +51,12 @@ where
     B: sc_client_api::Backend<Block> + Send + Sync + 'static,
     B::State: sc_client_api::backend::StateBackend<sp_runtime::traits::HashFor<Block>>,
 {
-    use pallet_contracts_rpc::{Contracts};
-    use pallet_mmr_rpc::{Mmr};
-    use pallet_transaction_payment_rpc::{TransactionPayment};
-    use parami_did_rpc::{DidRpcHandler};
-    use parami_swap_rpc::{SwapsRpcHandler};
-    use substrate_frame_rpc_system::{System};
+    use pallet_contracts_rpc::{Contracts, ContractsApiServer};
+    use pallet_mmr_rpc::{Mmr, MmrApiServer};
+    use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApiServer};
+    use parami_did_rpc::{DidApiServer, DidRpcHandler};
+    use parami_swap_rpc::{SwapApiServer, SwapsRpcHandler};
+    use substrate_frame_rpc_system::{System, SystemApiServer};
 
     let mut io = RpcModule::new(());    
     let FullDeps {
@@ -73,23 +70,23 @@ where
         client.clone(),
         pool,
         deny_unsafe,
-    ));
+    ).into_rpc())?;
     // Making synchronous calls in light client freezes the browser currently,
     // more context: https://github.com/paritytech/substrate/pull/3480
     // These RPCs should use an asynchronous caller instead.
-    io.merge(Contracts::new(client.clone()));
-    io.merge(Mmr::new(client.clone()));
+    io.merge(Contracts::new(client.clone()).into_rpc())?;
+    io.merge(Mmr::new(client.clone()).into_rpc())?;
     io.merge(TransactionPayment::new(
         client.clone(),
-    ));
+    ).into_rpc())?;
 
     if let Some(did_rpc) = backend
         .offchain_storage()
-        .map(|storage| DidRpcHandler::new(storage).into_rpc())
+        .map(|storage| DidRpcHandler::<_, DecentralizedId>::new(storage).into_rpc())
     {
-        io.merge(did_rpc);
+        io.merge(did_rpc)?;
     }
-    io.merge(SwapsRpcHandler::new(client.clone()).into_rpc());
+    io.merge(SwapsRpcHandler::new(client.clone()).into_rpc())?;
 
-    io
+    Ok(io)
 }

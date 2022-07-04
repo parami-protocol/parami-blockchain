@@ -7,7 +7,7 @@ use cumulus_client_cli::CollatorOptions;
 
 // Local Runtime Types
 use parami_para_runtime::{
-    opaque::Block, AccountId, Balance, Hash, Index as Nonce, RuntimeApi,
+    opaque::Block, AccountId, Balance, Hash, Index as Nonce, RuntimeApi, AssetId, BlockNumber,
 };
 
 // Cumulus Imports
@@ -123,6 +123,7 @@ where
         config.wasm_method,
         config.default_heap_pages,
         config.max_runtime_instances,
+		config.runtime_cache_size,
     );
 
     let (client, backend, keystore_container, task_manager) =
@@ -224,7 +225,10 @@ where
 		+ sp_block_builder::BlockBuilder<Block>
 		+ cumulus_primitives_core::CollectCollationInfo<Block>
 		+ pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>
-		+ substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Nonce>,
+		+ substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Nonce>
+		+ pallet_mmr_rpc::MmrRuntimeApi<Block, <Block as sp_runtime::traits::Block>::Hash>
+		+ parami_swap_rpc::SwapRuntimeApi<Block, AssetId, Balance>
+		+ pallet_contracts_rpc::ContractsRuntimeApi<Block, AccountId, Balance, BlockNumber, Hash>,
 	sc_client_api::StateBackendFor<TFullBackend<Block>, Block>: sp_api::StateBackend<BlakeTwo256>,
 	Executor: sc_executor::NativeExecutionDispatch + 'static,
 	RB: Fn(
@@ -308,9 +312,9 @@ where
 			warp_sync: None,
 		})?;
 
-	if config.offchain_worker.enabled {
+	if parachain_config.offchain_worker.enabled {
 		sc_service::build_offchain_workers(
-			&config,
+			&parachain_config,
 			task_manager.spawn_handle(),
 			client.clone(),
 			network.clone(),
@@ -318,6 +322,7 @@ where
 	}
 	
 	let rpc_builder = {
+		let backend = backend.clone();
 		let client = client.clone();
 		let transaction_pool = transaction_pool.clone();
 
@@ -430,7 +435,7 @@ pub fn parachain_build_import_queue(
     >,
     sc_service::Error,
 > {
-    let slot_duration = cumulus_client_consensus_aura::slot_duration(&*client)?;
+	let slot_duration = cumulus_client_consensus_aura::slot_duration(&*client)?;
 
     cumulus_client_consensus_aura::import_queue::<
         sp_consensus_aura::sr25519::AuthorityPair,
@@ -447,9 +452,9 @@ pub fn parachain_build_import_queue(
             let time = sp_timestamp::InherentDataProvider::from_system_time();
 
             let slot =
-                sp_consensus_aura::inherents::InherentDataProvider::from_timestamp_and_duration(
+                sp_consensus_aura::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
                     *time,
-                    slot_duration.slot_duration(),
+                    slot_duration,
                 );
 
             Ok((time, slot))

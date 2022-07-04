@@ -22,11 +22,6 @@ path = 'src/main.rs'
 
 [features]
 runtime-benchmarks = ['parami-para-runtime/runtime-benchmarks']
-cli = [ 'try-runtime-cli']
-try-runtime = [
-    "parami-para-runtime/try-runtime",
-    "try-runtime-cli",
-]
 
 [dependencies.codec]
 default-features = false
@@ -40,7 +35,7 @@ hex-literal = '0.3'
 log = '0.4'
 rand = '0.7'
 serde = { version = '1.0.0', features = ['derive'] }
-structopt = '0.3'
+clap = { version = "3.1.18", features = ["derive"] }
 jsonrpsee = { version = "0.13.0", features = ["server"] }
 
 # Local Dependencies
@@ -55,7 +50,7 @@ parami-swap-rpc = { path = '../../pallets/swap/rpc' }
 frame-benchmarking = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24' }
 frame-benchmarking-cli = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24' }
 frame-try-runtime = { git = "https://github.com/paritytech/substrate.git", branch = 'polkadot-v0.9.24', optional = true }
-try-runtime-cli = { git = "https://github.com/paritytech/substrate.git", branch = 'polkadot-v0.9.24', optional = true }
+try-runtime-cli = { git = "https://github.com/paritytech/substrate.git", branch = 'polkadot-v0.9.24' }
 
 pallet-contracts-rpc = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24' }
 pallet-mmr-rpc = { git = 'https://github.com/paritytech/substrate', branch = 'polkadot-v0.9.24' }

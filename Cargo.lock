@@ -6381,6 +6381,7 @@ dependencies = [
 name = "parami-para"
 version = "3.0.0"
 dependencies = [
+ "clap 3.2.6",
  "cumulus-client-cli",
  "cumulus-client-consensus-aura",
  "cumulus-client-consensus-common",
@@ -6446,7 +6447,6 @@ dependencies = [
  "sp-session",
  "sp-timestamp",
  "sp-transaction-pool",
- "structopt",
  "substrate-build-script-utils",
  "substrate-frame-rpc-system",
  "substrate-prometheus-endpoint",

@@ -14,7 +14,6 @@ use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 use sp_io::hashing::blake2_128;
 use sp_runtime::{
     create_runtime_str,
-    curve::PiecewiseLinear,
     generic, impl_opaque_keys,
     traits::{
         BlakeTwo256, Block as BlockT, ConvertInto, Extrinsic, Keccak256, StaticLookup, Verify,
@@ -29,7 +28,7 @@ use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 
 use frame_support::{
-    construct_runtime, match_type, parameter_types,
+    construct_runtime, match_types, parameter_types,
     traits::{
         AsEnsureOriginWithArg, ConstU128, ConstU16, ConstU32, EnsureOneOf, EqualPrivilegeOnly,
         Everything, LockIdentifier, Nothing, U128CurrencyToVote,
@@ -73,7 +72,7 @@ use pallet_transaction_payment::{Multiplier, TargetedFeeAdjustment};
 // Polkadot Imports
 use pallet_xcm::XcmPassthrough;
 use polkadot_parachain::primitives::Sibling;
-use polkadot_runtime_common::{BlockHashCount, SlowAdjustingFeeUpdate};
+use polkadot_runtime_common::{BlockHashCount};
 
 // XCM Imports
 use frame_election_provider_support::{onchain, ElectionDataProvider, VoteWeight};
@@ -127,7 +126,7 @@ pub type Executive = frame_executive::Executive<
     Block,
     frame_system::ChainContext<Runtime>,
     Runtime,
-    AllPallets,
+    AllPalletsWithSystem,
 >;
 
 /// Era type as expected by this runtime.
@@ -182,7 +181,6 @@ type EnsureRootOrPluralityCouncil = EnsureOneOf<EnsureRoot<AccountId>, Plurality
 /// at least 3/4
 type MajoritarianCouncil =
     pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 3, 4>;
-type EnsureRootOrMajoritarianCouncil = EnsureOneOf<EnsureRoot<AccountId>, MajoritarianCouncil>;
 
 /// whole
 type OverallCouncil =
@@ -827,7 +825,7 @@ pub type LocalAssetTransactor = CurrencyAdapter<
     (),
 >;
 
-match_type! {
+match_types! {
     pub type ParentOrParentsExecutivePlurality: impl Contains<MultiLocation> = {
         MultiLocation { parents: 1, interior: Here } |
         MultiLocation { parents: 1, interior: X1(Plurality { id: BodyId::Executive, .. }) }
