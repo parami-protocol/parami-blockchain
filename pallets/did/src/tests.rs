@@ -1,10 +1,11 @@
 use crate::{mock::*, DidOf, EnsureDid, Error, Metadata, ReferrerOf};
-use frame_support::{assert_noop, assert_ok};
+use frame_support::{assert_noop, assert_ok, traits::Currency};
 use parami_did_utils::derive_storage_key;
 use sp_core::offchain::{
     testing::{TestOffchainExt, TestPersistentOffchainDB},
     OffchainDbExt,
 };
+use sp_runtime::DispatchError;
 
 #[test]
 fn should_register() {
@@ -180,5 +181,65 @@ fn should_ensure() {
         assert_eq!(ensure.unwrap(), (DID_ALICE, ALICE));
 
         assert!(EnsureDid::<Test>::try_origin(Origin::signed(BOB)).is_err());
+    });
+}
+
+#[test]
+fn should_force_transfer_did() {
+    new_test_ext().execute_with(|| {
+        // Alice has DID, Bob has no DID
+
+        assert_eq!(
+            <Test as crate::Config>::Currency::total_balance(&ALICE),
+            100u128
+        );
+        assert_eq!(
+            <Test as crate::Config>::Currency::total_balance(&BOB),
+            100u128
+        );
+        assert_eq!(Did::did_of(ALICE).unwrap(), DID_ALICE);
+        assert_eq!(Did::did_of(BOB), None);
+
+        assert_ok!(Did::force_transfer_with_assets(
+            Origin::root(),
+            DID_ALICE,
+            BOB
+        ));
+
+        assert_eq!(<Test as crate::Config>::Currency::total_balance(&ALICE), 0);
+        assert_eq!(<Test as crate::Config>::Currency::total_balance(&BOB), 200);
+        assert_eq!(Did::did_of(BOB).unwrap(), DID_ALICE);
+        assert_eq!(Did::did_of(ALICE), None);
+    });
+}
+
+#[test]
+fn should_fail_force_transfer_did_if_not_root_user() {
+    new_test_ext().execute_with(|| {
+        assert_noop!(
+            Did::force_transfer_with_assets(Origin::signed(ALICE), DID_ALICE, BOB),
+            DispatchError::BadOrigin
+        );
+    });
+}
+
+#[test]
+fn should_fail_force_transfer_did_if_did_not_exist() {
+    new_test_ext().execute_with(|| {
+        assert_noop!(
+            Did::force_transfer_with_assets(Origin::root(), DID_BOB, BOB),
+            Error::<Test>::DidNotExists,
+        );
+    });
+}
+
+#[test]
+fn should_fail_force_transfer_did_if_dest_bind_did() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Did::register(Origin::signed(BOB), None));
+        assert_noop!(
+            Did::force_transfer_with_assets(Origin::root(), DID_ALICE, BOB),
+            Error::<Test>::DidExists,
+        );
     });
 }

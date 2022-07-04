@@ -164,6 +164,7 @@ impl parami_did::Config for Test {
     type DecentralizedId = H160;
     type Hashing = Keccak256;
     type WeightInfo = ();
+    type Nfts = Nft;
 }
 
 parameter_types! {

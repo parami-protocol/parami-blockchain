@@ -25,8 +25,8 @@ use frame_support::{
     traits::{
         tokens::{
             fungibles::{
-                metadata::Mutate as FungMetaMutate, Create as FungCreate, Mutate as FungMutate,
-                Transfer as FungTransfer,
+                metadata::Mutate as FungMetaMutate, Create as FungCreate, Inspect,
+                Mutate as FungMutate, Transfer as FungTransfer,
             },
             nonfungibles::{Create as NftCreate, Mutate as NftMutate},
         },
@@ -40,7 +40,7 @@ use frame_system::offchain::SendTransactionTypes;
 use parami_did::EnsureDid;
 use parami_traits::{
     types::{Network, Task},
-    Links, Swaps,
+    Links, Nfts, Swaps,
 };
 use sp_core::U512;
 use sp_runtime::{
@@ -682,5 +682,19 @@ impl<T: Config> Pallet<T> {
         let value: D = value.try_into().map_err(|_| Error::<T>::Overflow)?;
 
         Ok(value)
+    }
+}
+
+impl<T: Config> Nfts<T::AccountId> for Pallet<T> {
+    fn force_transfer_all_fractions(
+        src: &T::AccountId,
+        dest: &T::AccountId,
+    ) -> Result<(), DispatchError> {
+        for (_nft_id, nft_meta) in <Metadata<T>>::iter() {
+            let balance = T::Assets::balance(nft_meta.token_asset_id, &src);
+            T::Assets::transfer(nft_meta.token_asset_id, src, dest, balance, false)?;
+        }
+
+        Ok(())
     }
 }

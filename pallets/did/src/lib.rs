@@ -20,10 +20,13 @@ mod types;
 use frame_support::{
     dispatch::DispatchResult,
     ensure,
-    traits::{EnsureOrigin, NamedReservableCurrency, StorageVersion},
+    traits::{
+        Currency, EnsureOrigin, ExistenceRequirement::AllowDeath, NamedReservableCurrency,
+        StorageVersion,
+    },
 };
 use parami_did_utils::derive_storage_key;
-use scale_info::TypeInfo;
+use parami_traits::Nfts;
 use sp_runtime::{
     traits::{
         Hash, LookupError, MaybeDisplay, MaybeMallocSizeOf, MaybeSerializeDeserialize, Member,
@@ -80,6 +83,8 @@ pub mod pallet {
 
         /// Weight information for extrinsics in this pallet.
         type WeightInfo: WeightInfo;
+
+        type Nfts: Nfts<AccountOf<Self>>;
     }
 
     #[pallet::pallet]
@@ -155,6 +160,34 @@ pub mod pallet {
             let did = <DidOf<T>>::get(&who).ok_or(Error::<T>::DidNotExists)?;
 
             Self::assign(&did, &account)?;
+
+            Ok(())
+        }
+
+        #[pallet::weight(T::WeightInfo::transfer())]
+        pub fn force_transfer_with_assets(
+            origin: OriginFor<T>,
+            did: T::DecentralizedId,
+            dest: AccountOf<T>,
+        ) -> DispatchResult {
+            let _who = ensure_root(origin)?;
+
+            ensure!(!<DidOf<T>>::contains_key(&dest), Error::<T>::DidExists);
+            let mut meta = <Metadata<T>>::get(did).ok_or(Error::<T>::DidNotExists)?;
+
+            let source = meta.account.clone();
+            meta.account = dest.clone();
+            meta.created = <frame_system::Pallet<T>>::block_number();
+
+            let ad3_balance = T::Currency::total_balance(&source);
+            T::Currency::transfer(&source, &dest, ad3_balance, AllowDeath)?;
+            T::Nfts::force_transfer_all_fractions(&source, &dest)?;
+
+            <Metadata<T>>::insert(did, meta);
+            <DidOf<T>>::remove(&source);
+            <DidOf<T>>::insert(dest.clone(), did);
+
+            Self::deposit_event(Event::<T>::Transferred(did.clone(), source, dest.clone()));
 
             Ok(())
         }

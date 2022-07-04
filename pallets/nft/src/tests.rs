@@ -1,8 +1,8 @@
 use crate::{mock::*, Deposit, Deposits, Error, External, Metadata, Ported, Porting, Preferred};
 use codec::Decode;
-use frame_support::{assert_noop, assert_ok};
+use frame_support::{assert_noop, assert_ok, traits::fungibles::Mutate};
 use parami_primitives::constants::DOLLARS;
-use parami_traits::{types::Network, Swaps};
+use parami_traits::{types::Network, Nfts, Swaps};
 use parking_lot::RwLock;
 use sp_core::offchain::{testing, OffchainWorkerExt, TransactionPoolExt};
 use sp_runtime::offchain::testing::PoolState;
@@ -539,5 +539,41 @@ fn should_sumbit_porting() {
 
         let preferred = <Preferred<Test>>::get(DID_BOB).expect("prefered should have data");
         assert_eq!(preferred, 2);
+    });
+}
+
+#[test]
+fn should_transfer_all_assets() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Nft::back(Origin::signed(BOB), 0, 2000 * DOLLARS));
+        assert_ok!(Nft::mint(
+            Origin::signed(ALICE),
+            0,
+            b"Test Token1".to_vec(),
+            b"XTT1".to_vec()
+        ));
+
+        assert_ok!(Nft::back(Origin::signed(BOB), 1, 2000 * DOLLARS));
+        assert_ok!(Nft::mint(
+            Origin::signed(ALICE),
+            1,
+            b"Test Token2".to_vec(),
+            b"XTT2".to_vec()
+        ));
+
+        assert_ok!(Assets::mint_into(0, &ALICE, 500));
+        assert_ok!(Assets::mint_into(1, &ALICE, 1000));
+
+        assert_eq!(Assets::balance(0, &ALICE), 500);
+        assert_eq!(Assets::balance(1, &ALICE), 1000);
+        assert_eq!(Assets::balance(0, &BOB), 0);
+        assert_eq!(Assets::balance(1, &BOB), 0);
+
+        assert_ok!(Nft::force_transfer_all_fractions(&ALICE, &BOB));
+
+        assert_eq!(Assets::balance(0, &ALICE), 0);
+        assert_eq!(Assets::balance(1, &ALICE), 0);
+        assert_eq!(Assets::balance(0, &BOB), 500);
+        assert_eq!(Assets::balance(1, &BOB), 1000);
     });
 }

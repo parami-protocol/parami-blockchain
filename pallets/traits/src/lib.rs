@@ -9,6 +9,9 @@ pub use swaps::Swaps;
 mod tags;
 pub use tags::Tags;
 
+mod nfts;
+pub use nfts::Nfts;
+
 pub mod types {
     pub use parami_primitives::{Network, Task};
 }
