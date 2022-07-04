@@ -13,8 +13,7 @@ pub use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 use sp_io::hashing::blake2_128;
 use sp_runtime::{
-    create_runtime_str,
-    generic, impl_opaque_keys,
+    create_runtime_str, generic, impl_opaque_keys,
     traits::{
         BlakeTwo256, Block as BlockT, ConvertInto, Extrinsic, Keccak256, StaticLookup, Verify,
     },
@@ -72,7 +71,7 @@ use pallet_transaction_payment::{Multiplier, TargetedFeeAdjustment};
 // Polkadot Imports
 use pallet_xcm::XcmPassthrough;
 use polkadot_parachain::primitives::Sibling;
-use polkadot_runtime_common::{BlockHashCount};
+use polkadot_runtime_common::BlockHashCount;
 
 // XCM Imports
 use frame_election_provider_support::{onchain, ElectionDataProvider, VoteWeight};
@@ -218,7 +217,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("parami"),
     impl_name: create_runtime_str!("parami-node"),
     authoring_version: 20,
-    spec_version: 331,
+    spec_version: 332,
     impl_version: 0,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 2,
