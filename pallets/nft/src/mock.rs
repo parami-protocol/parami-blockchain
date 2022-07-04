@@ -1,6 +1,9 @@
 use crate as parami_nft;
-use frame_support::{parameter_types, traits::GenesisBuild, PalletId};
-use frame_system::{self as system, EnsureRoot};
+use frame_support::traits::{ConstU128, ConstU32};
+use frame_support::{
+    parameter_types, traits::AsEnsureOriginWithArg, traits::GenesisBuild, PalletId,
+};
+use frame_system::{self as system, EnsureRoot, EnsureSigned};
 use sp_core::{sr25519, H160, H256};
 use sp_runtime::{
     testing::{Header, TestXt},
@@ -59,6 +62,7 @@ parameter_types! {
 }
 
 impl system::Config for Test {
+    type MaxConsumers = ConstU32<16>;
     type BaseCallFilter = frame_support::traits::Everything;
     type BlockWeights = ();
     type BlockLength = ();
@@ -107,6 +111,7 @@ impl pallet_assets::Config for Test {
     type Currency = Balances;
     type ForceOrigin = EnsureRoot<Self::AccountId>;
     type AssetDeposit = AssetDeposit;
+    type AssetAccountDeposit = ConstU128<10000u128>;
     type MetadataDepositBase = MetadataDepositBase;
     type MetadataDepositPerByte = MetadataDepositPerByte;
     type ApprovalDeposit = ApprovalDeposit;
@@ -142,12 +147,12 @@ parameter_types! {
 
 impl pallet_uniques::Config for Test {
     type Event = Event;
-    type ClassId = AssetId;
-    type InstanceId = AssetId;
+    type CollectionId = AssetId;
+    type ItemId = AssetId;
     type Currency = Balances;
     type ForceOrigin = frame_system::EnsureRoot<Self::AccountId>;
-    type ClassDeposit = ClassDeposit;
-    type InstanceDeposit = InstanceDeposit;
+    type CollectionDeposit = ClassDeposit;
+    type ItemDeposit = InstanceDeposit;
     type MetadataDepositBase = MetadataDepositBase;
     type AttributeDepositBase = AttributeDepositBase;
     type DepositPerByte = MetadataDepositPerByte;
@@ -155,6 +160,8 @@ impl pallet_uniques::Config for Test {
     type KeyLimit = StringLimit;
     type ValueLimit = StringLimit;
     type WeightInfo = ();
+    type CreateOrigin = AsEnsureOriginWithArg<EnsureSigned<Self::AccountId>>;
+    type Locker = ();
 }
 
 impl parami_did::Config for Test {

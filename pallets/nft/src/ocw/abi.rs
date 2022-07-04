@@ -32,8 +32,8 @@ mod tests {
     fn test_encode_decode() {
         let encoded = eth_abi::encode_input(
             "ownerOf".as_bytes(),
-            &[ParamType::Uint(256)],
-            &[Token::Uint(U256::from(1919810u64))],
+            &[types::ParamType::Uint(256)],
+            &[types::Token::Uint(U256::from(1919810u64))],
         );
 
         assert_eq!(

@@ -1,4 +1,5 @@
 use crate::{mock::*, Deposit, Deposits, Error, External, Metadata, Ported, Porting, Preferred};
+
 use codec::Decode;
 use frame_support::{assert_noop, assert_ok, traits::fungibles::Mutate};
 use parami_primitives::constants::DOLLARS;
@@ -528,7 +529,8 @@ fn should_sumbit_porting() {
         assert_eq!(external.namespace, namespace);
         assert_eq!(external.token, token.clone());
 
-        let subaccount_id = <Test as crate::Config>::PalletId::get().into_sub_account(DID_BOB);
+        let subaccount_id =
+            <Test as crate::Config>::PalletId::get().into_sub_account_truncating(DID_BOB);
 
         let metadata = <Metadata<Test>>::get(2).expect("meta should have data");
         assert_eq!(metadata.owner, did);

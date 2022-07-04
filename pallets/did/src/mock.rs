@@ -1,4 +1,5 @@
 use crate as parami_did;
+use frame_support::traits::ConstU32;
 use frame_support::{parameter_types, traits::GenesisBuild};
 use frame_system as system;
 use sp_core::{sr25519, H160, H256};
@@ -37,6 +38,7 @@ parameter_types! {
 }
 
 impl system::Config for Test {
+    type MaxConsumers = ConstU32<16>;
     type BaseCallFilter = frame_support::traits::Everything;
     type BlockWeights = ();
     type BlockLength = ();

@@ -375,11 +375,11 @@ fn fail_to_tranfer_token_if_chain_is_not_whitelisted() {
 
             assert_noop!(
                 mock::XAssets::transfer_token(
-                    Origin::signed(1),
-                    chain_id as u64,
-                    recipient.clone(),
+                    Origin::signed(chain_id as u64),
                     100,
-                    asset_id
+                    recipient.clone(),
+                    chain_id,
+                    asset_id,
                 ),
                 parami_xassets::Error::<mock::MockRuntime>::InvalidTransfer
             );
@@ -399,11 +399,11 @@ fn fail_to_tranfer_token_if_not_exist_asset_2_resource_id_config() {
 
             assert_noop!(
                 mock::XAssets::transfer_token(
-                    Origin::signed(1),
-                    chain_id as u64,
-                    recipient.clone(),
+                    Origin::signed(chain_id as u64),
                     100,
-                    asset_id
+                    recipient.clone(),
+                    chain_id,
+                    asset_id,
                 ),
                 parami_xassets::Error::<mock::MockRuntime>::NotExists
             );
@@ -424,9 +424,9 @@ fn fail_to_transfer_if_no_asset() {
             assert_noop!(
                 mock::XAssets::transfer_token(
                     Origin::signed(chain_id as u64),
-                    chain_id as u64,
-                    recipient.clone(),
                     100,
+                    recipient.clone(),
+                    chain_id,
                     asset_id,
                 ),
                 pallet_assets::Error::<mock::MockRuntime>::Unknown
@@ -446,12 +446,19 @@ fn fail_to_transfer_if_no_enough_balance() {
             mock::ChainBridge::whitelist_chain(Origin::root(), chain_id).unwrap();
             mock::XAssets::force_set_resource(Origin::root(), resource_id, asset_id).unwrap();
             mock::Assets::force_create(Origin::root(), asset_id, chain_id as u64, true, 1).unwrap();
+            mock::Assets::mint(
+                Origin::signed(chain_id as u64),
+                asset_id,
+                chain_id as u64,
+                10,
+            )
+            .unwrap();
             assert_noop!(
                 mock::XAssets::transfer_token(
                     Origin::signed(chain_id as u64),
-                    chain_id as u64,
-                    recipient.clone(),
                     100,
+                    recipient.clone(),
+                    chain_id,
                     asset_id,
                 ),
                 pallet_assets::Error::<mock::MockRuntime>::BalanceLow

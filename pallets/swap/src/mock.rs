@@ -1,4 +1,5 @@
 use crate as parami_swap;
+use frame_support::traits::{ConstU128, ConstU32};
 use frame_support::{parameter_types, traits::GenesisBuild, PalletId};
 use frame_system::{self as system, EnsureRoot};
 use sp_core::{sr25519, H256};
@@ -36,6 +37,7 @@ parameter_types! {
 }
 
 impl system::Config for Test {
+    type MaxConsumers = ConstU32<16>;
     type BaseCallFilter = frame_support::traits::Everything;
     type BlockWeights = ();
     type BlockLength = ();
@@ -75,6 +77,7 @@ impl pallet_assets::Config for Test {
     type AssetId = AssetId;
     type Currency = Balances;
     type ForceOrigin = EnsureRoot<Self::AccountId>;
+    type AssetAccountDeposit = ConstU128<10000u128>;
     type AssetDeposit = AssetDeposit;
     type MetadataDepositBase = MetadataDepositBase;
     type MetadataDepositPerByte = MetadataDepositPerByte;

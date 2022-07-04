@@ -1,4 +1,5 @@
 use crate as parami_linker;
+use frame_support::traits::ConstU32;
 use frame_support::{parameter_types, traits::GenesisBuild, PalletId};
 use frame_system::{self as system, EnsureRoot};
 use parami_traits::types::Network;
@@ -53,6 +54,7 @@ parameter_types! {
 }
 
 impl system::Config for Test {
+    type MaxConsumers = ConstU32<16>;
     type BaseCallFilter = frame_support::traits::Everything;
     type BlockWeights = ();
     type BlockLength = ();

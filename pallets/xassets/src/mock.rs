@@ -5,6 +5,7 @@ use frame_support::{
     PalletId,
 };
 
+use frame_support::traits::{ConstU32, ConstU64};
 use frame_system::EnsureRoot;
 use sp_core::{hashing::blake2_128, H256};
 
@@ -16,7 +17,7 @@ use sp_runtime::{
 };
 
 use pallet_assets;
-use parami_chainbridge::{ChainId, ResourceId};
+use parami_chainbridge::ChainId;
 
 use crate::{self as parami_xassets, weights::WeightInfo};
 
@@ -92,6 +93,7 @@ parameter_types! {
 }
 
 impl frame_system::Config for MockRuntime {
+    type MaxConsumers = ConstU32<16>;
     type BaseCallFilter = Everything;
     type Origin = Origin;
     type Call = Call;
@@ -140,6 +142,7 @@ impl pallet_assets::Config for MockRuntime {
     type Currency = Balances;
     type ForceOrigin = EnsureRoot<Self::AccountId>;
     type AssetDeposit = ();
+    type AssetAccountDeposit = ConstU64<10000>;
     type MetadataDepositBase = ();
     type MetadataDepositPerByte = ();
     type ApprovalDeposit = ();
