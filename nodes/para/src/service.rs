@@ -1,20 +1,22 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
 
 // std
-use std::{sync::Arc, time::Duration};
-use jsonrpsee::RpcModule;
 use cumulus_client_cli::CollatorOptions;
+use jsonrpsee::RpcModule;
+use std::{sync::Arc, time::Duration};
 
 // Local Runtime Types
 use parami_para_runtime::{
-    opaque::Block, AccountId, Balance, Hash, Index as Nonce, RuntimeApi, AssetId, BlockNumber,
+    opaque::Block, AccountId, AssetId, Balance, BlockNumber, Hash, Index as Nonce, RuntimeApi,
 };
 
 // Cumulus Imports
 use cumulus_client_consensus_aura::{AuraConsensus, BuildAuraConsensusParams, SlotProportion};
 use cumulus_client_consensus_common::ParachainConsensus;
 use cumulus_client_network::BlockAnnounceValidator;
-use cumulus_client_service::{prepare_node_config, start_collator, start_full_node, StartCollatorParams, StartFullNodeParams,};
+use cumulus_client_service::{
+    prepare_node_config, start_collator, start_full_node, StartCollatorParams, StartFullNodeParams,
+};
 use cumulus_primitives_core::ParaId;
 use cumulus_relay_chain_inprocess_interface::build_inprocess_relay_chain;
 use cumulus_relay_chain_interface::{RelayChainError, RelayChainInterface, RelayChainResult};
@@ -177,10 +179,15 @@ async fn build_relay_chain_interface(
     task_manager: &mut TaskManager,
     collator_options: CollatorOptions,
     hwbench: Option<sc_sysinfo::HwBench>,
-) -> RelayChainResult<(Arc<(dyn RelayChainInterface + 'static)>, Option<CollatorPair>)> {
+) -> RelayChainResult<(
+    Arc<(dyn RelayChainInterface + 'static)>,
+    Option<CollatorPair>,
+)> {
     match collator_options.relay_chain_rpc_url {
-        Some(relay_chain_url) =>
-            Ok((Arc::new(RelayChainRPCInterface::new(relay_chain_url).await?) as Arc<_>, None)),
+        Some(relay_chain_url) => Ok((
+            Arc::new(RelayChainRPCInterface::new(relay_chain_url).await?) as Arc<_>,
+            None,
+        )),
         None => build_inprocess_relay_chain(
             polkadot_config,
             parachain_config,
@@ -318,7 +325,7 @@ where
             network.clone(),
         );
     }
-    
+
     let rpc_builder = {
         let backend = backend.clone();
         let client = client.clone();

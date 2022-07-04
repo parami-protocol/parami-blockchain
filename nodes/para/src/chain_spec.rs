@@ -311,7 +311,9 @@ fn testnet_genesis(
         treasury: Default::default(),
         nomination_pools: Default::default(),
 
-        sudo: parami_para_runtime::SudoConfig { key: Some(root_key) },
+        sudo: parami_para_runtime::SudoConfig {
+            key: Some(root_key),
+        },
         vesting: Default::default(),
 
         ad: Default::default(),
