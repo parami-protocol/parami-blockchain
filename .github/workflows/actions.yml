@@ -127,12 +127,13 @@ jobs:
         if: matrix.arch != 'x86_64' || matrix.os != 'linux'
 
       - name: Generate coverage
+        continue-on-error: true
         run: |
           cargo tarpaulin --forward --release --locked -t 120 -o Xml \
           --ignore-tests --workspace \
           --exclude parami-primitives parami-traits \
           parami-dana parami-para parami-dana-runtime parami-para-runtime \
-          --exclude-files **/mock.rs **/weights.rs **/weights/* **/migrations.rs **/benchmarking.rs
+          --exclude-files **/mock.rs **/weights.rs **/weights/* **/migrations.rs **/benchmarking.rs **/rpc/*
         if: matrix.arch == 'x86_64' && matrix.os == 'linux'
       - uses: codecov/codecov-action@v3
         with:
