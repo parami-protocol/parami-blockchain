@@ -67,6 +67,8 @@ pub use parami_primitives::{
 };
 use parami_swap::LinearFarmingCurve;
 use parami_traits::Swaps;
+
+mod migrations;
 /// Generated voter bag information.
 mod voter_bags;
 
@@ -103,6 +105,7 @@ pub type Executive = frame_executive::Executive<
     frame_system::ChainContext<Runtime>,
     Runtime,
     AllPalletsWithSystem,
+    (crate::migrations::RemoveDeprecatedPallets),
 >;
 
 /// Era type as expected by this runtime.
