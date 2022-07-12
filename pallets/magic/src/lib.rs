@@ -9,6 +9,8 @@ use frame_support::traits::{
     tokens::fungibles::{Inspect, Transfer},
     Currency, StorageVersion,
 };
+#[cfg(feature = "try-runtime")]
+use log::info;
 use sp_runtime::traits::{AtLeast32BitUnsigned, Bounded};
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
