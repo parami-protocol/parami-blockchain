@@ -38,10 +38,6 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
         195_000_000 as Weight
     }
 
-    fn approve_transfer_native() -> Weight {
-        195_000_000 as Weight
-    }
-
     fn set_storage_map() -> Weight {
         195_000_000 as Weight
     }

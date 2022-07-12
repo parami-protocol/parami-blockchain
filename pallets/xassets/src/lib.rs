@@ -1,8 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub use pallet::*;
-use scale_info::TypeInfo;
-use serde::{Deserialize, Serialize};
 
 #[rustfmt::skip]
 pub mod weights;
@@ -115,17 +113,6 @@ pub mod pallet {
         pub amount: U256,
         pub origin: AccountOf<T>,
     }
-<<<<<<< HEAD
-
-    #[pallet::storage]
-    #[pallet::getter(fn resourcemap)]
-    pub(super) type ResourceMap<T: Config> = StorageMap<_, Identity, AssetOf<T>, ResourceId>;
-
-    #[pallet::storage]
-    pub(super) type TransferMap<T: Config> = StorageMap<_, Identity, u32, Map<T>>;
-
-    #[pallet::storage]
-    pub(super) type MapLen<T: Config> = StorageValue<_, u32, ValueQuery>;
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
