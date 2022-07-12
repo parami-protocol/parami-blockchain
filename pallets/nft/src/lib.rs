@@ -224,8 +224,8 @@ pub mod pallet {
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
-        /// NFT Created Or Imported \[did, instance\]
-        Imported(T::DecentralizedId, NftOf<T>),
+        /// NFT Created \[did, instance\]
+        Created(T::DecentralizedId, NftOf<T>),
         /// NFT fragments Minted \[did, instance, value\]
         Backed(T::DecentralizedId, NftOf<T>, BalanceOf<T>),
         /// NFT fragments Claimed \[did, instance, value\]
@@ -239,8 +239,8 @@ pub mod pallet {
             Vec<u8>,
             BalanceOf<T>,
         ),
-        /// Create Or Import NFT Failed \[did, network, namespace, token_id\]
-        ImportedFailed(T::DecentralizedId, Network, Vec<u8>, Vec<u8>),
+        /// Import NFT Failed \[did, network, namespace, token_id\]
+        ImportFailed(T::DecentralizedId, Network, Vec<u8>, Vec<u8>),
     }
 
     #[pallet::hooks]
@@ -522,7 +522,7 @@ pub mod pallet {
                     },
                 );
             } else {
-                Self::deposit_event(Event::ImportedFailed(
+                Self::deposit_event(Event::ImportFailed(
                     did,
                     network,
                     namespace.clone(),
@@ -676,7 +676,7 @@ impl<T: Config> Pallet<T> {
             <Preferred<T>>::insert(&owner, id);
         }
 
-        Self::deposit_event(Event::Imported(owner, id));
+        Self::deposit_event(Event::Created(owner, id));
 
         Ok(id)
     }
