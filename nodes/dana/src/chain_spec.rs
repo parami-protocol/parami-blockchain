@@ -1,4 +1,4 @@
-use parami_dana_runtime::{AccountId, AuraId, GenesisConfig, ImOnlineId, Signature, StakerStatus};
+use parami_dana_runtime::{AccountId, AuraConfig, AuraId, GenesisConfig, GrandpaConfig, Signature};
 use sc_service::ChainType;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_core::{sr25519, Pair, Public};
@@ -32,41 +32,13 @@ where
 }
 
 /// Helper function to generate stash, controller and session key from seed
-pub fn authority_keys_from_seed(
-    seed: &str,
-) -> (
-    AccountId,
-    AccountId,
-    AuraId,
-    GrandpaId,
-    ImOnlineId,
-    AuthorityDiscoveryId,
-) {
+pub fn authority_keys_from_seed(seed: &str) -> (AccountId, AccountId, AuraId, GrandpaId) {
     (
         get_account_id_from_seed::<sr25519::Public>(&format!("{}//stash", seed)),
         get_account_id_from_seed::<sr25519::Public>(seed),
         get_public_from_seed::<AuraId>(seed),
         get_public_from_seed::<GrandpaId>(seed),
-        get_public_from_seed::<ImOnlineId>(seed),
-        get_public_from_seed::<AuthorityDiscoveryId>(seed),
     )
-}
-
-/// Generate the session keys from individual elements.
-///
-/// The input must be a tuple of individual keys (a single arg for now since we have just one key).
-fn session_keys(
-    aura: AuraId,
-    grandpa: GrandpaId,
-    im_online: ImOnlineId,
-    authority_discovery: AuthorityDiscoveryId,
-) -> parami_dana_runtime::SessionKeys {
-    parami_dana_runtime::SessionKeys {
-        aura,
-        grandpa,
-        im_online,
-        authority_discovery,
-    }
 }
 
 pub fn development_config() -> ChainSpec {
@@ -145,14 +117,7 @@ pub fn local_testnet_config() -> ChainSpec {
 }
 
 fn testnet_genesis(
-    initial_authorities: Vec<(
-        AccountId,
-        AccountId,
-        AuraId,
-        GrandpaId,
-        ImOnlineId,
-        AuthorityDiscoveryId,
-    )>,
+    initial_authorities: Vec<(AccountId, AccountId, AuraId, GrandpaId)>,
     initial_nominators: Vec<AccountId>,
     root_key: AccountId,
     endowed_accounts: Option<Vec<AccountId>>,
@@ -186,35 +151,13 @@ fn testnet_genesis(
             }
         });
 
-    // stakers: all validators and nominators.
-    let mut rng = rand::thread_rng();
-    let stakers = initial_authorities
-        .iter()
-        .map(|x| (x.0.clone(), x.1.clone(), STASH, StakerStatus::Validator))
-        .chain(initial_nominators.iter().map(|x| {
-            use rand::{seq::SliceRandom, Rng};
-            let limit =
-                (parami_dana_runtime::MAX_NOMINATIONS as usize).min(initial_authorities.len());
-            let count = rng.gen::<usize>() % limit;
-            let nominations = initial_authorities
-                .as_slice()
-                .choose_multiple(&mut rng, count)
-                .into_iter()
-                .map(|choice| choice.0.clone())
-                .collect::<Vec<_>>();
-            (
-                x.clone(),
-                x.clone(),
-                STASH,
-                StakerStatus::Nominator(nominations),
-            )
-        }))
-        .collect::<Vec<_>>();
-
     let num_endowed_accounts = endowed_accounts.len();
 
     const ENDOWMENT: parami_dana_runtime::Balance = 10_000_000 * parami_dana_runtime::DOLLARS;
-    const STASH: parami_dana_runtime::Balance = ENDOWMENT / 1000;
+    let grandpa = initial_authorities
+        .iter()
+        .map(|x| (x.3.clone(), 1))
+        .collect();
 
     parami_dana_runtime::GenesisConfig {
         system: parami_dana_runtime::SystemConfig {
@@ -230,48 +173,11 @@ fn testnet_genesis(
         },
         assets: Default::default(),
 
-        session: parami_dana_runtime::SessionConfig {
-            keys: initial_authorities
-                .iter()
-                .map(|x| {
-                    (
-                        x.0.clone(),
-                        x.0.clone(),
-                        session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone()),
-                    )
-                })
-                .collect(),
+        aura: AuraConfig {
+            authorities: initial_authorities.iter().map(|x| (x.2.clone())).collect(),
         },
-        aura: Default::default(),
-        grandpa: Default::default(),
-
-        im_online: Default::default(),
-        authority_discovery: Default::default(),
-        staking: parami_dana_runtime::StakingConfig {
-            validator_count: initial_authorities.len() as u32,
-            minimum_validator_count: initial_authorities.len() as u32,
-            invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
-            slash_reward_fraction: Perbill::from_percent(10),
-            stakers,
-            ..Default::default()
-        },
-
-        phragmen_election: parami_dana_runtime::PhragmenElectionConfig {
-            members: endowed_accounts
-                .iter()
-                .take((num_endowed_accounts + 1) / 2)
-                .cloned()
-                .map(|member| (member, STASH))
-                .collect(),
-        },
-        society: parami_dana_runtime::SocietyConfig {
-            members: endowed_accounts
-                .iter()
-                .take((num_endowed_accounts + 1) / 2)
-                .cloned()
-                .collect(),
-            pot: 0,
-            max_members: 999,
+        grandpa: GrandpaConfig {
+            authorities: grandpa,
         },
 
         democracy: Default::default(),
@@ -290,7 +196,6 @@ fn testnet_genesis(
         sudo: parami_dana_runtime::SudoConfig {
             key: Some(root_key),
         },
-        vesting: Default::default(),
 
         ad: Default::default(),
         advertiser: Default::default(),
@@ -299,6 +204,5 @@ fn testnet_genesis(
         nft: Default::default(),
         swap: Default::default(),
         tag: Default::default(),
-        nomination_pools: Default::default(),
     }
 }
