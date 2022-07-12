@@ -5,6 +5,9 @@ pub use pallet::*;
 #[rustfmt::skip]
 pub mod weights;
 
+use scale_info::TypeInfo;
+use serde::{Deserialize, Serialize};
+
 #[cfg(test)]
 mod mock;
 
@@ -19,7 +22,7 @@ use frame_support::{
     ensure,
     traits::{
         tokens::fungibles::Transfer as FungTransfer, Currency, EnsureOrigin,
-        ExistenceRequirement::AllowDeath, Get,
+        ExistenceRequirement::AllowDeath, Get, StorageVersion,
     },
 };
 use frame_system::ensure_signed;
@@ -35,6 +38,9 @@ type BalanceOf<T> =
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type AssetOf<T> = <T as Config>::AssetId;
+
+const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+const MAX_TRANSFER_ASSET: u128 = 1000;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -53,16 +59,16 @@ pub mod pallet {
             Success = <Self as frame_system::Config>::AccountId,
         >;
 
-        /// The currency mechanism.
-        type Currency: Currency<<Self as frame_system::Config>::AccountId>;
-
         type Assets: FungTransfer<
             AccountOf<Self>,
             AssetId = AssetOf<Self>,
             Balance = BalanceOf<Self>,
         >;
 
-        type AssetId: Parameter + Member + Default + Copy + MaxEncodedLen;
+        type AssetId: Parameter + Member + Default + Copy;
+
+        /// The currency mechanism.
+        type Currency: Currency<<Self as frame_system::Config>::AccountId>;
 
         /// Ids can be defined by the runtime and passed in, perhaps from blake2b_128 hashes.
         type HashId: Get<ResourceId>;
@@ -76,6 +82,7 @@ pub mod pallet {
     }
 
     #[pallet::pallet]
+    #[pallet::storage_version(STORAGE_VERSION)]
     #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(_);
 
@@ -85,9 +92,25 @@ pub mod pallet {
         Remark(<T as frame_system::Config>::Hash),
     }
 
+    #[derive(Clone, Decode, Default, Encode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
+    #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+    pub struct Map<T: Config> {
+        pub chain: ChainId,
+        pub resourceId: ResourceId,
+        pub to: Vec<u8>,
+        pub amount: U256,
+        pub origin: AccountOf<T>,
+    }
+
     #[pallet::storage]
-    #[pallet::getter(fn resource)]
+    #[pallet::getter(fn resourcemap)]
     pub(super) type ResourceMap<T: Config> = StorageMap<_, Identity, AssetOf<T>, ResourceId>;
+
+    #[pallet::storage]
+    pub(super) type TransferMap<T: Config> = StorageMap<_, Identity, u32, Map<T>>;
+
+    #[pallet::storage]
+    pub(super) type MapLen<T: Config> = StorageValue<_, u32, ValueQuery>;
 
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
@@ -121,23 +144,58 @@ pub mod pallet {
             recipient: Vec<u8>,
             dest_id: ChainId,
         ) -> DispatchResultWithPostInfo {
-            let source = ensure_signed(origin)?;
-            ensure!(
-                <parami_chainbridge::Pallet<T>>::chain_whitelisted(dest_id),
-                Error::<T>::InvalidTransfer
-            );
-            let bridge_id = <parami_chainbridge::Pallet<T>>::account_id();
-            T::Currency::transfer(&source, &bridge_id, amount.into(), AllowDeath)?;
-
+            let source = ensure_signed(origin.clone())?;
+            // ensure!(
+            //     <parami_chainbridge::Pallet<T>>::chain_whitelisted(dest_id),
+            //     Error::<T>::InvalidTransfer
+            // );
             let resource_id = T::NativeTokenId::get();
+
+            let bridge_id = <parami_chainbridge::Pallet<T>>::account_id();
+            if amount.saturated_into::<u128>() > MAX_TRANSFER_ASSET {
+                let maplen = <MapLen<T>>::get();
+                <TransferMap<T>>::insert(
+                    maplen,
+                    Map {
+                        chain: dest_id,
+                        resourceId: resource_id,
+                        to: recipient,
+                        amount: U256::from(amount.saturated_into::<u128>()),
+                        origin: source,
+                    },
+                );
+
+                <MapLen<T>>::put(maplen + 1);
+                return Ok(().into());
+            }
+
+            T::Currency::transfer(&source, &bridge_id, amount.into(), AllowDeath)?;
             <parami_chainbridge::Pallet<T>>::transfer_fungible(
                 dest_id,
                 resource_id,
                 recipient,
                 U256::from(amount.saturated_into::<u128>()),
             )?;
-
             Ok(().into())
+        }
+
+        #[pallet::weight(<T as Config>::WeightInfo::approve_transfer_native())]
+        pub fn approve_transfer_native(origin: OriginFor<T>, index: u32) -> DispatchResult {
+            T::ForceOrigin::ensure_origin(origin)?;
+            let result = <TransferMap<T>>::get(index);
+            let _ = match result {
+                None => return Err(DispatchError::from("Remote Keystore not supported.")),
+
+                Some(trx) => {
+                    <parami_chainbridge::Pallet<T>>::transfer_fungible(
+                        trx.chain,
+                        trx.resourceId,
+                        trx.to,
+                        trx.amount,
+                    )?;
+                    return Ok(().into());
+                }
+            };
         }
 
         #[pallet::weight(<T as Config>::WeightInfo::transfer_token())]

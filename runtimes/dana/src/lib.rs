@@ -1463,7 +1463,7 @@ construct_runtime!(
         Ad: parami_ad::{Pallet, Call, Storage, Config, Event<T>} = 100,
         Advertiser: parami_advertiser::{Pallet, Call, Storage, Config<T>, Event<T>} = 101,
         ChainBridge: parami_chainbridge::{Pallet, Call, Storage, Event<T>} = 102,
-        XAssets: parami_xassets::{Pallet, Call, Event<T>} = 103,
+        XAssets: parami_xassets::{Pallet, Call, Storage, Event<T>} = 103,
         Did: parami_did::{Pallet, Call, Storage, Config<T>, Event<T>} = 104,
         Linker: parami_linker::{Pallet, Call, Storage, Config<T>, Event<T>, ValidateUnsigned} = 105,
         Magic: parami_magic::{Pallet,Storage} = 106,
