@@ -6,6 +6,8 @@ pub use pallet::*;
 pub mod weights;
 
 use scale_info::TypeInfo;
+
+#[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 
 #[cfg(test)]
@@ -42,8 +44,6 @@ type AssetOf<T> = <T as Config>::AssetId;
 const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 const MAX_TRANSFER_ASSET: u128 = 1000;
 
-type AmountOf<T> = <<T as Config>::Currency as Currency<AccountOf<T>>>::Balance;
-
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
@@ -67,7 +67,7 @@ pub mod pallet {
             Balance = BalanceOf<Self>,
         >;
 
-        type AssetId: Parameter + Member + Default + Copy;
+        type AssetId: Parameter + Member + Default + Copy + MaxEncodedLen;
 
         /// The currency mechanism.
         type Currency: Currency<<Self as frame_system::Config>::AccountId>;
@@ -86,6 +86,7 @@ pub mod pallet {
     #[pallet::pallet]
     #[pallet::storage_version(STORAGE_VERSION)]
     #[pallet::generate_store(pub(super) trait Store)]
+    #[pallet::without_storage_info]
     pub struct Pallet<T>(_);
 
     #[pallet::storage]
@@ -93,7 +94,7 @@ pub mod pallet {
     pub(super) type ResourceMap<T: Config> = StorageMap<_, Identity, AssetOf<T>, ResourceId>;
 
     #[pallet::storage]
-    pub(super) type TransferMap<T: Config> = StorageMap<_, Identity, u32, Map<T>>;
+    pub(super) type TransferMap<T: Config> = StorageMap<_, Identity, u32, Map<AccountOf<T>>>;
 
     #[pallet::storage]
     pub(super) type MapLen<T: Config> = StorageValue<_, u32, ValueQuery>;
@@ -106,12 +107,12 @@ pub mod pallet {
 
     #[derive(Clone, Decode, Default, Encode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
     #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-    pub struct Map<T: Config> {
+    pub struct Map<A> {
         pub chain: ChainId,
-        pub resourceId: ResourceId,
+        pub resource_id: ResourceId,
         pub to: Vec<u8>,
         pub amount: U256,
-        pub origin: AccountOf<T>,
+        pub origin: A,
     }
 
     #[pallet::hooks]
@@ -160,7 +161,7 @@ pub mod pallet {
                     maplen,
                     Map {
                         chain: dest_id,
-                        resourceId: resource_id,
+                        resource_id: resource_id,
                         to: recipient,
                         amount: U256::from(amount.saturated_into::<u128>()),
                         origin: source,
@@ -191,7 +192,7 @@ pub mod pallet {
                 Some(trx) => {
                     <parami_chainbridge::Pallet<T>>::transfer_fungible(
                         trx.chain,
-                        trx.resourceId,
+                        trx.resource_id,
                         trx.to,
                         trx.amount,
                     )?;
