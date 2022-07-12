@@ -1,6 +1,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub use pallet::*;
+use scale_info::TypeInfo;
+use serde::{Deserialize, Serialize};
 
 #[rustfmt::skip]
 pub mod weights;
@@ -88,6 +90,16 @@ pub mod pallet {
     #[pallet::generate_store(pub(super) trait Store)]
     pub struct Pallet<T>(_);
 
+    #[pallet::storage]
+    #[pallet::getter(fn resourcemap)]
+    pub(super) type ResourceMap<T: Config> = StorageMap<_, Identity, AssetOf<T>, ResourceId>;
+
+    #[pallet::storage]
+    pub(super) type TransferMap<T: Config> = StorageMap<_, Identity, u32, Map<T>>;
+
+    #[pallet::storage]
+    pub(super) type MapLen<T: Config> = StorageValue<_, u32, ValueQuery>;
+
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
@@ -103,6 +115,7 @@ pub mod pallet {
         pub amount: U256,
         pub origin: AccountOf<T>,
     }
+<<<<<<< HEAD
 
     #[pallet::storage]
     #[pallet::getter(fn resourcemap)]
@@ -146,13 +159,11 @@ pub mod pallet {
             recipient: Vec<u8>,
             dest_id: ChainId,
         ) -> DispatchResultWithPostInfo {
-            let source = ensure_signed(origin)?;
+            let source = ensure_signed(origin.clone())?;
             ensure!(
                 <parami_chainbridge::Pallet<T>>::chain_whitelisted(dest_id),
                 Error::<T>::InvalidTransfer
             );
-            let bridge_id = <parami_chainbridge::Pallet<T>>::account_id();
-            T::Currency::transfer(&source, &bridge_id, amount.into(), AllowDeath)?;
             let resource_id = T::NativeTokenId::get();
 
             let bridge_id = <parami_chainbridge::Pallet<T>>::account_id();
