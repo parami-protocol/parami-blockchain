@@ -31,7 +31,7 @@ pub struct RemoveDeprecatedPallets;
 impl OnRuntimeUpgrade for RemoveDeprecatedPallets {
     fn on_runtime_upgrade() -> Weight {
         if VERSION.spec_version > 333 {
-            return;
+            return 0;
         }
 
         for module in DEPRECATED_PALLETS {
@@ -51,7 +51,7 @@ impl OnRuntimeUpgrade for RemoveDeprecatedPallets {
         let modules: Vec<&[u8]> = vec![b"Staking"];
 
         if VERSION.spec_version > 333 {
-            return;
+            return Ok(());
         }
 
         for module in DEPRECATED_PALLETS {
@@ -67,7 +67,7 @@ impl OnRuntimeUpgrade for RemoveDeprecatedPallets {
     #[cfg(feature = "try-runtime")]
     fn post_upgrade() -> Result<(), &'static str> {
         if VERSION.spec_version > 333 {
-            return;
+            return Ok(());
         }
 
         for module in DEPRECATED_PALLETS {
