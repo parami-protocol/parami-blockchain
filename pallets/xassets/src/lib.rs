@@ -94,10 +94,8 @@ pub mod pallet {
     pub(super) type ResourceMap<T: Config> = StorageMap<_, Identity, AssetOf<T>, ResourceId>;
 
     #[pallet::storage]
-    pub(super) type TransferMap<T: Config> = StorageMap<_, Identity, u32, Map<AccountOf<T>>>;
-
-    #[pallet::storage]
-    pub(super) type MapLen<T: Config> = StorageValue<_, u32, ValueQuery>;
+    pub(super) type TransactionList<T: Config> =
+        StorageValue<_, Vec<Map<AccountOf<T>, BalanceOf<T>>>, ValueQuery>;
 
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -107,12 +105,13 @@ pub mod pallet {
 
     #[derive(Clone, Decode, Default, Encode, Eq, PartialEq, RuntimeDebug, TypeInfo)]
     #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-    pub struct Map<A> {
+    pub struct Map<A, B> {
         pub chain: ChainId,
         pub resource_id: ResourceId,
         pub to: Vec<u8>,
-        pub amount: U256,
+        pub amount: B,
         pub origin: A,
+        pub bridge_id: A,
     }
 
     #[pallet::hooks]
@@ -156,19 +155,16 @@ pub mod pallet {
 
             let bridge_id = <parami_chainbridge::Pallet<T>>::account_id();
             if amount.saturated_into::<u128>() > MAX_TRANSFER_ASSET {
-                let maplen = <MapLen<T>>::get();
-                <TransferMap<T>>::insert(
-                    maplen,
-                    Map {
-                        chain: dest_id,
-                        resource_id: resource_id,
-                        to: recipient,
-                        amount: U256::from(amount.saturated_into::<u128>()),
-                        origin: source,
-                    },
-                );
-
-                <MapLen<T>>::put(maplen + 1);
+                let mut transaction_list = <TransactionList<T>>::get();
+                let transaction = Map {
+                    chain: dest_id,
+                    resource_id: resource_id,
+                    to: recipient,
+                    amount: amount.clone(),
+                    origin: source,
+                    bridge_id: bridge_id,
+                };
+                transaction_list.push(transaction);
                 return Ok(().into());
             }
 
@@ -185,20 +181,23 @@ pub mod pallet {
         #[pallet::weight(<T as Config>::WeightInfo::approve_transfer_native())]
         pub fn approve_transfer_native(origin: OriginFor<T>, index: u32) -> DispatchResult {
             T::ForceOrigin::ensure_origin(origin)?;
-            let result = <TransferMap<T>>::get(index);
-            let _ = match result {
-                None => return Err(DispatchError::from("Remote Keystore not supported.")),
+            let mut result = <TransactionList<T>>::get();
 
-                Some(trx) => {
-                    <parami_chainbridge::Pallet<T>>::transfer_fungible(
-                        trx.chain,
-                        trx.resource_id,
-                        trx.to,
-                        trx.amount,
-                    )?;
-                    return Ok(().into());
-                }
-            };
+            let u_index = index as usize;
+            if u_index >= result.len() || u_index < 0 {
+                return Err(DispatchError::from("Transaction index is not exist."));
+            }
+            let trx = result[u_index].clone();
+
+            T::Currency::transfer(&trx.origin, &trx.bridge_id, trx.amount, AllowDeath)?;
+            <parami_chainbridge::Pallet<T>>::transfer_fungible(
+                trx.chain,
+                trx.resource_id,
+                trx.to,
+                U256::from(trx.amount.saturated_into::<u128>()),
+            )?;
+            result.remove(u_index);
+            return Ok(().into());
         }
 
         #[pallet::weight(<T as Config>::WeightInfo::transfer_token())]
