@@ -33,14 +33,12 @@ use sp_version::RuntimeVersion;
 
 // A few exports that help ease life for downstream crates.
 
-use frame_support::traits::EnsureOneOf;
-use frame_support::traits::OnRuntimeUpgrade;
 use frame_support::{
     construct_runtime, parameter_types,
     traits::{
-        AsEnsureOriginWithArg, ConstU128, ConstU16, ConstU32, ContainsLengthBound,
-        EqualPrivilegeOnly, Everything, KeyOwnerProofSystem, LockIdentifier, Nothing,
-        SortedMembers, U128CurrencyToVote,
+        AsEnsureOriginWithArg, ConstU128, ConstU16, ConstU32, ContainsLengthBound, Currency,
+        EnsureOneOf, EqualPrivilegeOnly, Everything, Imbalance, KeyOwnerProofSystem,
+        LockIdentifier, Nothing, OnRuntimeUpgrade, OnUnbalanced, SortedMembers, U128CurrencyToVote,
     },
     weights::{
         constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
@@ -393,6 +391,20 @@ impl pallet_balances::Config for Runtime {
     type ReserveIdentifier = [u8; 8];
 }
 
+type NegativeImbalance = <Balances as Currency<AccountId>>::NegativeImbalance;
+
+pub struct DealWithFees;
+impl OnUnbalanced<NegativeImbalance> for DealWithFees {
+    fn on_unbalanceds<B>(mut fees_then_tips: impl Iterator<Item = NegativeImbalance>) {
+        if let Some(mut fees) = fees_then_tips.next() {
+            if let Some(tips) = fees_then_tips.next() {
+                tips.merge_into(&mut fees);
+            }
+            Treasury::on_unbalanced(fees);
+        }
+    }
+}
+
 parameter_types! {
     pub AdjustmentVariable: Multiplier = Multiplier::saturating_from_rational(1, 100_000);
     pub MinimumMultiplier: Multiplier = Multiplier::saturating_from_rational(1, 1_000_000_000u128);
@@ -402,7 +414,7 @@ parameter_types! {
 }
 
 impl pallet_transaction_payment::Config for Runtime {
-    type OnChargeTransaction = pallet_transaction_payment::CurrencyAdapter<Balances, ()>;
+    type OnChargeTransaction = pallet_transaction_payment::CurrencyAdapter<Balances, DealWithFees>;
     type LengthToFee = ConstantMultiplier<Balance, TransactionByteFee>;
     type WeightToFee = IdentityFee<Balance>;
     type FeeMultiplierUpdate =
