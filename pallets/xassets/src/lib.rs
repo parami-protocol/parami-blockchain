@@ -165,6 +165,7 @@ pub mod pallet {
                     bridge_id: bridge_id,
                 };
                 transaction_list.push(transaction);
+                <TransactionList<T>>::put(transaction_list);
                 return Ok(().into());
             }
 
@@ -197,6 +198,7 @@ pub mod pallet {
                 U256::from(trx.amount.saturated_into::<u128>()),
             )?;
             result.remove(u_index);
+            <TransactionList<T>>::put(result);
             return Ok(().into());
         }
 
