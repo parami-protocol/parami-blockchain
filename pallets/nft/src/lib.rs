@@ -239,8 +239,8 @@ pub mod pallet {
             Vec<u8>,
             BalanceOf<T>,
         ),
-        /// Create NFT Failed \[did, network, namespace, token_id\]
-        CreateFailed(T::DecentralizedId, Network, Vec<u8>, Vec<u8>),
+        /// Import NFT Failed \[did, network, namespace, token_id\]
+        ImportFailed(T::DecentralizedId, Network, Vec<u8>, Vec<u8>),
     }
 
     #[pallet::hooks]
@@ -522,7 +522,7 @@ pub mod pallet {
                     },
                 );
             } else {
-                Self::deposit_event(Event::CreateFailed(
+                Self::deposit_event(Event::ImportFailed(
                     did,
                     network,
                     namespace.clone(),
