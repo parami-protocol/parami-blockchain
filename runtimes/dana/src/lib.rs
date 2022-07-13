@@ -69,8 +69,6 @@ use parami_swap::LinearFarmingCurve;
 use parami_traits::Swaps;
 
 mod migrations;
-/// Generated voter bag information.
-mod voter_bags;
 
 /// We allow for 0.5 of a second of compute with a 12 second average block time.
 const MAXIMUM_BLOCK_WEIGHT: Weight = WEIGHT_PER_SECOND / 2;
