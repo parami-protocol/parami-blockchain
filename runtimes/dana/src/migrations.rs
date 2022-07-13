@@ -1,3 +1,4 @@
+use crate::VERSION;
 use frame_support::storage::migration::{remove_storage_prefix, storage_key_iter};
 use frame_support::storage::PrefixIterator;
 use frame_support::traits::OnRuntimeUpgrade;
@@ -29,6 +30,10 @@ pub struct RemoveDeprecatedPallets;
 
 impl OnRuntimeUpgrade for RemoveDeprecatedPallets {
     fn on_runtime_upgrade() -> Weight {
+        if VERSION.spec_version > 333 {
+            return;
+        }
+
         for module in DEPRECATED_PALLETS {
             let key = sp_io::hashing::twox_128(module);
             let result = frame_support::storage::unhashed::kill_prefix(&key, None);
@@ -45,6 +50,10 @@ impl OnRuntimeUpgrade for RemoveDeprecatedPallets {
         use core::str;
         let modules: Vec<&[u8]> = vec![b"Staking"];
 
+        if VERSION.spec_version > 333 {
+            return;
+        }
+
         for module in DEPRECATED_PALLETS {
             log::info!(
                 "RemoveDeprecatedPallet, module = {:?}, key_count: {:?}",
@@ -57,7 +66,9 @@ impl OnRuntimeUpgrade for RemoveDeprecatedPallets {
 
     #[cfg(feature = "try-runtime")]
     fn post_upgrade() -> Result<(), &'static str> {
-        use frame_support::Twox64Concat;
+        if VERSION.spec_version > 333 {
+            return;
+        }
 
         for module in DEPRECATED_PALLETS {
             assert_eq!(pallet_key_count(module), 0);
