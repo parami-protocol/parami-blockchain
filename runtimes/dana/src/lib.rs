@@ -166,7 +166,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("parami"),
     impl_name: create_runtime_str!("parami-node"),
     authoring_version: 20,
-    spec_version: 334,
+    spec_version: 335,
     impl_version: 0,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 2,
@@ -620,7 +620,7 @@ impl pallet_membership::Config<pallet_membership::Instance1> for Runtime {
 }
 
 parameter_types! {
-    pub const Burn: Permill = Permill::from_percent(50);
+    pub const Burn: Permill = Permill::from_percent(0);
     pub const MaxApprovals: u32 = 100;
     pub const ProposalBond: Permill = Permill::from_percent(5);
     pub const ProposalBondMinimum: Balance = 1 * DOLLARS;
@@ -638,7 +638,7 @@ impl pallet_treasury::Config for Runtime {
     type ProposalBondMinimum = ProposalBondMinimum;
     type ProposalBondMaximum = ();
     type SpendPeriod = SpendPeriod;
-    type Burn = Burn;
+    type Burn = ();
     type PalletId = TreasuryPalletId;
     type BurnDestination = ();
     type WeightInfo = pallet_treasury::weights::SubstrateWeight<Runtime>;
