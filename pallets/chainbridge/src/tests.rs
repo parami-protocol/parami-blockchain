@@ -1,6 +1,8 @@
 use crate::{self as pallet_chainbridge, mock::*, *};
 
+use frame_support::traits::Hooks;
 use frame_support::{assert_noop, assert_ok};
+use sp_runtime::traits::BlockNumberProvider;
 
 #[test]
 fn derive_ids() {
@@ -606,4 +608,117 @@ fn proposal_expires() {
                 pallet::Event::<MockRuntime>::VoteFor(src_id, prop_id, RELAYER_A),
             )]);
         })
+}
+
+#[test]
+fn event_appened_in_storage_after_transfer_success() {
+    TestExternalitiesBuilder::default()
+        .build()
+        .execute_with(|| {
+            let dest_id = 2;
+            let to = vec![2];
+            let resource_id = Into::<ResourceId>::into([1; 32]);
+            let metadata = vec![];
+            let amount = 100;
+            let token_id = vec![1, 2, 3, 4];
+
+            assert_ok!(ChainBridge::set_threshold(Origin::root(), TEST_THRESHOLD));
+
+            assert_ok!(ChainBridge::whitelist_chain(
+                Origin::root(),
+                dest_id.clone()
+            ));
+            assert_eq!(ChainBridge::bridge_events().len(), 0);
+
+            assert_ok!(ChainBridge::transfer_fungible(
+                dest_id.clone(),
+                resource_id.clone(),
+                to.clone(),
+                amount.into()
+            ));
+            assert_eq!(ChainBridge::bridge_events().len(), 1);
+            assert_eq!(
+                ChainBridge::bridge_events()[0],
+                BridgeEvent::FungibleTransfer(
+                    dest_id.clone(),
+                    1,
+                    resource_id.clone(),
+                    amount.into(),
+                    to.clone(),
+                )
+            );
+
+            assert_ok!(ChainBridge::transfer_nonfungible(
+                dest_id.clone(),
+                resource_id.clone(),
+                token_id.clone(),
+                to.clone(),
+                metadata.clone()
+            ));
+            assert_eq!(ChainBridge::bridge_events().len(), 2);
+            assert_eq!(
+                ChainBridge::bridge_events()[1],
+                BridgeEvent::NonFungibleTransfer(
+                    dest_id.clone(),
+                    2,
+                    resource_id.clone(),
+                    token_id,
+                    to.clone(),
+                    metadata.clone(),
+                ),
+            );
+
+            assert_ok!(ChainBridge::transfer_generic(
+                dest_id.clone(),
+                resource_id.clone(),
+                metadata.clone()
+            ));
+            assert_eq!(ChainBridge::bridge_events().len(), 3);
+            assert_eq!(
+                ChainBridge::bridge_events()[2],
+                BridgeEvent::GenericTransfer(dest_id.clone(), 3, resource_id, metadata,),
+            );
+        });
+}
+
+#[test]
+fn events_cleared_after_block_initialized() {
+    TestExternalitiesBuilder::default()
+        .build()
+        .execute_with(|| {
+            let dest_id = 2;
+            let to = vec![2];
+            let resource_id = Into::<ResourceId>::into([1; 32]);
+            let metadata = vec![];
+            let amount = 100;
+            let token_id = vec![1, 2, 3, 4];
+
+            assert_ok!(ChainBridge::set_threshold(Origin::root(), TEST_THRESHOLD));
+
+            assert_ok!(ChainBridge::whitelist_chain(
+                Origin::root(),
+                dest_id.clone()
+            ));
+            assert_ok!(ChainBridge::transfer_fungible(
+                dest_id.clone(),
+                resource_id.clone(),
+                to.clone(),
+                amount.into()
+            ));
+            assert_ok!(ChainBridge::transfer_nonfungible(
+                dest_id.clone(),
+                resource_id.clone(),
+                token_id.clone(),
+                to.clone(),
+                metadata.clone()
+            ));
+            assert_ok!(ChainBridge::transfer_generic(
+                dest_id.clone(),
+                resource_id.clone(),
+                metadata.clone()
+            ));
+            assert_eq!(ChainBridge::bridge_events().len(), 3);
+            ChainBridge::on_initialize(1);
+            assert_eq!(ChainBridge::bridge_events().len(), 0);
+        });
 }
