@@ -166,7 +166,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("parami"),
     impl_name: create_runtime_str!("parami-node"),
     authoring_version: 20,
-    spec_version: 335,
+    spec_version: 336,
     impl_version: 0,
     apis: RUNTIME_API_VERSIONS,
     transaction_version: 2,

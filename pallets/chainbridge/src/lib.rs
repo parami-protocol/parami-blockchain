@@ -127,6 +127,17 @@ pub mod pallet {
     pub(super) type Resources<T: Config> =
         StorageMap<_, Blake2_256, ResourceId, Vec<u8>, OptionQuery>;
 
+    #[pallet::storage]
+    #[pallet::getter(fn bridge_events)]
+    pub type BridgeEvents<T> = StorageValue<_, Vec<BridgeEvent>, ValueQuery>;
+
+    #[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+    pub enum BridgeEvent {
+        FungibleTransfer(ChainId, DepositNonce, ResourceId, U256, Vec<u8>),
+        NonFungibleTransfer(ChainId, DepositNonce, ResourceId, Vec<u8>, Vec<u8>, Vec<u8>),
+        GenericTransfer(ChainId, DepositNonce, ResourceId, Vec<u8>),
+    }
+
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
@@ -591,6 +602,13 @@ impl<T: Config> Pallet<T> {
             Error::<T>::ChainNotWhitelisted
         );
         let nonce = Self::bump_nonce(dest_id);
+        BridgeEvents::<T>::append(BridgeEvent::FungibleTransfer(
+            dest_id,
+            nonce,
+            resource_id,
+            amount,
+            to.clone(),
+        ));
         Self::deposit_event(Event::FungibleTransfer(
             dest_id,
             nonce,
@@ -614,6 +632,14 @@ impl<T: Config> Pallet<T> {
             Error::<T>::ChainNotWhitelisted
         );
         let nonce = Self::bump_nonce(dest_id);
+        BridgeEvents::<T>::append(BridgeEvent::NonFungibleTransfer(
+            dest_id,
+            nonce,
+            resource_id,
+            token_id.clone(),
+            to.clone(),
+            metadata.clone(),
+        ));
         Self::deposit_event(Event::NonFungibleTransfer(
             dest_id,
             nonce,
@@ -636,6 +662,12 @@ impl<T: Config> Pallet<T> {
             Error::<T>::ChainNotWhitelisted
         );
         let nonce = Self::bump_nonce(dest_id);
+        BridgeEvents::<T>::append(BridgeEvent::GenericTransfer(
+            dest_id,
+            nonce,
+            resource_id,
+            metadata.clone(),
+        ));
         Self::deposit_event(Event::GenericTransfer(
             dest_id,
             nonce,
