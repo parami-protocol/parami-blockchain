@@ -6,8 +6,8 @@ pub use types::*;
 #[rustfmt::skip]
 pub mod weights;
 
-// #[cfg(test)]
-// mod mock;
+#[cfg(test)]
+mod mock;
 
 // #[cfg(test)]
 // mod tests;

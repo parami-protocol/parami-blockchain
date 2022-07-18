@@ -1,4 +1,9 @@
-use frame_support::{assert_ok, parameter_types, traits::SortedMembers, weights::Weight, PalletId};
+use frame_support::{
+    assert_ok, parameter_types,
+    traits::{ConstU32, SortedMembers},
+    weights::Weight,
+    PalletId,
+};
 
 use frame_system::EnsureSignedBy;
 
@@ -105,7 +110,7 @@ parameter_types! {
 
 // Implement FRAME system pallet configuration trait for the mock runtime
 impl frame_system::Config for MockRuntime {
-    type BaseCallFilter = ();
+    type BaseCallFilter = frame_support::traits::Everything;
     type Origin = Origin;
     type Call = Call;
     type Index = u64;
@@ -128,11 +133,14 @@ impl frame_system::Config for MockRuntime {
     type BlockLength = ();
     type SS58Prefix = ();
     type OnSetCode = ();
+    type MaxConsumers = ConstU32<16>;
 }
 
 // Parameterize FRAME balances pallet
 parameter_types! {
     pub const ExistentialDeposit: u64 = 1;
+
+    pub const MaxReserves: u32 = 50;
 }
 
 // Implement FRAME balances pallet configuration trait for the mock runtime
@@ -144,6 +152,8 @@ impl pallet_balances::Config for MockRuntime {
     type AccountStore = System;
     type WeightInfo = ();
     type MaxLocks = ();
+    type MaxReserves = MaxReserves;
+    type ReserveIdentifier = [u8; 8];
 }
 
 // Parameterize chainbridge pallet
