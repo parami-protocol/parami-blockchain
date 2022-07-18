@@ -170,7 +170,13 @@ pub mod pallet {
     }
 
     #[pallet::hooks]
-    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
+    impl<T: Config> Hooks<T::BlockNumber> for Pallet<T> {
+        fn on_initialize(_n: T::BlockNumber) -> Weight {
+            // Clear all bridge transfer data
+            BridgeEvents::<T>::kill();
+            0
+        }
+    }
 
     #[pallet::error]
     pub enum Error<T> {
