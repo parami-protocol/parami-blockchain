@@ -14,7 +14,7 @@ fn derive_ids() {
         0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x21, 0x60, 0x5f, 0x71, 0x84, 0x5f,
         0x37, 0x2a, 0x9e, 0xd8, 0x42, 0x53, 0xd2, 0xd0, 0x24, 0xb7, 0xb1, 0x09, 0x99, 0xf4, chain,
     ];
-    assert_eq!(r_id, expected);
+    assert_eq!(r_id, expected.into());
 }
 
 #[test]
@@ -71,7 +71,7 @@ fn setup_resources() {
     TestExternalitiesBuilder::default()
         .build()
         .execute_with(|| {
-            let id: ResourceId = [1; 32];
+            let id: ResourceId = [1; 32].into();
             let method = "Pallet.do_something".as_bytes().to_vec();
             let method2 = "Pallet.do_somethingElse".as_bytes().to_vec();
 
@@ -110,11 +110,9 @@ fn whitelist_chain() {
                 Error::<MockRuntime>::InvalidChainId
             );
 
-            assert_events(vec![mock::Event::pallet_chainbridge(pallet::Event::<
-                MockRuntime,
-            >::ChainWhitelisted(
-                0
-            ))]);
+            assert_events(vec![mock::Event::ChainBridge(
+                pallet::Event::<MockRuntime>::ChainWhitelisted(0),
+            )]);
         })
 }
 
@@ -132,12 +130,10 @@ fn set_get_threshold() {
             assert_eq!(<RelayerThreshold<MockRuntime>>::get(), 5);
 
             assert_events(vec![
-                mock::Event::pallet_chainbridge(
-                    pallet::Event::<MockRuntime>::RelayerThresholdChanged(TEST_THRESHOLD),
-                ),
-                mock::Event::pallet_chainbridge(
-                    pallet::Event::<MockRuntime>::RelayerThresholdChanged(5),
-                ),
+                mock::Event::ChainBridge(pallet::Event::<MockRuntime>::RelayerThresholdChanged(
+                    TEST_THRESHOLD,
+                )),
+                mock::Event::ChainBridge(pallet::Event::<MockRuntime>::RelayerThresholdChanged(5)),
             ]);
         })
 }
@@ -149,7 +145,7 @@ fn asset_transfer_success() {
         .execute_with(|| {
             let dest_id = 2;
             let to = vec![2];
-            let resource_id = [1; 32];
+            let resource_id = Into::<ResourceId>::into([1; 32]);
             let metadata = vec![];
             let amount = 100;
             let token_id = vec![1, 2, 3, 4];
@@ -168,10 +164,10 @@ fn asset_transfer_success() {
             ));
 
             assert_events(vec![
-                mock::Event::pallet_chainbridge(pallet::Event::<MockRuntime>::ChainWhitelisted(
+                mock::Event::ChainBridge(pallet::Event::<MockRuntime>::ChainWhitelisted(
                     dest_id.clone(),
                 )),
-                mock::Event::pallet_chainbridge(pallet::Event::<MockRuntime>::FungibleTransfer(
+                mock::Event::ChainBridge(pallet::Event::<MockRuntime>::FungibleTransfer(
                     dest_id.clone(),
                     1,
                     resource_id.clone(),
@@ -187,30 +183,30 @@ fn asset_transfer_success() {
                 to.clone(),
                 metadata.clone()
             ));
-            assert_events(vec![mock::Event::pallet_chainbridge(pallet::Event::<
-                MockRuntime,
-            >::NonFungibleTransfer(
-                dest_id.clone(),
-                2,
-                resource_id.clone(),
-                token_id,
-                to.clone(),
-                metadata.clone(),
-            ))]);
+            assert_events(vec![mock::Event::ChainBridge(
+                pallet::Event::<MockRuntime>::NonFungibleTransfer(
+                    dest_id.clone(),
+                    2,
+                    resource_id.clone(),
+                    token_id,
+                    to.clone(),
+                    metadata.clone(),
+                ),
+            )]);
 
             assert_ok!(ChainBridge::transfer_generic(
                 dest_id.clone(),
                 resource_id.clone(),
                 metadata.clone()
             ));
-            assert_events(vec![mock::Event::pallet_chainbridge(pallet::Event::<
-                MockRuntime,
-            >::GenericTransfer(
-                dest_id.clone(),
-                3,
-                resource_id,
-                metadata,
-            ))]);
+            assert_events(vec![mock::Event::ChainBridge(
+                pallet::Event::<MockRuntime>::GenericTransfer(
+                    dest_id.clone(),
+                    3,
+                    resource_id,
+                    metadata,
+                ),
+            )]);
         })
 }
 
@@ -221,17 +217,15 @@ fn asset_transfer_invalid_chain() {
         .execute_with(|| {
             let chain_id = 2;
             let bad_dest_id = 3;
-            let resource_id = [4; 32];
+            let resource_id = Into::<ResourceId>::into([4; 32]);
 
             assert_ok!(ChainBridge::whitelist_chain(
                 Origin::root(),
                 chain_id.clone()
             ));
-            assert_events(vec![mock::Event::pallet_chainbridge(pallet::Event::<
-                MockRuntime,
-            >::ChainWhitelisted(
-                chain_id.clone()
-            ))]);
+            assert_events(vec![mock::Event::ChainBridge(
+                pallet::Event::<MockRuntime>::ChainWhitelisted(chain_id.clone()),
+            )]);
 
             assert_noop!(
                 ChainBridge::transfer_fungible(
@@ -289,24 +283,16 @@ fn add_remove_relayer() {
             );
             assert_eq!(ChainBridge::get_relayer_count(), 2);
             assert_events(vec![
-                mock::Event::pallet_chainbridge(pallet::Event::<MockRuntime>::RelayerAdded(
-                    RELAYER_A,
-                )),
-                mock::Event::pallet_chainbridge(pallet::Event::<MockRuntime>::RelayerAdded(
-                    RELAYER_B,
-                )),
-                mock::Event::pallet_chainbridge(pallet::Event::<MockRuntime>::RelayerAdded(
-                    RELAYER_C,
-                )),
-                mock::Event::pallet_chainbridge(pallet::Event::<MockRuntime>::RelayerRemoved(
-                    RELAYER_B,
-                )),
+                mock::Event::ChainBridge(pallet::Event::<MockRuntime>::RelayerAdded(RELAYER_A)),
+                mock::Event::ChainBridge(pallet::Event::<MockRuntime>::RelayerAdded(RELAYER_B)),
+                mock::Event::ChainBridge(pallet::Event::<MockRuntime>::RelayerAdded(RELAYER_C)),
+                mock::Event::ChainBridge(pallet::Event::<MockRuntime>::RelayerRemoved(RELAYER_B)),
             ]);
         })
 }
 
-fn make_proposal(r: Vec<u8>) -> mock::Call {
-    mock::Call::System(frame_system::Call::remark(r))
+fn make_proposal(remark: Vec<u8>) -> mock::Call {
+    mock::Call::System(frame_system::Call::remark { remark })
 }
 
 #[test]
@@ -371,19 +357,19 @@ fn create_sucessful_proposal() {
             };
             assert_eq!(prop, expected);
             assert_events(vec![
-                mock::Event::pallet_chainbridge(pallet::Event::<MockRuntime>::VoteFor(
+                mock::Event::ChainBridge(pallet::Event::<MockRuntime>::VoteFor(
                     src_id, prop_id, RELAYER_A,
                 )),
-                mock::Event::pallet_chainbridge(pallet::Event::<MockRuntime>::VoteAgainst(
+                mock::Event::ChainBridge(pallet::Event::<MockRuntime>::VoteAgainst(
                     src_id, prop_id, RELAYER_B,
                 )),
-                mock::Event::pallet_chainbridge(pallet::Event::<MockRuntime>::VoteFor(
+                mock::Event::ChainBridge(pallet::Event::<MockRuntime>::VoteFor(
                     src_id, prop_id, RELAYER_C,
                 )),
-                mock::Event::pallet_chainbridge(pallet::Event::<MockRuntime>::ProposalApproved(
+                mock::Event::ChainBridge(pallet::Event::<MockRuntime>::ProposalApproved(
                     src_id, prop_id,
                 )),
-                mock::Event::pallet_chainbridge(pallet::Event::<MockRuntime>::ProposalSucceeded(
+                mock::Event::ChainBridge(pallet::Event::<MockRuntime>::ProposalSucceeded(
                     src_id, prop_id,
                 )),
             ]);
@@ -459,16 +445,16 @@ fn create_unsucessful_proposal() {
             );
 
             assert_events(vec![
-                mock::Event::pallet_chainbridge(pallet::Event::<MockRuntime>::VoteFor(
+                mock::Event::ChainBridge(pallet::Event::<MockRuntime>::VoteFor(
                     src_id, prop_id, RELAYER_A,
                 )),
-                mock::Event::pallet_chainbridge(pallet::Event::<MockRuntime>::VoteAgainst(
+                mock::Event::ChainBridge(pallet::Event::<MockRuntime>::VoteAgainst(
                     src_id, prop_id, RELAYER_B,
                 )),
-                mock::Event::pallet_chainbridge(pallet::Event::<MockRuntime>::VoteAgainst(
+                mock::Event::ChainBridge(pallet::Event::<MockRuntime>::VoteAgainst(
                     src_id, prop_id, RELAYER_C,
                 )),
-                mock::Event::pallet_chainbridge(pallet::Event::<MockRuntime>::ProposalRejected(
+                mock::Event::ChainBridge(pallet::Event::<MockRuntime>::ProposalRejected(
                     src_id, prop_id,
                 )),
             ]);
@@ -530,16 +516,14 @@ fn execute_after_threshold_change() {
             );
 
             assert_events(vec![
-                mock::Event::pallet_chainbridge(pallet::Event::<MockRuntime>::VoteFor(
+                mock::Event::ChainBridge(pallet::Event::<MockRuntime>::VoteFor(
                     src_id, prop_id, RELAYER_A,
                 )),
-                mock::Event::pallet_chainbridge(
-                    pallet::Event::<MockRuntime>::RelayerThresholdChanged(1),
-                ),
-                mock::Event::pallet_chainbridge(pallet::Event::<MockRuntime>::ProposalApproved(
+                mock::Event::ChainBridge(pallet::Event::<MockRuntime>::RelayerThresholdChanged(1)),
+                mock::Event::ChainBridge(pallet::Event::<MockRuntime>::ProposalApproved(
                     src_id, prop_id,
                 )),
-                mock::Event::pallet_chainbridge(pallet::Event::<MockRuntime>::ProposalSucceeded(
+                mock::Event::ChainBridge(pallet::Event::<MockRuntime>::ProposalSucceeded(
                     src_id, prop_id,
                 )),
             ]);
@@ -618,10 +602,8 @@ fn proposal_expires() {
             };
             assert_eq!(prop, expected);
 
-            assert_events(vec![mock::Event::pallet_chainbridge(pallet::Event::<
-                MockRuntime,
-            >::VoteFor(
-                src_id, prop_id, RELAYER_A,
-            ))]);
+            assert_events(vec![mock::Event::ChainBridge(
+                pallet::Event::<MockRuntime>::VoteFor(src_id, prop_id, RELAYER_A),
+            )]);
         })
 }
