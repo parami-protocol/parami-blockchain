@@ -11,6 +11,7 @@ use sp_runtime::{
 };
 
 use parami_primitives::constants::DOLLARS;
+use parami_primitives::Network;
 
 type UncheckedExtrinsic = system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = system::mocking::MockBlock<Test>;
@@ -279,6 +280,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
             vec![0x01],
             DID_ALICE,
         )],
+        validate_endpoints: vec![(Network::Ethereum, "http://etherum.endpoint/example".into())],
     }
     .assimilate_storage(&mut t)
     .unwrap();

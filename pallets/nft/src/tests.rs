@@ -442,7 +442,7 @@ fn should_fail_when_server_response_not_expected() {
 
 #[test]
 fn should_import_nft_by_ocw() {
-    let ether_endpoint = "https://rinkeby.infura.io/v3/cffb10a5fde442cb80af59a65783c296";
+    let ether_endpoint = "http://etherum.endpoint/example";
     let profile: Vec<u8> = vec![
         219, 208, 68, 36, 49, 141, 30, 6, 179, 66, 89, 173, 214, 75, 241, 10, 142, 180, 90, 135,
     ];

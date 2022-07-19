@@ -221,6 +221,10 @@ pub mod pallet {
     #[pallet::storage]
     pub(super) type NextClassId<T: Config> = StorageValue<_, NftOf<T>, ValueQuery, DefaultId<T>>;
 
+    #[pallet::storage]
+    pub(super) type ValidateEndpoint<T: Config> =
+        StorageMap<_, Twox64Concat, Network, BoundedVec<u8, ConstU32<128>>>;
+
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
@@ -533,6 +537,20 @@ pub mod pallet {
             <Porting<T>>::remove((network, namespace, token));
             Ok(().into())
         }
+
+        #[pallet::weight(<T as Config>::WeightInfo::submit_porting())]
+        pub fn set_validate_endpoint(
+            origin: OriginFor<T>,
+            network: Network,
+            endpoint: Vec<u8>,
+        ) -> DispatchResult {
+            ensure_root(origin)?;
+            let endpoint: BoundedVec<u8, ConstU32<128>> = endpoint
+                .try_into()
+                .map_err(|_| "Endpoint exceeds maximum length")?;
+            <ValidateEndpoint<T>>::insert(network, endpoint);
+            Ok(())
+        }
     }
 
     #[pallet::genesis_config]
@@ -542,6 +560,7 @@ pub mod pallet {
         pub next_instance_id: NftOf<T>,
         pub nfts: Vec<(NftOf<T>, T::DecentralizedId, bool)>,
         pub externals: Vec<(NftOf<T>, Network, Vec<u8>, Vec<u8>, T::DecentralizedId)>,
+        pub validate_endpoints: Vec<(Network, Vec<u8>)>,
     }
 
     #[cfg(feature = "std")]
@@ -553,6 +572,7 @@ pub mod pallet {
                 next_instance_id: Default::default(),
                 nfts: Default::default(),
                 externals: Default::default(),
+                validate_endpoints: Default::default(),
             }
         }
     }
@@ -618,6 +638,11 @@ pub mod pallet {
                         owner,
                     },
                 );
+            }
+
+            for (network, endpoint) in &self.validate_endpoints {
+                let endpoint: BoundedVec<u8, ConstU32<128>> = endpoint.clone().try_into().unwrap();
+                <ValidateEndpoint<T>>::insert(network, endpoint);
             }
         }
     }

@@ -3,16 +3,18 @@ pub use abi::eth_abi;
 mod abi;
 mod types;
 
-use crate::{Call, Config, Error, Pallet, Porting};
+use crate::{Call, Config, Error, Pallet, Porting, ValidateEndpoint};
 use ethabi::ethereum_types::U256;
 use frame_support::dispatch::DispatchError;
 use frame_support::dispatch::DispatchResult;
 use frame_system::offchain::{SendTransactionTypes, SubmitTransaction};
+use log;
 use parami_ocw::JsonValue;
 use parami_ocw::{submit_unsigned, Pallet as Ocw};
 use parami_traits::Links;
 use scale_info::prelude::string::String;
 use sp_std::prelude::Vec;
+use sp_std::str;
 
 impl<T: Config + SendTransactionTypes<Call<T>>> Pallet<T> {
     pub fn ocw_begin_block(block_number: T::BlockNumber) -> DispatchResult {
@@ -20,6 +22,22 @@ impl<T: Config + SendTransactionTypes<Call<T>>> Pallet<T> {
 
         for network in [Ethereum] {
             let porting = <Porting<T>>::iter_prefix_values((network,));
+
+            let endpoint = <ValidateEndpoint<T>>::get(network);
+            if endpoint.is_none() {
+                log::error!("network {:?} endpoint not found, skip import", network);
+                continue;
+            }
+            let endpoint = endpoint.unwrap().into_inner();
+            let endpoint = str::from_utf8(&endpoint);
+            if endpoint.is_err() {
+                log::error!(
+                    "Convert endpoint to str failed, err = {:?}",
+                    endpoint.unwrap_err(),
+                );
+            }
+
+            let endpoint = endpoint.unwrap();
 
             for task in porting {
                 if task.deadline <= block_number {
@@ -40,7 +58,7 @@ impl<T: Config + SendTransactionTypes<Call<T>>> Pallet<T> {
                 let result = match task.task.network {
                     Ethereum => Self::ocw_validate_etherum_token_owner(
                         &links,
-                        "https://rinkeby.infura.io/v3/cffb10a5fde442cb80af59a65783c296",
+                        endpoint,
                         &task.task.namespace,
                         &task.task.token,
                     ),
