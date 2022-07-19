@@ -35,6 +35,7 @@ impl<T: Config + SendTransactionTypes<Call<T>>> Pallet<T> {
                     "Convert endpoint to str failed, err = {:?}",
                     endpoint.unwrap_err(),
                 );
+                continue;
             }
 
             let endpoint = endpoint.unwrap();
