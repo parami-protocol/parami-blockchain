@@ -337,6 +337,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
         next_instance_id: 1,
         nfts: vec![(0, DID_ALICE, true)],
         externals: Default::default(),
+        validate_endpoints: Default::default(),
     }
     .assimilate_storage(&mut t)
     .unwrap();
